@@ -10,7 +10,8 @@ TAMC_GT911::TAMC_GT911(uint8_t _sda, uint8_t _scl, uint8_t _int, uint8_t _rst, u
 
 void TAMC_GT911::begin(uint8_t _addr) {
   addr = _addr;
-  Wire.begin(pinSda, pinScl);
+  // Global touch objektum (I2C-t main.cpp --> setup() initial.)
+  //Wire.begin(pinSda, pinScl);
   reset();
 }
 void TAMC_GT911::reset() {
@@ -26,7 +27,6 @@ void TAMC_GT911::reset() {
   digitalWrite(pinInt, 0);
   delay(50);
   pinMode(pinInt, INPUT);
-  // attachInterrupt(pinInt, TAMC_GT911::onInterrupt, RISING);
   delay(50);
   readBlockData(configBuf, GT911_CONFIG_START, GT911_CONFIG_SIZE);
   setResolution(width, height);
@@ -39,10 +39,7 @@ void TAMC_GT911::calculateChecksum() {
   checksum = (~checksum) + 1;
   configBuf[GT911_CONFIG_CHKSUM - GT911_CONFIG_START] = checksum;
 }
-// void ARDUINO_ISR_ATTR TAMC_GT911::onInterrupt() {
-//   read();
-//   TAMC_GT911::onRead();
-// }
+
 void TAMC_GT911::reflashConfig() {
   calculateChecksum();
   writeByteData(GT911_CONFIG_CHKSUM, configBuf[GT911_CONFIG_CHKSUM-GT911_CONFIG_START]);
@@ -58,22 +55,14 @@ void TAMC_GT911::setResolution(uint16_t _width, uint16_t _height) {
   configBuf[GT911_Y_OUTPUT_MAX_HIGH - GT911_CONFIG_START] = highByte(_height);
   reflashConfig();
 }
-// void TAMC_GT911::setOnRead(void (*isr)()) {
-//   onRead = isr;
-// }
+
 void TAMC_GT911::read(void) {
-  // Serial.println("TAMC_GT911::read");
   uint8_t data[7];
 
   uint8_t pointInfo = readByteData(GT911_POINT_INFO);
   uint8_t bufferStatus = pointInfo >> 7 & 1;
   isLargeDetect = pointInfo >> 6 & 1;
   touches = pointInfo & 0xF;
-  // Serial.print("bufferStatus: ");Serial.println(bufferStatus);
-  // Serial.print("largeDetect: ");Serial.println(isLargeDetect);
-  // Serial.print("proximityValid: ");Serial.println(proximityValid);
-  // Serial.print("haveKey: ");Serial.println(haveKey);
-  // Serial.print("touches: ");Serial.println(touches);
   isTouched = touches > 0;
   if (bufferStatus == 1 && isTouched) {
     for (uint8_t i=0; i<touches; i++) {
@@ -134,7 +123,6 @@ void TAMC_GT911::writeBlockData(uint16_t reg, uint8_t *val, uint8_t size) {
   Wire.beginTransmission(addr);
   Wire.write(highByte(reg));
   Wire.write(lowByte(reg));
-  // Wire.write(val, size);
   for (uint8_t i=0; i<size; i++) {
     Wire.write(val[i]);
   }
