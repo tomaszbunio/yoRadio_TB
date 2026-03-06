@@ -14,6 +14,7 @@
 #include "controls.h"
 #include "commandhandler.h"
 #include "timekeeper.h"
+#include "../Scheduler/scheduler.h"
 #include "../displays/dspcore.h"
 #include "../displays/widgets/widgetsconfig.h"  //BitrateFormat
 
@@ -303,8 +304,9 @@ bool NetServer::begin(bool quiet) {
 
     request->send(200, "text/plain", "OK");
   });
-
+	
 #endif
+  scheduler.load();  //*******Scheduler ***************
   webserver.serveStatic("/", SPIFFS, "/www/");
   webserver.begin();
 
@@ -312,9 +314,6 @@ bool NetServer::begin(bool quiet) {
   //  MDNS.begin(config.store.mdnsname);
   websocket.onEvent(onWsEvent);
   webserver.addHandler(&websocket);
-  websocket.enable(true);            // mód
-//websocket.setPingInterval(5000);     // 5 mp-enként ping
-//websocket.setPongTimeout(3000);      // 3 mp-en belül válasz kell
 #ifdef USE_DLNA  //DLNA mod
   dlna_worker_start();
 #endif
@@ -436,7 +435,7 @@ void NetServer::processQueue() {
         if (network.status == CONNECTED) {
           //act += F("\"group_system\",");
           APPEND_GROUP("group_system");
-          if (BRIGHTNESS_PIN != 255 || DSP_CAN_FLIPPED || dbgact) {
+          if (BRIGHTNESS_PIN != 255 || DSP_CAN_FLIPPED || DSP_MODEL == DSP_NOKIA5110 || dbgact) {
             APPEND_GROUP("group_display");
           }
 #ifdef USE_NEXTION
@@ -460,6 +459,9 @@ void NetServer::processQueue() {
           }
           if (TS_MODEL != TS_MODEL_UNDEFINED || dbgact) {
             APPEND_GROUP("group_touch");
+          }
+          if (DSP_MODEL == DSP_NOKIA5110) {
+            APPEND_GROUP("group_nokia");
           }
           APPEND_GROUP("group_timezone");
           if (SHOW_WEATHER || dbgact) {
@@ -690,28 +692,7 @@ void NetServer::loop() {
       break;
     default: break;
   }
-  static uint32_t lastPing = 0;
-
-if (millis() - lastPing > 5000) {  // 5 mp
-    lastPing = millis();
-
-    if (websocket.count() > 0) {
-        websocket.textAll("{\"ping\":1}");
-    }
-}
-static uint32_t lastWsActivity = 0;
-
-// ha van kliens, frissítjük az aktivitást
-if (websocket.count() > 0) {
-    lastWsActivity = millis();
-}
-
-// ha 15 mp óta nincs aktivitás → zárjuk
-if (millis() - lastWsActivity > 15000 && websocket.count() > 0) {
-    Serial.println("[WS] Force reconnect");
-    websocket.closeAll();
-}
-
+  //processQueue();
 }
 
 #if IR_PIN != 255
@@ -768,6 +749,43 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
         }
         return;
       }
+	  
+	  // ── SCHEDULER ──────────────────────────────────
+if (strcmp(_wscmd, "sched_get") == 0) {
+  char buf[2048];
+  scheduler.buildJson(buf, sizeof(buf));
+  websocket.text(clientId, buf);
+  return;
+}
+if (strcmp(_wscmd, "sched_save") == 0) {
+  scheduler.addEvent(_wsval);
+  char buf[64];
+  Scheduler::buildOkJson(buf, sizeof(buf));
+  websocket.text(clientId, buf);
+  // odślij zaktualizowany harmonogram
+  char buf2[2048];
+  scheduler.buildJson(buf2, sizeof(buf2));
+  websocket.text(clientId, buf2);
+  return;
+}
+if (strcmp(_wscmd, "sched_del") == 0) {
+  scheduler.deleteEvent(_wsval);
+  char buf[64];
+  Scheduler::buildOkJson(buf, sizeof(buf));
+  websocket.text(clientId, buf);
+  char buf2[2048];
+  scheduler.buildJson(buf2, sizeof(buf2));
+  websocket.text(clientId, buf2);
+  return;
+}
+if (strcmp(_wscmd, "sched_enable") == 0) {
+  scheduler.setEnabled(atoi(_wsval) == 1);
+  char buf[64];
+  Scheduler::buildOkJson(buf, sizeof(buf));
+  websocket.text(clientId, buf);
+  return;
+}
+// ── EOF SCHEDULER ───────────────────────────────
 
 #ifdef USE_DLNA  //DLNA mod
       // ===== WEB playlist aktiválás =====
