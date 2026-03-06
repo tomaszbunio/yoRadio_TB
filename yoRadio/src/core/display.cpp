@@ -95,6 +95,7 @@ Display::~Display() {
     delete _title2;
     delete _plcurrent;
 }
+
 void Display::init() {
     Serial.print("##[BOOT]#\tdisplay.init\t");
     #ifdef USE_NEXTION
@@ -104,11 +105,14 @@ void Display::init() {
     analogSetAttenuation(ADC_0db);
     #endif
     _bootStep = 0;
-    // --- HARDVER INIT ---
     dsp.initDisplay();
-    // --- QUEUE ---
+    displayQueue = NULL;
     displayQueue = xQueueCreate(5, sizeof(requestParams_t));
-    while (displayQueue == NULL) { delay(1); }
+    while (displayQueue == NULL) { ; }
+    _createDspTask();
+    while (!_bootStep == 0) { delay(10); }
+    //_pager.begin();
+    //_bootScreen();
     _pager = new Pager();
     _footer = new Page();
     _plwidget = new PlayListWidget();
@@ -117,8 +121,6 @@ void Display::init() {
     _meta = new ScrollWidget();
     _title1 = new ScrollWidget();
     _plcurrent = new ScrollWidget();
-    _createDspTask();
-    while (_bootStep == 0) { delay(10); }
     Serial.println("done");
 }
 
@@ -145,7 +147,6 @@ uint16_t Display::height() {
     #endif
 
 void Display::_bootScreen() {
-    if (!_pager) return; // mód
     _boot = new Page();
     _boot->addWidget(new ProgressWidget(bootWdtConf, bootPrgConf, BOOT_PRG_COLOR, 0));
     _bootstring = (TextWidget*)&_boot->addWidget(new TextWidget(bootstrConf, 50, true, BOOT_TXT_COLOR, 0));
@@ -159,17 +160,29 @@ void Display::_buildPager() {
     _meta->init("*", metaConf, config.theme.meta, config.theme.metabg);
     _title1->init("*", title1Conf, config.theme.title1, config.theme.background);
     _clock->init(clockConf, 0, 0);
+    #if DSP_MODEL == DSP_NOKIA5110
+    _plcurrent->init("*", playlistConf, 0, 1);
+    #else
     _plcurrent->init("*", playlistConf, config.theme.plcurrent, config.theme.plcurrentbg);
+    #endif
     _plwidget->init(_plcurrent);
+    #if !defined(DSP_LCD)
     _plcurrent->moveTo({TFT_FRAMEWDT, (uint16_t)(_plwidget->currentTop()), (int16_t)playlistConf.width});
+    #endif
     #ifndef HIDE_TITLE2
     _title2 = new ScrollWidget("*", title2Conf, config.theme.title2, config.theme.background);
     #endif
-    _plbackground = new FillWidget(playlBGConf, config.theme.plcurrentfill);
-    #if DSP_INVERT_TITLE || defined(DSP_OLED)
+    #if !defined(DSP_LCD) && DSP_MODEL != DSP_NOKIA5110
+    _plbackground = new FillWidget(playlBGConf, config.theme.background);
+        #if DSP_INVERT_TITLE || defined(DSP_OLED)
     _metabackground = new FillWidget(metaBGConf, config.theme.metafill);
-    #else
+        #else
     _metabackground = new FillWidget(metaBGConfInv, config.theme.metafill);
+        #endif
+    #endif
+    #if DSP_MODEL == DSP_NOKIA5110
+    _plbackground = new FillWidget(playlBGConf, 1);
+        //_metabackground = new FillWidget(metaBGConf, 1);
     #endif
     #ifndef HIDE_VU // Módosítás config.theme.vumid új
     _vuwidget = new VuWidget(vuConf, bandsConf, config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background);
@@ -221,15 +234,21 @@ void Display::_buildPager() {
     pages[PG_PLAYER]->addWidget(_clock);
     pages[PG_SCREENSAVER]->addWidget(_clock);
     pages[PG_PLAYER]->addPage(_footer);
+
     if (_metabackground) { pages[PG_DIALOG]->addWidget(_metabackground); }
     pages[PG_DIALOG]->addWidget(_meta);
     pages[PG_DIALOG]->addWidget(_nums);
+
+    #if !defined(DSP_LCD) && DSP_MODEL != DSP_NOKIA5110
     pages[PG_DIALOG]->addPage(_footer);
+    #endif
+    #if !defined(DSP_LCD)
     if (_plbackground) {
         pages[PG_PLAYLIST]->addWidget(_plbackground);
         _plbackground->setHeight(_plwidget->itemHeight());
         _plbackground->moveTo({0, (uint16_t)(_plwidget->currentTop() - playlistConf.widget.textsize * 2), (int16_t)playlBGConf.width});
     }
+    #endif
     pages[PG_PLAYLIST]->addWidget(_plcurrent);
     pages[PG_PLAYLIST]->addWidget(_plwidget);
     for (const auto& p : pages) { _pager->addPage(p); }
@@ -237,12 +256,15 @@ void Display::_buildPager() {
 
 void Display::_apScreen() {
     if (_boot) { _pager->removePage(_boot); }
+    #ifndef DSP_LCD
     _boot = new Page();
-    #if DSP_INVERT_TITLE || defined(DSP_OLED)
+        #if DSP_MODEL != DSP_NOKIA5110
+            #if DSP_INVERT_TITLE || defined(DSP_OLED)
     _boot->addWidget(new FillWidget(metaBGConf, config.theme.metafill));
-    #else
+            #else
     _boot->addWidget(new FillWidget(metaBGConfInv, config.theme.metafill));
-    #endif
+            #endif
+        #endif
     ScrollWidget* bootTitle = (ScrollWidget*)&_boot->addWidget(new ScrollWidget("*", apTitleConf, config.theme.meta, config.theme.metabg));
     bootTitle->setText("yoRadio AP Mode");
     TextWidget* apname = (TextWidget*)&_boot->addWidget(new TextWidget(apNameConf, 30, false, config.theme.title1, config.theme.background));
@@ -257,6 +279,9 @@ void Display::_apScreen() {
     bootSett->setText(config.ipToStr(WiFi.softAPIP()), LANG::apSettFmt);
     _pager->addPage(_boot);
     _pager->setPage(_boot);
+    #else
+    dsp.apScreen();
+    #endif
 }
 
 void Display::_start() {
@@ -329,6 +354,9 @@ void Display::_swichMode(displayMode_e newmode) {
         } else {
             _clock->moveBack();
         }
+    #ifdef DSP_LCD
+        dsp.clearDsp();
+    #endif
         numOfNextStation = 0;
     #ifdef META_MOVE
         _meta->moveBack();
@@ -690,7 +718,11 @@ void Display::invert() {
     dsp.invert();
 }
 
-void Display::setContrast() {}
+void Display::setContrast() {
+    #if DSP_MODEL == DSP_NOKIA5110
+    dsp.setContrast(config.store.contrast);
+    #endif
+}
 
 bool Display::deepsleep() {
     #if defined(LCD_I2C) || defined(DSP_OLED) || BRIGHTNESS_PIN != 255

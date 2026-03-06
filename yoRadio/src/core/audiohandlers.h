@@ -177,12 +177,14 @@ void my_audio_info(Audio::msg_t m) {
     // ----- Állomásnév esemény -----
     case Audio::evt_name:
     {
+	#ifndef METADATA_STATION_NAME_OFF
       char metaBuf[BUFLEN];
       if (!metaOff && cleanMeta(msg, metaBuf, sizeof(metaBuf))) {
         config.setStation(metaBuf);
         display.putRequest(NEWSTATION);
         netserver.requestOnChange(STATION, 0);
       }
+	  #endif
     } break;
 
     // ----- ICY description (leírás) -----
@@ -242,6 +244,7 @@ void my_audio_info(Audio::msg_t m) {
 
   // icy-name: ... → sok rádió ilyen formában küldi a nevet
   if (!metaOff) {
+	  #ifndef METADATA_STATION_NAME_OFF
     const char *ici = strstr(msg, "icy-name: ");
     if (ici != nullptr) {
       char icyName[BUFLEN] = {0};
@@ -251,6 +254,7 @@ void my_audio_info(Audio::msg_t m) {
         audio_setTitleSafe(metaBuf);
       }
     }
+	#endif 
   }
 }
 
