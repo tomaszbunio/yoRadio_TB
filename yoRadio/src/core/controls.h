@@ -21,7 +21,7 @@ void encoder2Loop();
 void irLoop();
 void irNumber(uint8_t num);
 void irBlink();
-void controlsEvent(bool toRight, int8_t volDelta = 0);
+void controlsEvent(bool toRight, int8_t volDelta = 0, bool isFirst = true);
 
 void onBtnClick(int id);
 void onBtnDoubleClick(int id);

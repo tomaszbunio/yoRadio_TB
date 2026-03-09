@@ -183,7 +183,7 @@ void encodersLoop(yoEncoder *enc, bool first){
     }
 #   else
     if(first){
-      controlsEvent(encoderDelta > 0, encoderDelta);
+      controlsEvent(encoderDelta > 0, encoderDelta, true);
     }else{
       if (encBtnState == HIGH && display.mode() == PLAYER) {
         if(config.store.skipPlaylistUpDown){
@@ -193,7 +193,7 @@ void encodersLoop(yoEncoder *enc, bool first){
         display.putRequest(NEWMODE, STATIONS);
         while(display.mode() != STATIONS) {delay(10);}
       }
-      controlsEvent(encoderDelta > 0, encoderDelta);
+      controlsEvent(encoderDelta > 0, encoderDelta, false);
     }
 #   endif
   }
@@ -449,34 +449,39 @@ void onBtnDuringLongPress(int id) {
   }
 }
 
-void controlsEvent(bool toRight, int8_t volDelta) {
+void controlsEvent(bool toRight, int8_t volDelta, bool isFirst) {
   if (display.mode() == NUMBERS) {
     display.numOfNextStation = 0;
     display.putRequest(NEWMODE, PLAYER);
   }
-  if (display.mode() != STATIONS) {
-    #if !defined(DUMMYDISPLAY) || defined(USE_NEXTION)
-      display.putRequest(NEWMODE, VOL);          // Hangerő képernyőre vált.
-    #endif
-   if (volDelta != 0) {
+  if (isFirst) {
+    // lewy enkoder — tylko głośność
+    display.putRequest(NEWMODE, VOL);
+    if (volDelta != 0) {
       int nv = config.store.volume + volDelta * config.store.volsteps;
-      if (nv < 0)
-        nv = 0;
-      if (nv > 100)            // Módosítva. "vol_step"
-        nv = 100; 
+      if (nv < 0) nv = 0;
+      if (nv > 100) nv = 100;
       player.setVol((uint8_t)nv);
     } else {
       player.stepVol(toRight);
     }
-  }
-  if (display.mode() == STATIONS) {
-    display.resetQueue();
-    int p = toRight ? display.currentPlItem + 1 : display.currentPlItem - 1;
-    uint16_t cs = config.playlistLength();
-    if (p < 1) p = cs;
-    if (p > cs) p = 1;
-    display.currentPlItem = p;
-    display.putRequest(DRAWPLAYLIST, p);
+  } else {
+    // prawy enkoder — wyjście z VOL i zmiana stacji
+	display.putRequest(NEWMODE, STATIONS);
+    if (display.mode() == VOL) {
+      display.putRequest(NEWMODE, STATIONS);
+    }
+    if (display.mode() == STATIONS) {
+      display.resetQueue();
+      int p = toRight ? display.currentPlItem + 1 : display.currentPlItem - 1;
+      uint16_t cs = config.playlistLength();
+      if (p < 1) p = cs;
+      if (p > cs) p = 1;
+      display.currentPlItem = p;
+      display.putRequest(DRAWPLAYLIST, p);
+    } else {
+      if (toRight) player.next(); else player.prev();
+    }
   }
 }
 

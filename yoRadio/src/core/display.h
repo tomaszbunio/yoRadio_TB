@@ -77,6 +77,7 @@ class Display {
     void _bootScreen();
     void _layoutChange(bool played);
     void _setRSSI(int rssi);
+	void _applyTheme();
 };
 
 #else

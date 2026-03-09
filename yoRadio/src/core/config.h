@@ -41,7 +41,7 @@
     #define ESP_ARDUINO_3 1
 #endif
 
-#define CONFIG_VERSION 8
+#define CONFIG_VERSION 9
 
 enum playMode_e : uint8_t { // DLNA mod
     PM_WEB = 0,
@@ -172,6 +172,36 @@ struct config_t {
     uint8_t playlistSource;
     void    indexDLNAPlaylist();
     uint8_t lastPlayedSource;
+	
+	 // Selected clock font id (options.html)
+  uint8_t clockfont;
+
+  // Google clock TTS (options.html)
+  bool ttsgoogle;
+  uint16_t ttsclock;  // minutes
+
+  // Custom display theme (options.html)
+  bool thememode;
+  uint16_t tbg;
+  uint16_t tpr;
+  uint16_t tac;
+  uint16_t tt1;
+  uint16_t tt2;
+  uint16_t tw;
+  uint16_t tvmax;
+  uint16_t tvmid;
+  uint16_t tvmin;
+// Extra theme colors (options.html)
+uint16_t tdig;
+uint16_t tdiv;
+uint16_t tnameday;
+uint16_t tdate;
+uint16_t theap;
+uint16_t tbuffer;
+uint16_t tip;
+uint16_t tvol;
+uint16_t trssi;
+uint16_t tbitrate;
 
 };
 
@@ -247,6 +277,23 @@ class Config {
 #endif
     void    init();
     void    loadTheme();
+	
+  // Helpers for web UI (options.html color pickers)
+  // - htmlColorTo565("#RRGGBB") -> RGB565
+  // - rgb565ToHtml(0xFFFF) -> "#FFFFFF"
+  static uint16_t htmlColorTo565(const char *html);
+  static void rgb565ToHtml(uint16_t color, char out[8]);
+  
+  // UI apply scheduler (avoid heavy display work in AsyncWebSocket task)
+  enum UiApplyFlags : uint8_t {
+    UI_APPLY_NONE      = 0,
+    UI_APPLY_CLOCKFONT = 1 << 0,
+    UI_APPLY_THEME     = 1 << 1,
+  };
+  
+  void scheduleUiApply(uint8_t mask);
+  uint8_t consumeUiApply();
+  
     uint8_t setVolume(uint8_t val);
     void    saveVolume();
     void    setTone(int8_t bass, int8_t middle, int8_t trebble);
@@ -357,6 +404,24 @@ class Config {
         if (commit) { EEPROM.commit(); }
     }
 
+// ---------------------------------------------------------------------------
+  // EEPROM commit debounce
+  // ---------------------------------------------------------------------------
+  // Some web UI controls (e.g. color pickers) can generate many updates quickly.
+  // Committing EEPROM on every single update can block long enough to trip WDTs
+  // and/or cause visible reboots. For such controls we write EEPROM without
+  // committing, and schedule a single commit a moment later.
+  void scheduleEEPROMCommit(uint32_t delayMs = 800) {
+    _eepromCommitPending = true;
+    _eepromCommitDueMs = millis() + delayMs;
+  }
+  void loopEEPROMCommit() {
+    if (_eepromCommitPending && (int32_t)(millis() - _eepromCommitDueMs) >= 0) {
+      EEPROM.commit();
+      _eepromCommitPending = false;
+    }
+  }
+  
     uint32_t getChipId() {
         uint32_t chipId = 0;
         for (int i = 0; i < 17; i = i + 8) { chipId |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i; }
@@ -364,8 +429,11 @@ class Config {
     }
 
   private:
-    // template <class T> int eepromWrite(int ee, const T& value);  /* ----- Auto On-Off Timer --original in private class--- */
-    // template <class T> int eepromRead(int ee, T& value);  /* ----- Auto On-Off Timer --original in private class--- */
+  
+  volatile uint8_t _pendingUiApply = 0;
+  //template<class T> int eepromWrite(int ee, const T &value);
+  //template<class T> int eepromRead(int ee, T &value);
+  
     bool        _bootDone;
     bool        _rtcFound;
     FS*         _SDplaylistFS;
@@ -375,6 +443,10 @@ class Config {
     void        _setupVersion();
     void        _initHW();
     bool        _isFSempty();
+	
+	bool _eepromCommitPending = false;
+	uint32_t _eepromCommitDueMs = 0;
+	
     uint16_t    _randomStation() {
         randomSeed(esp_random() ^ millis());
         uint16_t station = random(1, store.countStation);

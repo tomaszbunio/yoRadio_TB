@@ -347,8 +347,18 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef RSSI_STEPS
   #define RSSI_STEPS       -50,-60,-70,-80
 #endif
+#ifndef CLOCKFONT_MONO
+  #define CLOCKFONT_MONO   true     // monospace clock font
+#endif
 #define VT_DIGI 1
 #define VT_DIGI_OLD 2
+// Additional runtime clock fonts (for TIME_SIZE=70 displays)
+#define ARIMO_72 3
+#define LARADOTSERIF_50 4
+#define OFFICE_52 5
+#define OLDTIMER_41 6
+#define SQUAREFONT_48 7
+#define POINTEDLYMAD_51 8
 #ifndef CLOCKFONT
   #define CLOCKFONT    VT_DIGI     
 #endif

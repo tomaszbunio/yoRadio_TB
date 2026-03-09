@@ -7,6 +7,7 @@
 #include "config.h"
 #include "controls.h"
 #include "telnet.h"
+#include "../clock_tts/clock_tts.h"
 #include "../displays/dspcore.h"
 #include "../plugins/backlight/backlight.h"
 
@@ -17,7 +18,7 @@
 CommandHandler cmd;
 
 bool CommandHandler::exec(const char* command, const char* value, uint8_t cid) {
-     Serial.printf("commandhandler.cpp--> command: %s, value: %s, cId: %d \n", command, value, cid);
+    // Serial.printf("commandhandler.cpp--> command: %s, value: %s, cId: %d \n", command, value, cid);
     if (strEquals(command, "start")) {
         // Serial.printf("commandhandler.cpp--> START \n");
         player.sendCommand({PR_PLAY, config.lastStation()});
@@ -102,6 +103,189 @@ bool CommandHandler::exec(const char* command, const char* value, uint8_t cid) {
     /*********************************************/
     /****************** WEBSOCKET ****************/
     /*********************************************/
+	 // --- Google clock TTS (options.html) ---
+  if (strEquals(command, "ttsgoogle")) {
+    bool en = static_cast<bool>(atoi(value));
+    config.saveValue(&config.store.ttsgoogle, en);
+    clock_tts_enable(en);
+    return true;
+  }
+  if (strEquals(command, "ttsclock")) {
+    uint16_t mins = static_cast<uint16_t>(atoi(value));
+    if (mins < 1) mins = 1;
+    config.saveValue(&config.store.ttsclock, mins);
+    clock_tts_set_interval((int)mins);
+    return true;
+  }
+
+  // --- Clock font (options.html) ---
+  if (strEquals(command, "clockfont")) {
+    uint8_t id = static_cast<uint8_t>(atoi(value));
+    // Save only (no heavy display operations in AsyncWebSocket task)
+    config.saveValue(&config.store.clockfont, id, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_CLOCKFONT);
+    return true;
+  }
+
+  // --- Custom display theme (options.html) ---
+  if (strEquals(command, "thememode")) {
+    config.saveValue(&config.store.thememode, static_cast<bool>(atoi(value)), false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+  if (strEquals(command, "tbg")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.tbg, col, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+  if (strEquals(command, "tpr")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.tpr, col, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+  if (strEquals(command, "tac")) {
+    uint16_t col = Config::htmlColorTo565(value);
+	Serial.printf("tac: value=%s col=0x%04X\n", value, col);
+    config.saveValue(&config.store.tac, col, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+  if (strEquals(command, "tt1")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.tt1, col, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+  if (strEquals(command, "tt2")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.tt2, col, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+  if (strEquals(command, "tw")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.tw, col, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+  if (strEquals(command, "tvmax")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.tvmax, col, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+  if (strEquals(command, "tvmid")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.tvmid, col, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+  if (strEquals(command, "tvmin")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.tvmin, col, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_THEME);
+    return true;
+  }
+// Extra theme colors (options.html)
+if (strEquals(command, "tdig")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tdig, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tdiv")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tdiv, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tnameday")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tnameday, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tdate")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tdate, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "theap")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.theap, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tbuffer")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tbuffer, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tip")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tip, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tvol")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tvol, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "trssi")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.trssi, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tbitrate")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tbitrate, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+
+	
+	if (strEquals(command, "ttsgoogle")) {
+    bool en = static_cast<bool>(atoi(value));
+    config.saveValue(&config.store.ttsgoogle, en);
+    clock_tts_enable(en);
+    return true;
+  }
+  if (strEquals(command, "ttsclock")) {
+    uint16_t mins = static_cast<uint16_t>(atoi(value));
+    if (mins < 1) mins = 1;
+    config.saveValue(&config.store.ttsclock, mins);
+    clock_tts_set_interval((int)mins);
+    return true;
+  }
+	
     if (strEquals(command, "getindex")) {
         netserver.requestOnChange(GETINDEX, cid);
         return true;

@@ -418,6 +418,81 @@ void Display::resetQueue() {
     if (displayQueue != NULL) { xQueueReset(displayQueue); }
 }
 
+void Display::_applyTheme() {
+  // Update widget colors without rebuilding pages (keeps current texts like weather)
+  if (!_pager) return;
+
+  // Important: ClockWidget may use an internal PS frame buffer (PSFBUFFER)
+  // initialized with the background color. When theme background changes at
+  // runtime, the buffer must be reset, otherwise parts of the clock area can
+  // keep the previous background until a full reboot.
+  if (_clock) {
+    // Update clock widget colors first so _reset() uses the new background.
+    _clock->setColors(config.theme.clock, config.theme.background, false);
+    bool wasLocked = _clock->locked();
+    if (wasLocked) _clock->unlock();
+    // lock(true) calls ClockWidget::_reset(), which recreates the buffer using
+    // current config.theme.background.
+    _clock->lock(true);
+    _clock->unlock();
+    if (wasLocked) _clock->lock(true);
+  }
+
+  // Recolor widgets.
+  // Use redraw=true for background/filled widgets so old colors don't linger
+  // (without needing a full reboot).
+  if (_meta)    _meta->setColors(config.theme.meta, config.theme.metabg, true);
+  if (_title1)  _title1->setColors(config.theme.title1, config.theme.background, true);
+  #ifndef HIDE_TITLE2
+  if (_title2)  _title2->setColors(config.theme.title2, config.theme.background, true);
+  #endif
+  #ifndef HIDE_WEATHER
+  if (_weather) _weather->setColors(config.theme.weather, config.theme.background, true);
+  #endif
+
+  if (_metabackground) _metabackground->setColors(0, config.theme.metafill, true);
+  if (_plbackground)   _plbackground->setColors(0, config.theme.plcurrentfill, true);
+  if (_plcurrent)      _plcurrent->setColors(config.theme.plcurrent, config.theme.plcurrentbg, true);
+
+  #ifndef HIDE_VU
+  if (_vuwidget) _vuwidget->setVuColors(config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background, true);
+  #endif
+  #ifndef HIDE_VOLBAR
+  if (_volbar)  _volbar->setColors(config.theme.volbarin, config.theme.background, true);
+  #endif
+  #ifndef HIDE_HEAPBAR
+  if (_heapbar) _heapbar->setColors(config.theme.buffer, config.theme.background, true);
+  #endif
+  #ifndef HIDE_VOL
+  if (_voltxt) _voltxt->setColors(config.theme.vol, config.theme.background, true);
+  #endif
+  #ifndef HIDE_IP
+  if (_volip)  _volip->setColors(config.theme.ip, config.theme.background, true);
+  #endif
+  #ifndef HIDE_RSSI
+  if (_rssi)   _rssi->setColors(config.theme.rssi, config.theme.background, true);
+  #endif
+  if (_nums)   _nums->setColors(config.theme.digit, config.theme.background, true);
+  if (_bitrate) _bitrate->setColors(config.theme.bitrate, config.theme.background, true);
+  if (_fullbitrate) _fullbitrate->setColors(config.theme.bitrate, config.theme.background, true);
+
+  // Redraw current page using the new theme background
+  Page *pg = pages[PG_DIALOG];
+  if (_mode == PLAYER) pg = pages[PG_PLAYER];
+  else if (_mode == STATIONS) pg = pages[PG_PLAYLIST];
+  else if (_mode == PRESETS) pg = pages[PG_PRESETS];
+  else if (_mode == SCREENSAVER || _mode == SCREENBLANK) pg = pages[PG_SCREENSAVER];
+
+  _pager->setPage(pg, false);
+
+  // Force clock redraw (it uses config.theme directly)
+  if (_clock && (pg == pages[PG_PLAYER] || pg == pages[PG_SCREENSAVER])) {
+    _clock->draw(true);
+  }
+  Serial.printf("_applyTheme: _meta=%p _title1=%p _clock=%p _weather=%p\n", _meta, _title1, _clock, _weather);
+}
+
+
 void Display::_drawPlaylist() {
     // dsp.drawPlaylist(currentPlItem);
     _plwidget->drawPlaylist(currentPlItem);
@@ -586,6 +661,7 @@ void Display::loop() {
     #endif
                     break;
                 }
+				case APPLY_THEME: _applyTheme(); break;
                 default:
                     break;
 

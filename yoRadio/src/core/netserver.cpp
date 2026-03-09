@@ -511,17 +511,49 @@ void NetServer::processQueue() {
         break;
       }
 
-      case GETSYSTEM:
-        sprintf(
-          wsBuf,
-          "{\"sst\":%d,\"aif\":%d,\"vu\":%d,\"softr\":%d,\"vut\":%d,\"mdns\":\"%s\",\"ipaddr\":\"%s\", \"abuff\": %d, \"telnet\": %d, \"watchdog\": %d, "
-          "\"nameday\": %d }",  // "nameday"
-          config.store.smartstart != 2, config.store.audioinfo, config.store.vumeter, config.store.softapdelay, config.vuRefLevel, config.store.mdnsname,
-          config.ipToStr(WiFi.localIP()), config.store.abuff, config.store.telnet, config.store.watchdog, config.store.nameday
-        );
-        Serial.printf("netserver-> config.store.nameday %d \n", config.store.nameday);
-        break;
-      case GETSCREEN:
+  case GETSYSTEM:
+  {
+    char tbg[8], tpr[8], tac[8], tt1[8], tt2[8], tw[8], tvmax[8], tvmid[8], tvmin[8], tdig[8], tdiv[8], tnameday[8], tdate[8], theap[8], tbuffer[8], tip[8], tvol[8], trssi[8], tbitrate[8];
+    Config::rgb565ToHtml(config.store.tbg, tbg);
+    Config::rgb565ToHtml(config.store.tpr, tpr);
+    Config::rgb565ToHtml(config.store.tac, tac);
+    Config::rgb565ToHtml(config.store.tt1, tt1);
+    Config::rgb565ToHtml(config.store.tt2, tt2);
+    Config::rgb565ToHtml(config.store.tw,  tw);
+    Config::rgb565ToHtml(config.store.tvmax, tvmax);
+    Config::rgb565ToHtml(config.store.tvmid, tvmid);
+    Config::rgb565ToHtml(config.store.tvmin, tvmin);
+    Config::rgb565ToHtml(config.store.tdig, tdig);
+    Config::rgb565ToHtml(config.store.tdiv, tdiv);
+    Config::rgb565ToHtml(config.store.tnameday, tnameday);
+    Config::rgb565ToHtml(config.store.tdate, tdate);
+    Config::rgb565ToHtml(config.store.theap, theap);
+    Config::rgb565ToHtml(config.store.tbuffer, tbuffer);
+    Config::rgb565ToHtml(config.store.tip, tip);
+    Config::rgb565ToHtml(config.store.tvol, tvol);
+    Config::rgb565ToHtml(config.store.trssi, trssi);
+    Config::rgb565ToHtml(config.store.tbitrate, tbitrate);
+    snprintf(
+      wsBuf, sizeof(wsBuf),
+      "{\"sst\":%d,\"aif\":%d,\"vu\":%d,\"softr\":%d,\"vut\":%d,\"mdns\":\"%s\",\"ipaddr\":\"%s\","
+      "\"abuff\":%d,\"telnet\":%d,\"watchdog\":%d,\"nameday\":%d,"
+      "\"ttsgoogle\":%d,\"ttsclock\":%d,\"clockfont\":%d,\"thememode\":%d,"
+      "\"tbg\":\"%s\",\"tpr\":\"%s\",\"tac\":\"%s\",\"tt1\":\"%s\",\"tt2\":\"%s\",\"tw\":\"%s\","
+      "\"tvmax\":\"%s\",\"tvmid\":\"%s\",\"tvmin\":\"%s\","
+      "\"tdig\":\"%s\",\"tdiv\":\"%s\",\"tnameday\":\"%s\",\"tdate\":\"%s\","
+      "\"theap\":\"%s\",\"tbuffer\":\"%s\",\"tip\":\"%s\",\"tvol\":\"%s\","
+      "\"trssi\":\"%s\",\"tbitrate\":\"%s\"}",
+      config.store.smartstart != 2, config.store.audioinfo, config.store.vumeter, config.store.softapdelay, config.vuRefLevel,
+      config.store.mdnsname, config.ipToStr(WiFi.localIP()),
+      config.store.abuff, config.store.telnet, config.store.watchdog, config.store.nameday,
+      (int)config.store.ttsgoogle, (int)config.store.ttsclock, (int)config.store.clockfont, (int)config.store.thememode,
+      tbg, tpr, tac, tt1, tt2, tw, tvmax, tvmid, tvmin,
+      tdig, tdiv, tnameday, tdate, theap, tbuffer, tip, tvol, trssi, tbitrate
+    );
+    Serial.printf("netserver-> config.store.nameday %d \n", config.store.nameday);
+  }
+  break;
+  case GETSCREEN:
   sprintf(
     wsBuf,
     "{\"flip\":%d,\"inv\":%d,\"nump\":%d,\"tsf\":%d,\"tsd\":%d,\"dspon\":%d,"
