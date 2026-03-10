@@ -5,8 +5,8 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
 ---
 ## Moje zmiany: v8.6_TB
-- Obsługa dwóch ringów WS2812B
-- ...
+- Obsługa diod adresowanych WS2812B
+- timer ON/OFF sterowany przez www
 
 ---
 ## Oryginalna dokumentacja:
