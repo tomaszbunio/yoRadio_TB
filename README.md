@@ -6,8 +6,8 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 ---
 ## Moje zmiany: v8.6_TB
 - Obsługa diod adresowanych WS2812B
-- timer ON/OFF sterowany przez www
-
+- Timer ON/OFF sterowany przez www
+- Wybór czcionki zegara przez www
 ---
 ## Oryginalna dokumentacja:
 https://github.com/VaraiTamas/yoRadio
