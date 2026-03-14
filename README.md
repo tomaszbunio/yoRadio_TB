@@ -5,9 +5,14 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
 ---
 ## Moje zmiany: v8.6_TB
+- Podświetlenie stacji na playliście
 - Obsługa diod adresowanych WS2812B
 - Timer ON/OFF sterowany przez www
 - Wybór czcionki zegara przez www
----
+- Zmiana kolorów (themes) przez www
+- Scheduler ON/OFF przez www
+- Odczyt nazwy stacji z playlisty
+- Sleep z dwukliku
+- Flip Clock
 ## Oryginalna dokumentacja:
 https://github.com/VaraiTamas/yoRadio
