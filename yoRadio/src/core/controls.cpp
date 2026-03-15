@@ -164,6 +164,42 @@ void loopControls() {
 #endif
 }
 #if ENC_BTNL!=255 || ENC2_BTNL!=255
+void encodersLoop(yoEncoder *enc, bool first){
+  if (network.status != CONNECTED && network.status!=SDREADY) return;
+  if(display.mode()==LOST) return;
+  int8_t encoderDelta = enc->encoderChanged();
+  if (encoderDelta!=0)
+  {
+    uint8_t encBtnState = digitalRead(first?ENC_BTNB:ENC2_BTNB);
+#   if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
+    first = first?(first && encBtnState):(!encBtnState);
+    if(first){
+      int nv = config.store.volume+encoderDelta;
+      if(nv<0) nv=0;
+      if(nv>254) nv=254;
+      player.setVol((uint8_t)nv);  
+    }else{
+      if(encoderDelta > 0) player.next(); else player.prev();
+    }
+#   else
+    if(first){
+      controlsEvent(encoderDelta > 0, encoderDelta);
+    }else{
+      if (encBtnState == HIGH && display.mode() == PLAYER) {
+        if(config.store.skipPlaylistUpDown){
+          if(encoderDelta > 0) player.next(); else player.prev();
+          return;
+        }
+        display.putRequest(NEWMODE, STATIONS);
+        while(display.mode() != STATIONS) {delay(10);}
+      }
+      controlsEvent(encoderDelta > 0, encoderDelta);
+    }
+#   endif
+  }
+}
+#endif
+
 /*
 void encodersLoop(yoEncoder* enc, bool first) {
     if (network.status != CONNECTED && network.status != SDREADY) { return; }
@@ -247,67 +283,7 @@ void encodersLoop(yoEncoder* enc, bool first) {
 #endif
 */
 
-void encodersLoop(yoEncoder *enc, bool first) {
-  if (network.status != CONNECTED && network.status != SDREADY) return;
-  if (display.mode() == LOST) return;
 
-  int8_t encoderDelta = enc->encoderChanged();
-  if (encoderDelta == 0) return;
-
-  uint8_t encBtnState = digitalRead(first ? ENC_BTNB : ENC2_BTNB);
-
-#if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
-
-  if (first) {
-    // LEWY – zawsze głośność
-    int nv = config.store.volume + encoderDelta;
-    if (nv < 0)   nv = 0;
-    if (nv > 254) nv = 254;
-    player.setVol((uint8_t)nv);
-    #ifdef NEOPIXEL_ON
-      ledVolumeChange((uint8_t)nv, encoderDelta > 0);
-    #endif
-  } else {
-    // PRAWY – zawsze stacje
-    if (encoderDelta > 0) player.next(); else player.prev();
-  }
-
-#else
-
-  if (first) {
-    // ── LEWY ENKODER – głośność ──────────────────────────────
-    if (display.mode() == STATIONS) {
-      // Jesteśmy w trybie STATIONS – wyjdź natychmiast do PLAYER
-      display.putRequest(NEWMODE, VOL);
-      while (display.mode() != VOL) { delay(10); }
-    }
-    // Ustaw głośność
-    controlsEvent(encoderDelta > 0, encoderDelta, true);
-    #ifdef NEOPIXEL_ON
-      //ledVolumeChange(config.store.volume, encoderDelta > 0);
-    #endif
-
-  } else {
-    // ── PRAWY ENKODER – stacje ───────────────────────────────
-    if (display.mode() != STATIONS) {
-      // Jesteśmy w trybie PLAYER/SCREENSAVER – przejdź do STATIONS
-      display.putRequest(NEWMODE, STATIONS);
-      while (display.mode() != STATIONS) { delay(10); }
-    }
-
-    if (display.mode() == STATIONS) {
-      if (config.store.skipPlaylistUpDown) {
-        // Bezpośrednia zmiana stacji bez listy
-        if (encoderDelta > 0) player.next(); else player.prev();
-        return;
-      }
-      controlsEvent(encoderDelta > 0, encoderDelta, false);
-    }
-  }
-
-#endif
-}
-#endif
 
 #if ENC_BTNL!=255
 void encoder1Loop() {
@@ -558,14 +534,18 @@ void onBtnDuringLongPress(int id) {
   }
 }
 
-void controlsEvent(bool toRight, int8_t volDelta, bool isFirst) {
+void controlsEvent(bool toRight, int8_t volDelta) {
   if (display.mode() == NUMBERS) {
     display.numOfNextStation = 0;
     display.putRequest(NEWMODE, PLAYER);
   }
-  if (isFirst) {
-    // lewy enkoder — tylko głośność
-    display.putRequest(NEWMODE, VOL);
+  if (display.mode() != STATIONS) {
+    #if !defined(DUMMYDISPLAY) || defined(USE_NEXTION)
+      // Upewnij się, że VOL jest pokazywany przy zmianie głośności
+      if (display.mode() != VOL) {
+        display.putRequest(NEWMODE, VOL);
+      }
+    #endif
     if (volDelta != 0) {
       int nv = config.store.volume + volDelta * config.store.volsteps;
       if (nv < 0) nv = 0;
@@ -574,23 +554,15 @@ void controlsEvent(bool toRight, int8_t volDelta, bool isFirst) {
     } else {
       player.stepVol(toRight);
     }
-  } else {
-    // prawy enkoder — wyjście z VOL i zmiana stacji
-	display.putRequest(NEWMODE, STATIONS);
-    if (display.mode() == VOL) {
-      display.putRequest(NEWMODE, STATIONS);
-    }
-    if (display.mode() == STATIONS) {
-      display.resetQueue();
-      int p = toRight ? display.currentPlItem + 1 : display.currentPlItem - 1;
-      uint16_t cs = config.playlistLength();
-      if (p < 1) p = cs;
-      if (p > cs) p = 1;
-      display.currentPlItem = p;
-      display.putRequest(DRAWPLAYLIST, p);
-    } else {
-      if (toRight) player.next(); else player.prev();
-    }
+  }
+  if (display.mode() == STATIONS) {
+    display.resetQueue();
+    int p = toRight ? display.currentPlItem + 1 : display.currentPlItem - 1;
+    uint16_t cs = config.playlistLength();
+    if (p < 1) p = cs;
+    if (p > cs) p = 1;
+    display.currentPlItem = p;
+    display.putRequest(DRAWPLAYLIST, p);
   }
 }
 
