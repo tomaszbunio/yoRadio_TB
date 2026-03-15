@@ -185,8 +185,8 @@ void Config::_setupVersion() {
             saveValue(&store.weatherSyncInterval, (uint16_t)30); // min
             break;
 		case 5:
-      // Added web options: BT on/off state, clock font, google TTS, custom theme
-      saveValue(&store.clockfont, (uint8_t)CLOCKFONT);
+      // Added web options: google TTS, custom theme
+      
       saveValue(&store.ttsgoogle, false);
       saveValue(&store.ttsclock, (uint16_t)CLOCK_TTS_INTERVAL_MINUTES);
       saveValue(&store.thememode, false);
@@ -203,7 +203,7 @@ void Config::_setupVersion() {
     case 6:
       // v7: EEPROM size increased. On devices that previously used too-small
       // EEPROM_SIZE, the tail of config_t could be uninitialized (0xFFFF).
-      // Initialize missing custom theme fields to sane defaults.
+      // Initialize missing custom theme fields to same defaults.
       if (store.tbg == 0xFFFF)   saveValue(&store.tbg,   color565(COLOR_BACKGROUND));
       if (store.tpr == 0xFFFF)   saveValue(&store.tpr,   color565(COLOR_STATION_NAME));
       if (store.tac == 0xFFFF)   saveValue(&store.tac,   color565(COLOR_STATION_BG));
@@ -234,30 +234,34 @@ void Config::_setupVersion() {
             saveValue(&config.store.fadeStep, (uint8_t)FADE_STEP);
             break;
 	case 9:
-            saveValue(&store.clockfont, (uint8_t)CLOCKFONT);
-            saveValue(&store.ttsgoogle, false);
-            saveValue(&store.ttsclock, (uint16_t)CLOCK_TTS_INTERVAL_MINUTES);
-            saveValue(&store.thememode, false);
-            saveValue(&store.tbg,     color565(COLOR_BACKGROUND));
-            saveValue(&store.tpr,     color565(COLOR_STATION_NAME));
-            saveValue(&store.tac,     color565(COLOR_CLOCK));
-            saveValue(&store.tt1,     color565(COLOR_SNG_TITLE_1));
-            saveValue(&store.tt2,     color565(COLOR_SNG_TITLE_2));
-            saveValue(&store.tw,      color565(COLOR_WEATHER));
-            saveValue(&store.tvmax,   color565(COLOR_VU_MAX));
-            saveValue(&store.tvmid,   color565(COLOR_VU_MID));
-            saveValue(&store.tvmin,   color565(COLOR_VU_MIN));
-            saveValue(&store.tdig,    color565(COLOR_DIGITS));
-            saveValue(&store.tdiv,    color565(COLOR_DIVIDER));
-            saveValue(&store.tnameday,color565(COLOR_NAMEDAY));
-            saveValue(&store.tdate,   color565(COLOR_DATE));
-            saveValue(&store.theap,   color565(COLOR_HEAP));
-            saveValue(&store.tbuffer, color565(COLOR_BUFFER));
-            saveValue(&store.tip,     color565(COLOR_IP));
-            saveValue(&store.tvol,    color565(COLOR_VOLUME_VALUE));
-            saveValue(&store.trssi,   color565(COLOR_RSSI));
-            saveValue(&store.tbitrate,color565(COLOR_BITRATE));
-            break;
+            if (store.clockfont < VT_DIGI || store.clockfont > POINTEDLYMAD_51) {
+    saveValue(&store.clockfont, (uint8_t)CLOCKFONT);
+  }
+  
+    // kolory – tylko gdy niezainicjalizowane (0xFFFF = surowy EEPROM)
+  if (store.ttsgoogle   == 0xFF)   saveValue(&store.ttsgoogle,   false);
+  if (store.ttsclock    == 0xFFFF) saveValue(&store.ttsclock,    (uint16_t)CLOCK_TTS_INTERVAL_MINUTES);
+  if (store.thememode   == 0xFF)   saveValue(&store.thememode,   false);
+  if (store.tbg         == 0xFFFF) saveValue(&store.tbg,         color565(COLOR_BACKGROUND));
+  if (store.tpr         == 0xFFFF) saveValue(&store.tpr,         color565(COLOR_STATION_NAME));
+  if (store.tac         == 0xFFFF) saveValue(&store.tac,         color565(COLOR_CLOCK));
+  if (store.tt1         == 0xFFFF) saveValue(&store.tt1,         color565(COLOR_SNG_TITLE_1));
+  if (store.tt2         == 0xFFFF) saveValue(&store.tt2,         color565(COLOR_SNG_TITLE_2));
+  if (store.tw          == 0xFFFF) saveValue(&store.tw,          color565(COLOR_WEATHER));
+  if (store.tvmax       == 0xFFFF) saveValue(&store.tvmax,       color565(COLOR_VU_MAX));
+  if (store.tvmid       == 0xFFFF) saveValue(&store.tvmid,       color565(COLOR_VU_MID));
+  if (store.tvmin       == 0xFFFF) saveValue(&store.tvmin,       color565(COLOR_VU_MIN));
+  if (store.tdig        == 0xFFFF) saveValue(&store.tdig,        color565(COLOR_DIGITS));
+  if (store.tdiv        == 0xFFFF) saveValue(&store.tdiv,        color565(COLOR_DIVIDER));
+  if (store.tnameday    == 0xFFFF) saveValue(&store.tnameday,    color565(COLOR_NAMEDAY));
+  if (store.tdate       == 0xFFFF) saveValue(&store.tdate,       color565(COLOR_DATE));
+  if (store.theap       == 0xFFFF) saveValue(&store.theap,       color565(COLOR_HEAP));
+  if (store.tbuffer     == 0xFFFF) saveValue(&store.tbuffer,     color565(COLOR_BUFFER));
+  if (store.tip         == 0xFFFF) saveValue(&store.tip,         color565(COLOR_IP));
+  if (store.tvol        == 0xFFFF) saveValue(&store.tvol,        color565(COLOR_VOLUME_VALUE));
+  if (store.trssi       == 0xFFFF) saveValue(&store.trssi,       color565(COLOR_RSSI));
+  if (store.tbitrate    == 0xFFFF) saveValue(&store.tbitrate,    color565(COLOR_BITRATE));
+  break;
         default: break;
     }
     currentVersion++;
@@ -808,7 +812,7 @@ void Config::setDefaults() {
     store.timezoneOffset = 0;
     store.vumeter = true;
     store.softapdelay = 0;
-    store.flipscreen = false;
+    store.flipscreen = true;
     store.invertdisplay = false;
     store.numplaylist = false;
     store.fliptouch = false;

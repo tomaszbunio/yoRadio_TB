@@ -164,39 +164,148 @@ void loopControls() {
 #endif
 }
 #if ENC_BTNL!=255 || ENC2_BTNL!=255
-void encodersLoop(yoEncoder *enc, bool first){
-  if (network.status != CONNECTED && network.status!=SDREADY) return;
-  if(display.mode()==LOST) return;
-  int8_t encoderDelta = enc->encoderChanged();
-  if (encoderDelta!=0)
-  {
-    uint8_t encBtnState = digitalRead(first?ENC_BTNB:ENC2_BTNB);
-#   if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
-    first = first?(first && encBtnState):(!encBtnState);
-    if(first){
-      int nv = config.store.volume+encoderDelta;
-      if(nv<0) nv=0;
-      if(nv>254) nv=254;
-      player.setVol((uint8_t)nv);  
-    }else{
-      if(encoderDelta > 0) player.next(); else player.prev();
-    }
-#   else
-    if(first){
-      controlsEvent(encoderDelta > 0, encoderDelta, true);
-    }else{
-      if (encBtnState == HIGH && display.mode() == PLAYER) {
-        if(config.store.skipPlaylistUpDown){
-          if(encoderDelta > 0) player.next(); else player.prev();
-          return;
+/*
+void encodersLoop(yoEncoder* enc, bool first) {
+    if (network.status != CONNECTED && network.status != SDREADY) { return; }
+    if (display.mode() == LOST) { return; }
+    int8_t delta = enc->encoderChanged();
+    if (delta == 0) { return; }
+#    if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
+    // ===== Dummy display =====
+    uint8_t btnState = digitalRead(first ? ENC_BTNB : ENC2_BTNB);
+    bool    volumeMode = first ? btnState : !btnState;
+    if (volumeMode) {
+        int nv = config.store.volume + delta;
+        if (nv < 0) { nv = 0; }
+        if (nv > 254) { nv = 254; }
+        player.setVol((uint8_t)nv);
+    } else {
+        if (delta > 0) {
+            player.next();
+        } else {
+            player.prev();
         }
-        display.putRequest(NEWMODE, STATIONS);
-        while(display.mode() != STATIONS) {delay(10);}
+    }
+#    else
+#        if defined(ENCODERS_INDEPENDENT)
+    // ==========================================================
+    //                TWO INDEPENDENT ENCODERS
+    // ==========================================================
+    if (first) {
+        // ----- Encoder 1 → Volume -----
+        if (display.mode() != VOL) { display.putRequest(NEWMODE, VOL); }
+        int nv = config.store.volume + delta * config.store.volsteps;
+        if (nv < 0) { nv = 0; }
+        if (nv > 100) { nv = 100; }
+        player.setVol((uint8_t)nv);
+        config.screensaverTicks = 0;
+    } else {
+        // ----- Encoder 2 → Stations -----
+        // If not already in STATIONS → switch and exit (no blocking!)
+        if (display.mode() != STATIONS) {
+            display.putRequest(NEWMODE, STATIONS);
+            return;
+        }
+        // Ignore acceleration — use direction only
+        int      step = (delta > 0) ? 1 : -1;
+        int      p = display.currentPlItem - step;
+        uint16_t cs = config.playlistLength();
+        if (p < 1)
+            p = cs;
+        else if (p > cs)
+            p = 1;
+        display.currentPlItem = p;
+        display.resetQueue();
+        display.putRequest(DRAWPLAYLIST, p);
+        config.screensaverTicks = 0;
+    }
+#        else
+    // ==========================================================
+    //                  ORIGINAL STANDARD LOGIC
+    // ==========================================================
+    if (first) {
+        controlsEvent(delta > 0, delta);
+    } else {
+        uint8_t btnState = digitalRead(first ? ENC_BTNB : ENC2_BTNB);
+        if (btnState == HIGH && display.mode() == PLAYER) {
+            if (config.store.skipPlaylistUpDown) {
+                if (delta > 0) {
+                    player.next();
+                } else {
+                    player.prev();
+                }
+                return;
+            }
+            display.putRequest(NEWMODE, STATIONS);
+            return; // removed blocking wait
+        }
+        controlsEvent(delta > 0, delta);
+    }
+#        endif
+#    endif
+}
+#endif
+*/
+
+void encodersLoop(yoEncoder *enc, bool first) {
+  if (network.status != CONNECTED && network.status != SDREADY) return;
+  if (display.mode() == LOST) return;
+
+  int8_t encoderDelta = enc->encoderChanged();
+  if (encoderDelta == 0) return;
+
+  uint8_t encBtnState = digitalRead(first ? ENC_BTNB : ENC2_BTNB);
+
+#if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
+
+  if (first) {
+    // LEWY – zawsze głośność
+    int nv = config.store.volume + encoderDelta;
+    if (nv < 0)   nv = 0;
+    if (nv > 254) nv = 254;
+    player.setVol((uint8_t)nv);
+    #ifdef NEOPIXEL_ON
+      ledVolumeChange((uint8_t)nv, encoderDelta > 0);
+    #endif
+  } else {
+    // PRAWY – zawsze stacje
+    if (encoderDelta > 0) player.next(); else player.prev();
+  }
+
+#else
+
+  if (first) {
+    // ── LEWY ENKODER – głośność ──────────────────────────────
+    if (display.mode() == STATIONS) {
+      // Jesteśmy w trybie STATIONS – wyjdź natychmiast do PLAYER
+      display.putRequest(NEWMODE, VOL);
+      while (display.mode() != VOL) { delay(10); }
+    }
+    // Ustaw głośność
+    controlsEvent(encoderDelta > 0, encoderDelta, true);
+    #ifdef NEOPIXEL_ON
+      //ledVolumeChange(config.store.volume, encoderDelta > 0);
+    #endif
+
+  } else {
+    // ── PRAWY ENKODER – stacje ───────────────────────────────
+    if (display.mode() != STATIONS) {
+      // Jesteśmy w trybie PLAYER/SCREENSAVER – przejdź do STATIONS
+      display.putRequest(NEWMODE, STATIONS);
+      while (display.mode() != STATIONS) { delay(10); }
+    }
+
+    if (display.mode() == STATIONS) {
+      if (config.store.skipPlaylistUpDown) {
+        // Bezpośrednia zmiana stacji bez listy
+        if (encoderDelta > 0) player.next(); else player.prev();
+        return;
       }
       controlsEvent(encoderDelta > 0, encoderDelta, false);
     }
-#   endif
   }
+
+#endif
 }
 #endif
 

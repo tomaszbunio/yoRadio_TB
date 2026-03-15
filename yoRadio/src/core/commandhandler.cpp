@@ -122,6 +122,7 @@ bool CommandHandler::exec(const char* command, const char* value, uint8_t cid) {
   if (strEquals(command, "clockfont")) {
     uint8_t id = static_cast<uint8_t>(atoi(value));
     // Save only (no heavy display operations in AsyncWebSocket task)
+	Serial.printf("commandhandler clockfont: value='%s' id=%d\n", value, id);
     config.saveValue(&config.store.clockfont, id, false);
     config.scheduleEEPROMCommit();
     config.scheduleUiApply(Config::UI_APPLY_CLOCKFONT);
