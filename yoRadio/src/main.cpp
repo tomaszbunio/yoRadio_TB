@@ -7,15 +7,17 @@
 #include "core/telnet.h"
 #include "core/player.h"
 #include "core/display.h"
-
+#include "myoptions.h"
 // Forward declaration to avoid including widgets.h (depends on display Canvas types)
 void widgetsSetClockFont(uint8_t fontId);
 
 #include "core/network.h"
 #include "core/netserver.h"
 #include "core/controls.h"
-#include <Adafruit_NeoPixel.h>
-#include "NeoPixel/NeoPixel.h"
+#ifdef NEOPIXEL_ON
+	#include <Adafruit_NeoPixel.h>
+	#include "NeoPixel/NeoPixel.h"
+#endif
 // #include "core/mqtt.h"
 #include "core/optionschecker.h"
 #include "core/timekeeper.h"
@@ -108,6 +110,7 @@ void setup() {
     initControls();
     display.putRequest(DSP_START);
     while (!display.ready()) delay(10);
+	widgetsSetClockFont(config.store.clockfont);  // przywróć font z EEPROM
 #if USE_OTA
     setupOTA();
 #endif
@@ -127,26 +130,31 @@ void setup() {
     Serial.printf("Free heap  : %lu\n", ESP.getFreeHeap());
     Serial.printf("Total PSRAM: %lu\n", ESP.getPsramSize());
     Serial.printf("Free PSRAM : %lu\n", ESP.getFreePsram());
-	NeoPixel_init();
-    pm.on_end_setup();
+	
+	#ifdef NEOPIXEL_ON
+		NeoPixel_init();
+	#endif
+	pm.on_end_setup();
 }
 
 void loop() {
 
-	NeoPixel_loop();
+	
     timekeeper.loop1();
     telnet.loop();
 	
 	 // Debounced EEPROM commits for fast-changing web UI options (theme/colo
-  // Apply UI changes (clock font/theme) in the main loop to avoid AsyncWebSocket crashes
+	 // Apply UI changes (clock font/theme) in the main loop to avoid AsyncWebSocket 	crashes
   uint8_t ui = config.consumeUiApply();
   if (ui) {
 	  Serial.printf("consumeUiApply: ui=%d\n", ui);
     // Sanitize clock font id to a safe range
     if (ui & Config::UI_APPLY_CLOCKFONT) {
       uint8_t id = config.store.clockfont;
+	  Serial.printf("UI_APPLY_CLOCKFONT: store.clockfont=%d\n", id); 
       // Valid IDs are 1..POINTEDLYMAD_51 (defined in options.h)
       if (id < VT_DIGI || id > POINTEDLYMAD_51) id = CLOCKFONT;
+	  Serial.printf("UI_APPLY_CLOCKFONT: po sanitize id=%d\n", id);
       config.store.clockfont = id;
       widgetsSetClockFont(id);
     }
@@ -171,5 +179,8 @@ void loop() {
 #endif
 #if CLOCK_TTS_ENABLED
     clock_tts_loop(); // Módosítás: plussz sor.  "clock_tts"
+#endif
+#ifdef NEOPIXEL_ON
+	NeoPixel_loop();
 #endif
 }
