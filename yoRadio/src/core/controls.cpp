@@ -163,42 +163,84 @@ void loopControls() {
   if (network.status == CONNECTED || network.status==SDREADY) touchscreen.loop();
 #endif
 }
-#if ENC_BTNL!=255 || ENC2_BTNL!=255
-void encodersLoop(yoEncoder *enc, bool first){
-  if (network.status != CONNECTED && network.status!=SDREADY) return;
-  if(display.mode()==LOST) return;
-  int8_t encoderDelta = enc->encoderChanged();
-  if (encoderDelta!=0)
-  {
-    uint8_t encBtnState = digitalRead(first?ENC_BTNB:ENC2_BTNB);
-#   if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
-    first = first?(first && encBtnState):(!encBtnState);
-    if(first){
-      int nv = config.store.volume+encoderDelta;
-      if(nv<0) nv=0;
-      if(nv>254) nv=254;
-      player.setVol((uint8_t)nv);  
-    }else{
-      if(encoderDelta > 0) player.next(); else player.prev();
-    }
-#   else
-    if(first){
-      controlsEvent(encoderDelta > 0, encoderDelta);
-    }else{
-      if (encBtnState == HIGH && display.mode() == PLAYER) {
-        if(config.store.skipPlaylistUpDown){
-          if(encoderDelta > 0) player.next(); else player.prev();
-          return;
-        }
-        display.putRequest(NEWMODE, STATIONS);
-        while(display.mode() != STATIONS) {delay(10);}
-      }
-      controlsEvent(encoderDelta > 0, encoderDelta);
-    }
-#   endif
+#if ENC_BTNL != 255 || ENC2_BTNL != 255
+void encodersLoop(yoEncoder *enc, bool first) {
+  if (network.status != CONNECTED && network.status != SDREADY) return;
+  if (display.mode() == LOST) return;
+
+  int8_t delta = enc->encoderChanged();
+  if (delta == 0) return;
+
+#if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
+  // ===== Tryb bez wyświetlacza =====
+  uint8_t btnState = digitalRead(first ? ENC_BTNB : ENC2_BTNB);
+  bool volumeMode = first ? btnState : !btnState;
+  if (volumeMode) {
+    int nv = config.store.volume + delta;
+    if (nv < 0) nv = 0;
+    if (nv > 254) nv = 254;
+    player.setVol((uint8_t)nv);
+  } else {
+    if (delta > 0) player.next(); else player.prev();
   }
+
+#else
+
+#ifdef TWO_ENCODERS
+  // ==========================================================
+  //         DWA NIEZALEŻNE ENKODERY: lewy=stacje, prawy=volume
+  // ==========================================================
+  if (first) {
+    // ----- Enkoder 1 → Stacje -----
+    if (display.mode() != STATIONS) {
+      display.putRequest(NEWMODE, STATIONS);
+      config.screensaverTicks = 0;
+	  return;
+    }
+    int step = (delta > 0) ? -1 : 1;
+    int p = display.currentPlItem - step;
+    uint16_t cs = config.playlistLength();
+    if (p < 1) p = cs;
+    else if (p > cs) p = 1;
+    display.currentPlItem = p;
+    display.resetQueue();
+    display.putRequest(DRAWPLAYLIST, p);
+    config.screensaverTicks = 0;
+  } else {
+    // ----- Enkoder 2 → Głośność -----
+    if (display.mode() != VOL) {
+      display.putRequest(NEWMODE, VOL);
+    }
+    int nv = config.store.volume + delta * config.store.volsteps;
+    if (nv < 0) nv = 0;
+    if (nv > 100) nv = 100;
+    player.setVol((uint8_t)nv);
+    config.screensaverTicks = 0;
+  }
+
+#else
+  // ==========================================================
+  //              ORYGINALNA LOGIKA – jeden enkoder
+  // ==========================================================
+  if (first) {
+    controlsEvent(delta > 0, delta);
+  } else {
+    uint8_t btnState = digitalRead(first ? ENC_BTNB : ENC2_BTNB);
+    if (btnState == HIGH && display.mode() == PLAYER) {
+      if (config.store.skipPlaylistUpDown) {
+        if (delta > 0) player.next(); else player.prev();
+        return;
+      }
+      display.putRequest(NEWMODE, STATIONS);
+      return;
+    }
+    controlsEvent(delta > 0, delta);
+  }
+#endif // TWO_ENCODERS
+
+#endif // DUMMYDISPLAY
 }
-#endif
+#endif // ENC_BTNL != 255 || ENC2_BTNL != 255
 
 /*
 void encodersLoop(yoEncoder* enc, bool first) {
@@ -520,12 +562,15 @@ void onBtnDuringLongPress(int id) {
         }
       case EVT_BTNUP:
       case EVT_BTNDOWN: {
-          if (display.mode() == PLAYER) {
-            display.putRequest(NEWMODE, STATIONS);
-          }
-          if (display.mode() == STATIONS) {
-            controlsEvent(id == EVT_BTNDOWN);
-          }
+    Serial.printf("onBtnDuringLongPress: mode=%d EVT=%d\n", display.mode(), id);
+    if (display.mode() == PLAYER) {
+        Serial.println("przełączam na VOL");
+        display.putRequest(NEWMODE, VOL);
+    }
+    if (display.mode() == VOL) {
+        Serial.println("zmieniam głośność");
+        controlsEvent(id == EVT_BTNDOWN);
+    }
           break;
         }
       default:
@@ -541,7 +586,6 @@ void controlsEvent(bool toRight, int8_t volDelta) {
   }
   if (display.mode() != STATIONS) {
     #if !defined(DUMMYDISPLAY) || defined(USE_NEXTION)
-      // Upewnij się, że VOL jest pokazywany przy zmianie głośności
       if (display.mode() != VOL) {
         display.putRequest(NEWMODE, VOL);
       }
