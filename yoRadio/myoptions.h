@@ -1,5 +1,5 @@
 
-// v8.15
+// v8.5_TB
 // clang-format off
 /* https://trip5.github.io/ehRadio_myoptions/generator.html?b=ESP32-S3-DevKitC-1_44Pin&r=72,1,2,4,5,6,76,7,8,31,42,43,54,55,58,60,63,65,77&i=1,2,3,4,15,16,17,28,29,30,31,32,33,34,39,48,49&v=9,10,-1,14,4,5,6,40,41,39,48,47,21,3,18,8,7
    https://github.com/VaraiTamas/yoRadio.git
@@ -121,7 +121,7 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 
 /*----- Az inaktív szegmens megjelenítése az óra számaiban true -> engedélyez, false -> nem engedélyez. -----*/
 /*----- Inactive segments of the clock, true or false. -----*/
-// #define CLOCKFONT_MONO
+ //#define CLOCKFONT_MONO
 
 /*----- 12 órás időformátum definiálása. Define 12-hour time format. -----*/
 // #define AM_PM_STYLE
@@ -184,12 +184,21 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 /*----- Stops playback in internet radio mode when the playback buffer runs out. Then restarts playback. -----*/
 #define ENABLE_STALL_WATCHDOG
 
-/*----- by Tomasz Bugno -----*/
+#define ENCODERS_INDEPENDENT
+
 /*----- Read station name only from playlist ----- */
 #define METADATA_STATION_NAME_OFF
 
-/*----- by Tomasz Bugno -----*/
 /*----- Blue bar as background for playlist item ----- */
 #define PL_WIDGET_WITCH_BAR  // niebieskie tło na playliścieR
+
+/*------Neopixel-----------------------------------------*/
+
+#define NEOPIXEL_ON
+#ifdef NEOPIXEL_ON
+   #define NEOPIXEL_PIN 2
+   #define LED_COUNT    16
+#endif
+
 
 #endif // myoptions_h

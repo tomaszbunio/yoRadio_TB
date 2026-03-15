@@ -6,9 +6,11 @@
 #include "src/core/display.h"
 #include "src/core/network.h"
 #include "src/Scheduler/scheduler.h"
+#include "src/NeoPixel/NeoPixel.h"
 
 #define WAKEUP_PIN ENC_BTNB     // Przycisk enkodera
 #define WAKEUP_LEVEL LOW        // Budzi na stan niski
+
 
 // ---------------------------------------------------------------------
 // GŁÓWNA FUNKCJA UŚPIENIA - wywoływana z onBtnDoubleClick i schedulera
@@ -33,6 +35,9 @@ void goToSleep() {
   // 1. Wyłącz podświetlenie LCD
   if (BRIGHTNESS_PIN != 255) {
     analogWrite(BRIGHTNESS_PIN, 0);
+	#ifdef NEOPIXEL_ON
+		NeoPixel_off();
+	#endif
     Serial.println("   - Podświetlenie OFF");
   }
   
