@@ -3,15 +3,12 @@
 #include "../core/controls.h"
 #include "../core/network.h"
 #include "../core/display.h"
+#include "myoptions.h"
 // ------------------------------------------------------
 // KONFIGURACJA SPRZĘTOWA
 // ------------------------------------------------------
-#define PIN 2
-#define LED_COUNT 16
 
-Adafruit_NeoPixel strip(LED_COUNT, PIN, NEO_GRB + NEO_KHZ800);
-
-
+Adafruit_NeoPixel strip(LED_COUNT, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 // ------------------------------------------------------
 // ZMIENNE GLOBALNE
@@ -155,12 +152,12 @@ static void theaterChase_step() {
 
   switch (state) {
     case LED_PLAYER:
-      startColorWipe(strip.Color(0, 80, 0), 20);
+      startColorWipe(strip.Color(0, 0, 80), 20);
       currentEffect = 1;
       break;
 
     case LED_STATIONS:
-      startTheaterChase(strip.Color(0, 0, 80), 60);
+      startTheaterChase(strip.Color(0, 80, 0), 60);
       currentEffect = 4;
       break;
 
@@ -170,6 +167,9 @@ static void theaterChase_step() {
       break;
 
     case LED_LOST:
+	  startTheaterChase(strip.Color(80, 0, 0), 120);
+      currentEffect = 4;
+      break;
     case LED_NO_WIFI:
       startTheaterChase(strip.Color(80, 0, 0), 120);
       currentEffect = 4;
@@ -206,6 +206,12 @@ void updateLedState() {
     case LOST:        setLedState(LED_LOST); break;
     default: break;
   }
+}
+
+
+void NeoPixel_off() {
+  strip.clear();
+  strip.show();
 }
 
 // ------------------------------------------------------

@@ -21,7 +21,9 @@ enum LedState {
 // ------------------------------------------------------
 // PUBLICZNE API MODUŁU WS2812
 // ------------------------------------------------------
-
+#ifdef NEOPIXEL_ON
+  void NeoPixel_off();   // gaszenie ledów
+#endif
 // Inicjalizacja paska WS2812
 // Wywołać raz w setup()
 void NeoPixel_init();
