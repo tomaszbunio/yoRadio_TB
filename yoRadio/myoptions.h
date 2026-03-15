@@ -199,6 +199,7 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
    #define NEOPIXEL_PIN 2
    #define LED_COUNT    16
 #endif
-
+// Dwa niezależne enkodery: lewy=stacje, prawy=głośność
+#define TWO_ENCODERS
 
 #endif // myoptions_h
