@@ -4,7 +4,7 @@ Moje modyfikacje projektu yoRadio autorstwa [e2002](https://github.com/e2002/yor
 i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
 ---
-## Moje zmiany: v8.6_TB
+## Moje zmiany: v08.6_TB
 - Podświetlenie stacji na playliście
 - Obsługa diod adresowanych WS2812B
 - Timer ON/OFF sterowany przez www
