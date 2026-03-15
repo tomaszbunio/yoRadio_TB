@@ -11,7 +11,7 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 - Wybór czcionki zegara przez www
 - Zmiana kolorów (themes) przez www
 - Odczyt nazwy stacji z playlisty
-- Sleep z dwukliku
+- Sleep z dwukliku enkodera
 
 ## Oryginalna dokumentacja:
 https://github.com/VaraiTamas/yoRadio
