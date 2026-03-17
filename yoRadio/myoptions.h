@@ -184,8 +184,6 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 /*----- Stops playback in internet radio mode when the playback buffer runs out. Then restarts playback. -----*/
 #define ENABLE_STALL_WATCHDOG
 
-#define ENCODERS_INDEPENDENT
-
 /*----- Read station name only from playlist ----- */
 #define METADATA_STATION_NAME_OFF
 
