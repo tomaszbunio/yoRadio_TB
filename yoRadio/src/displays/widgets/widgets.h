@@ -7,8 +7,8 @@
 #include <Arduino.h>
 class Adafruit_GFX;
 #if defined(DSP_ILI9488)
-  #include "../displayILI9488.h"  // To daje typedef Canvas
-
+  //#include "../displayILI9488.h"  // To daje typedef Canvas
+	#include "../dspcore.h"
 #else
   // Jeśli nie wiemy jaki wyświetlacz, użyj forward declaration
   // ale jako klasa, nie typedef
