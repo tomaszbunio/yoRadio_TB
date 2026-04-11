@@ -1,3 +1,5 @@
+
+// v8.6_TB
 // clang-format off
 /* https://trip5.github.io/ehRadio_myoptions/generator.html?b=ESP32-S3-DevKitC-1_44Pin&r=72,1,2,4,5,6,76,7,8,31,42,43,54,55,58,60,63,65,77&i=1,2,3,4,15,16,17,28,29,30,31,32,33,34,39,48,49&v=9,10,-1,14,4,5,6,40,41,39,48,47,21,3,18,8,7
    https://github.com/VaraiTamas/yoRadio.git
@@ -22,16 +24,16 @@
 /* Itt tudod beállítani a program nyelvét
    You can set the program language here.
    Supported languages: HU NL PL RU EN GR SK DE UA ES. */
-#define L10N_LANGUAGE HU
+#define L10N_LANGUAGE PL
 
 /* -- Névnapok megjelenítése -- Display name days --
 Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not filled in.) */
-#define NAMEDAYS_FILE HU
+#define NAMEDAYS_FILE PL
 
 #define USE_BUILTIN_LED false /* The RGB LED does not turn on.. */
 
 /* Arduino OTA Support */
- #define USE_OTA true                    /* Enable OTA updates from Arduino IDE */
+// #define USE_OTA true                    /* Enable OTA updates from Arduino IDE */
 // #define OTA_PASS "myotapassword12345"   /* OTA password for secure updates */
 
 /* HTTP Authentication */
@@ -50,7 +52,7 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #define TFT_DC         9
 #define TFT_CS         10
 #define TFT_RST        -1
-#define BRIGHTNESS_PIN 14
+#define BRIGHTNESS_PIN 21
 /*
    GPIO 11 - MOSI
    GPIO 12 - CLK
@@ -58,8 +60,8 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 */
 
 /*----- Touch ISP -----*/
-// #define TS_MODEL TS_MODEL_XPT2046
-// #define TS_CS    3
+ #define TS_MODEL TS_MODEL_XPT2046
+ #define TS_CS    48
 
 /*----- Touch I2C -----*/
 // #define TS_MODEL TS_MODEL_FT6X36
@@ -75,22 +77,23 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 // #define NEXTION_RX			15
 // #define NEXTION_TX			16
 
-/*----- PCM5102A  DAC -----*/
-#define I2S_DOUT 4
-#define I2S_BCLK 5
-#define I2S_LRC  6
+/* PCM5102A  DAC */
+#define I2S_DOUT    16
+#define I2S_BCLK    17
+#define I2S_LRC     15
 
-/*----- ENCODER 1 ------*/
-#define ENC_BTNR 41 // S2
-#define ENC_BTNL 40 // S1
-#define ENC_BTNB 39 // KEY
-// #define ENC_INTERNALPULLUP		true
+/* ENCODER 1 */
+#define ENC_BTNR      4  // S2
+#define ENC_BTNL      5  // S1
+#define ENC_BTNB      6  // KEY
 
-/*----- ENCODER 2 -----*/
-#define ENC2_BTNR 47 // S2
-#define ENC2_BTNL 48 // S1
-#define ENC2_BTNB 21 // KEY
-// #define ENC2_INTERNALPULLUP	true
+//#define ENC_INTERNALPULLUP	true
+
+/* ENCODER 2 */
+#define ENC2_BTNR      7  // S2
+#define ENC2_BTNL      18  // S1
+#define ENC2_BTNB      3  // KEY
+//#define ENC2_INTERNALPULLUP	true
 
 /*----- CLOCK MODUL RTC DS3132 -----*/
 // #define RTC_SCL			     7
@@ -98,46 +101,52 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 // #define RTC_MODULE DS3231
 
 /*----- REMOTE CONTROL INFRARED RECEIVER -----*/
-/*----- Alvásból ébresztéshez a GPIO 2 -őt kell használni, mert a GPIO 38 nem RTC pin. A PCB-n át kell kötni! -----*/
-/*----- To wake from sleep, you must use GPIO 2, because GPIO 38 is not an RTC pin. It must be connected via the PCB! -----*/
-// #define IR_PIN 2  //38
+#define IR_PIN 47
 
 /*----- SD CARD -----*/
 // #define SDC_CS     18
 // #define SDSPISPEED 4000000 /* 4MHz - Slower speed to prevent display flicker on shared SPI bus */
 
+/*----- by Maciej Bednarski -----*/
+/*---- Ezt aktíválva a lejátszási listában a cursor mozog le - fel -----*/
+/*---- Activating this will move the cursor up and down in the playlist -----*/
+#define PLAYLIST_SCROLL_MOVING_CURSOR
+
 /*----- Színes kijelzőn szürkeárnyalatos képet jelenít meg. -----*/
 /*----- The color display displays a grayscale image -----*/
 // #define THEME_GRAY
 
+// niebieskie podświetlenie playlisty
+#define PL_WIDGET_WITCH_BAR true  // niebieskie tło na playliście
+
 /*----- Az inaktív szegmens megjelenítése az óra számaiban true -> engedélyez, false -> nem engedélyez. -----*/
 /*----- Inactive segments of the clock, true or false. -----*/
-// #define CLOCKFONT_MONO
+ //#define CLOCKFONT_MONO
 
 /*----- 12 órás időformátum definiálása. Define 12-hour time format. -----*/
 // #define AM_PM_STYLE
 
 /*----- Bekapcsolja az eredeti hétszegmenses óra betűtípust. -----*/
 /*-----  Turn on the original seven-segment font. -----*/
-// #define CLOCKFONT VT_DIGI_OLD
+ #define CLOCKFONT VT_DIGI_OLD
 
 /*----- Google TTS hanggal mondja be az ídőt megadott nyelven és megadott percenként. -----*/
 /*----- Speaks the time using Google TTS voice in the specified language and every specified minute. -----*/
-#define CLOCK_TTS_ENABLED          false // Enabled (true) or disabled (false)
-#define CLOCK_TTS_LANGUAGE         "HU" // Language ( EN, HU, PL, NL, DE, RU, RO ,FR, GR)
+#define CLOCK_TTS_ENABLED          true // Enabled (true) or disabled (false)
+#define CLOCK_TTS_LANGUAGE         "PL" // Language ( EN, HU, PL, NL, DE, RU, RO ,FR, GR)
 #define CLOCK_TTS_INTERVAL_MINUTES 15   // Hány percenként mondja be. - How many times a minute does it say.
 
 /*----- Ezzel a beállítással nincs görgetés az időjárás sávon. -----*/
 /*----- With this setting there is no scrolling on the weather bar. -----*/
-#define WEATHER_FMT_SHORT
+//#define WEATHER_FMT_SHORT
 
 /*----- Ezzel a beállítással a teljes időjárás jelentés megjelenik. -----*/
 /*----- With this setting, the full weather report is displayed. -----*/
-// #define EXT_WEATHER  true
+ #define EXT_WEATHER
 
 /*----- Ezzel a beállítással a szél sebessége km/h lesz. -----*/
 /*----- With this setting, the wind speed will be km/h. -----*/
-// #define WIND_SPEED_IN_KMH
+ #define WIND_SPEED_IN_KMH
 
 /*----- A VU méter két fajta kijelzési módot támogat.
 BOOMBOX_STYLE stílusa, amikor középről két oldalra leng ki a kijelző. Azt itt tudod beállítani.
@@ -152,7 +161,7 @@ If there is a // sign at the beginning of the line, the basic VU meter is workin
 #define VU_PEAK
 
 /*----- Az állomások listájából való választásnál nem kell megnyomni a rotary encoder gombját, kilépéskor autómatikusan
-átvált a csatorna. (by Zsigmond Becskeházi)
+átvált a csatorna. (Zsigmond Becskeházi által)
  When selecting from the station list, you do not need to press the rotary encoder button, the channel will automatically
 change when you exit. (By Zsigmond Becskehazi) -----*/
 #define DIRECT_CHANNEL_CHANGE
@@ -161,11 +170,6 @@ change when you exit. (By Zsigmond Becskehazi) -----*/
 /*----- How long to return to the main screen from the station list. (seconds) -----*/
 #define STATIONS_LIST_RETURN_TIME 3
 
-/*----- by Maciej Bednarski -----*/
-/*---- Ezt aktíválva a lejátszási listában a cursor mozog le - fel -----*/
-/*---- Activating this will move the cursor up and down in the playlist -----*/
-#define PLAYLIST_SCROLL_MOVING_CURSOR
-
 /*----- Az itt beállított pin vezérelheti egy audio erősítő tápellátását. Zenelejátszás közben a pin HIGH (magas) állapotban van ami meghúzza az
 erősítő tápellátását kapcsoló relét. Amikor nincs zenelejátszás (STOP vagy a hangerő 0), a pin LOW (alacsony) állapotban van.
 Ez a változás akkor történik, amikor a képernyővédő "while not playing" üzemmódban bekapcsol.
@@ -173,35 +177,27 @@ This pin controls the amplifier's power supply. When music is playing, the pin i
 When music is not playing (stopped or volume is 0), the pin is set to LOW. This change occurs when the screensaver is running. -----*/
 // #define PWR_AMP 2
 
+// #define WAKE_PIN	42
+
 /*----- by Andrzej Jaroszuk -----*/    
 /*----- Megállítja a lejátszást internet rádió módban, ha a lejátszási puffer elfogy. Utána  újraindítja a lejátszást. -----*/
 /*----- Stops playback in internet radio mode when the playback buffer runs out. Then restarts playback. -----*/
 #define ENABLE_STALL_WATCHDOG
 
-/*----- by Karol Wysocki -----*/  
-/*----- Letíltja az encoder gomb másodlagos funkcióját. Csak két encoder esetén használd! -----*/
-/*----- Disables the secondary function of the encoder button. Use only if you have two encoders! -----*/
-#define ENCODERS_INDEPENDENT
+/*----- Read station name only from playlist ----- */
+#define METADATA_STATION_NAME_OFF
 
-/*----- Ha ez definiálva van a rádió indításakor, mindig az első csatorna lesz beállítva. -----*/
-/*----- If this is defined at radio startup, the first channel will always be set. -----*/
-//#define ALWAYS_START_FROM_FIRST
+/*----- Blue bar as background for playlist item ----- */
+#define PL_WIDGET_WITCH_BAR  // niebieskie tło na playliścieR
 
-/*----- Sleep functions -----*/
-/*----- A WAKE_PIN helyett mostantól két pin állítható be az ébresztéshez: WAKE_PIN1 és WAKE_PIN2 -----*/
-/*----- Így távirányítóval és egy másik gombbal is felébreszthető az eszköz. -----*/
-/*----- Instead of WAKE_PIN, you can now set two pins for wake-up: WAKE_PIN1 and WAKE_PIN2 -----*/
-/*----- This way, you can wake up the device with a remote control and another button. -----*/
-// #define BTN_MODE ENC_BTNB
-//  #define WAKE_PIN1 IR_PIN
-// #define WAKE_PIN2 ENC2_BTNB
+/*------Neopixel-----------------------------------------*/
 
-/*----- by Zsolt Simon -----*/
-/*----- Tested on Synology NAS ----- */
-// #define USE_DLNA
-// #define dlnaHost "192.168.1.200"
-// #define dlnaIDX  21
-
-//#define POWER_LED 38      // Button LED pin (will be turned on when player is on)
+#define NEOPIXEL_ON
+#ifdef NEOPIXEL_ON
+   #define NEOPIXEL_PIN 2
+   #define LED_COUNT    16
+#endif
+// Dwa niezależne enkodery: lewy=stacje, prawy=głośność
+#define TWO_ENCODERS
 
 #endif // myoptions_h
