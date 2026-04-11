@@ -7,28 +7,34 @@
 #include "core/telnet.h"
 #include "core/player.h"
 #include "core/display.h"
+#include "myoptions.h"
+// Forward declaration to avoid including widgets.h (depends on display Canvas types)
+void widgetsSetClockFont(uint8_t fontId);
+
 #include "core/network.h"
 #include "core/netserver.h"
 #include "core/controls.h"
+#ifdef NEOPIXEL_ON
+	#include <Adafruit_NeoPixel.h>
+	#include "NeoPixel/NeoPixel.h"
+#endif
 // #include "core/mqtt.h"
-#include "driver/rtc_io.h"
-
 #include "core/optionschecker.h"
 #include "core/timekeeper.h"
 #ifdef USE_NEXTION
-#    include "displays/nextion.h"
+    #include "displays/nextion.h"
 #endif
 #include "core/audiohandlers.h" //"audio_change"
 #ifdef USE_DLNA                 // DLNA mod
-#    include "network/dlna_service.h"
+    #include "network/dlna_service.h"
 #endif
 #if USE_OTA
-#    if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-#        include <NetworkUdp.h>
-#    else
-#        include <WiFiUdp.h>
-#    endif
-#    include <ArduinoOTA.h>
+    #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+        #include <NetworkUdp.h>
+    #else
+        #include <WiFiUdp.h>
+    #endif
+    #include <ArduinoOTA.h>
 #endif
 
 #if DSP_HSPI || TS_HSPI || VS_HSPI
@@ -40,9 +46,9 @@ extern __attribute__((weak)) void yoradio_on_setup();
 #if USE_OTA
 void setupOTA() {
     if (strlen(config.store.mdnsname) > 0) ArduinoOTA.setHostname(config.store.mdnsname);
-#    ifdef OTA_PASS
+    #ifdef OTA_PASS
     ArduinoOTA.setPassword(OTA_PASS);
-#    endif
+    #endif
     ArduinoOTA
         .onStart([]() {
             player.sendCommand({PR_STOP, 0});
@@ -72,20 +78,8 @@ void setupOTA() {
 }
 #endif
 
-#include "IRremoteESP8266/IRrecv.h"
-#include "IRremoteESP8266/IRutils.h"
-
-extern IRrecv         irrecv;
-extern decode_results irResults;
-
 void setup() {
     Serial.begin(115200);
-    EEPROM.begin(EEPROM_SIZE);
-#if IR_PIN != 255
-    irQueue = xQueueCreate(4, sizeof(IRCommand));
-    config.eepromRead(EEPROM_START_IR, config.ircodes);
-    irWakeup();
-#endif
 #if (BRIGHTNESS_PIN != 255) // backlight plugin
     Serial.printf("Exists? %p\n", &backlightPlugin);
     backlightPluginInit();
@@ -94,6 +88,7 @@ void setup() {
     if (yoradio_on_setup) yoradio_on_setup();
     pm.init();     // pluginsManager
     pm.on_setup(); // pluginsManager
+	
     config.init();
     display.init();
     player.init();
@@ -115,6 +110,7 @@ void setup() {
     initControls();
     display.putRequest(DSP_START);
     while (!display.ready()) delay(10);
+	widgetsSetClockFont(config.store.clockfont);  // przywróć font z EEPROM
 #if USE_OTA
     setupOTA();
 #endif
@@ -124,15 +120,53 @@ void setup() {
 #if CLOCK_TTS_ENABLED
     clock_tts_setup(); // Módosítás: plussz sor. "clock_tts"
 #endif
+    if (psramFound()) {
+        Serial.println("✅ PSRAM elérhető!");
+    } else {
+        Serial.println("❌ PSRAM nem található!");
+    }
     Audio::audio_info_callback = my_audio_info; // "audio_change" audiohandlers.h ban kezelve.
-    pinMode(POWER_LED, OUTPUT);
-    if (POWER_LED != 255) { digitalWrite(POWER_LED, HIGH); }
-    pm.on_end_setup();
+    Serial.printf("Total heap : %lu\n", ESP.getHeapSize());
+    Serial.printf("Free heap  : %lu\n", ESP.getFreeHeap());
+    Serial.printf("Total PSRAM: %lu\n", ESP.getPsramSize());
+    Serial.printf("Free PSRAM : %lu\n", ESP.getFreePsram());
+	
+	#ifdef NEOPIXEL_ON
+		NeoPixel_init();
+	#endif
+	pm.on_end_setup();
 }
 
 void loop() {
+
+	
     timekeeper.loop1();
     telnet.loop();
+	
+	 // Debounced EEPROM commits for fast-changing web UI options (theme/colo
+	 // Apply UI changes (clock font/theme) in the main loop to avoid AsyncWebSocket 	crashes
+  uint8_t ui = config.consumeUiApply();
+  if (ui) {
+	  Serial.printf("consumeUiApply: ui=%d\n", ui);
+    // Sanitize clock font id to a safe range
+    if (ui & Config::UI_APPLY_CLOCKFONT) {
+      uint8_t id = config.store.clockfont;
+	  Serial.printf("UI_APPLY_CLOCKFONT: store.clockfont=%d\n", id); 
+      // Valid IDs are 1..POINTEDLYMAD_51 (defined in options.h)
+      if (id < VT_DIGI || id > POINTEDLYMAD_51) id = CLOCKFONT;
+	  Serial.printf("UI_APPLY_CLOCKFONT: po sanitize id=%d\n", id);
+      config.store.clockfont = id;
+      widgetsSetClockFont(id);
+    }
+    if (ui & Config::UI_APPLY_THEME) {
+      config.loadTheme();
+    }
+    // Redraw screen without rebuilding pages (keeps current widget texts)
+    display.putRequest(APPLY_THEME, 0);
+  }
+
+  config.loopEEPROMCommit();
+	
     if (network.status == CONNECTED || network.status == SDREADY) {
         player.loop();
 #if USE_OTA
@@ -145,5 +179,8 @@ void loop() {
 #endif
 #if CLOCK_TTS_ENABLED
     clock_tts_loop(); // Módosítás: plussz sor.  "clock_tts"
+#endif
+#ifdef NEOPIXEL_ON
+	NeoPixel_loop();
 #endif
 }
