@@ -1,3 +1,4 @@
+//v0.9.676 Módosítva!
 // clang-format off
 /*************************************************************************************
     ILI9488 480X320 displays configuration file.
@@ -21,10 +22,35 @@
 #endif
 #define bootLogoTop 110
 
+
+/* Title alignment selection driven from myoptions.h
+ * 0 = left (WA_LEFT), 1 = center (WA_CENTER)
+ * Separate control for title1 (station) and title2 (artist).
+ */
+#ifndef MY_TITLE1_ALIGN_MODE
+  #define MY_TITLE1_ALIGN_MODE 0
+#endif
+
+#ifndef MY_TITLE2_ALIGN_MODE
+  #define MY_TITLE2_ALIGN_MODE 0
+#endif
+
+#if MY_TITLE1_ALIGN_MODE == 1
+  #define TITLE1_ALIGN WA_CENTER
+#else
+  #define TITLE1_ALIGN WA_LEFT
+#endif
+
+#if MY_TITLE2_ALIGN_MODE == 1
+  #define TITLE2_ALIGN WA_CENTER
+#else
+  #define TITLE2_ALIGN WA_LEFT
+#endif
+
 /* SROLLS  */                            /* {{ left, top, fontsize, align }, buffsize, uppercase, width, scrolldelay, scrolldelta, scrolltime } */
 const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 4, WA_LEFT }, 140, true, MAX_WIDTH, 5000, 7, 40 };
-const ScrollConfig title1Conf     PROGMEM = {{TFT_FRAMEWDT, 62, 2, WA_LEFT}, 140, true, MAX_WIDTH, 5000, 7, 40};
-const ScrollConfig title2Conf     PROGMEM = {{TFT_FRAMEWDT, 86, 2, WA_LEFT}, 140, true, MAX_WIDTH, 5000, 7, 40};
+const ScrollConfig title1Conf     PROGMEM = {{TFT_FRAMEWDT, 62, 2, TITLE1_ALIGN}, 140, true, MAX_WIDTH, 5000, 7, 40};
+const ScrollConfig title2Conf     PROGMEM = {{TFT_FRAMEWDT, 86, 2, TITLE2_ALIGN}, 140, true, MAX_WIDTH, 5000, 7, 40};
 const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 3, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 7, 40 };
 const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 4, WA_CENTER }, 140, false, MAX_WIDTH, 0, 7, 40 };
 const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT, 320-TFT_FRAMEWDT-16, 2, WA_LEFT }, 140, false, MAX_WIDTH, 0, 7, 40 };
@@ -36,17 +62,14 @@ const FillConfig   metaBGConfInv  PROGMEM = {{ 0, 50, 0, WA_LEFT }, DSP_WIDTH, 2
 const FillConfig volbarConf       PROGMEM = {{TFT_FRAMEWDT, DSP_HEIGHT - TFT_FRAMEWDT - 8, 0, WA_LEFT}, MAX_WIDTH, 5, true};
 const FillConfig  playlBGConf     PROGMEM = {{ 0, 138, 0, WA_LEFT }, DSP_WIDTH, 36, false };
 const FillConfig  heapbarConf     PROGMEM = {{ 0, DSP_HEIGHT-2, 0, WA_LEFT }, DSP_WIDTH, 2, false };
-const WidgetConfig bitrateConf    PROGMEM = {TFT_FRAMEWDT, 145, 2, WA_RIGHT};
+
 /* WIDGETS  */ /* { left, top, fontsize, align } */
 const WidgetConfig bootstrConf    PROGMEM = {0, 243, 2, WA_CENTER};
-
-
-/* FOOTER */
-const WidgetConfig iptxtConf      PROGMEM = {TFT_FRAMEWDT, 282, 2, WA_LEFT};
-const WidgetConfig voltxtConf     PROGMEM = {0, 282, 2, WA_CENTER}; // Hangerő
+const WidgetConfig bitrateConf    PROGMEM = {TFT_FRAMEWDT, 145, 2, WA_RIGHT};
+const WidgetConfig voltxtConf     PROGMEM = {0, DSP_HEIGHT - 38, 2, WA_CENTER}; // Hangerő
 const WidgetConfig chtxtConf      PROGMEM = { 310 ,282, 2, WA_LEFT }; //→ az aktuális csatorna CH:szöveg (PLAYER footer)
-const WidgetConfig rssiConf       PROGMEM = {TFT_FRAMEWDT, 282, 2, WA_RIGHT};
-
+const WidgetConfig iptxtConf      PROGMEM = {TFT_FRAMEWDT, DSP_HEIGHT - 38, 2, WA_LEFT};
+const WidgetConfig rssiConf       PROGMEM = {TFT_FRAMEWDT, DSP_HEIGHT - 34, 2, WA_RIGHT};
 const WidgetConfig numConf        PROGMEM = {0, 200, 70, WA_CENTER};
 const WidgetConfig apNameConf     PROGMEM = {TFT_FRAMEWDT, 88, 3, WA_CENTER};
 const WidgetConfig apName2Conf    PROGMEM = {TFT_FRAMEWDT, 120, 3, WA_CENTER};
@@ -64,14 +87,15 @@ const BitrateConfig fullbitrateConf PROGMEM = {{10, 142, 2, WA_RIGHT}, 60};
 
 /* BANDS { onebandwidth (width), onebandheight (height), bandsHspace (space), bandsVspace (vspace), numofbands (perheight), fadespeed (fadespeed)} */
 #ifdef BOOMBOX_STYLE
-const VUBandsConfig bandsConf PROGMEM = {200, 7, 4, 2, 20, 9};
+const VUBandsConfig bandsConf PROGMEM = {200, 7, 4, 2, 20, 12}; // 29
 #else
-const VUBandsConfig bandsConf PROGMEM = {300, 7, 3, 2, 30, 6}; 
+const VUBandsConfig bandsConf PROGMEM = {300, 7, 3, 2, 30, 8}; // saját  {400, 7, 3, 2, 8, 29}; 
 #endif
 
 /* STRINGS  */
 const char numtxtFmt[]  PROGMEM = "%d";
 const char rssiFmt[]    PROGMEM = "WiFi %ddBm";
+// const char           rssiFmt[]    PROGMEM = "WiFi %d"; // Original
 const char iptxtFmt[]   PROGMEM = "%s";
 const char voltxtFmt[]  PROGMEM = "\023\025%d%%"; //Original "\023\025%d" Módosítás "vol_step"
 const char bitrateFmt[] PROGMEM = "%d kBs";

@@ -12,7 +12,7 @@
     #include "../tools/psframebuffer.h"
     #include "Arduino.h"
     #include "widgets.h"
-	
+
 	#include "../fonts/dsfont70.h"
 // clang-format on
 
@@ -736,6 +736,7 @@ void widgetsSetClockFont(uint8_t fontId){
 inline GFXglyph *pgm_read_glyph_ptr(const GFXfont *gfxFont, uint8_t c) {
   return gfxFont->glyph + c;
 }
+/*
 uint8_t _charWidth(unsigned char c) {
   const GFXfont *f = Clock_GFXfontPtr;
   if(!f) return 0;
@@ -745,36 +746,10 @@ uint8_t _charWidth(unsigned char c) {
   GFXglyph *glyph = pgm_read_glyph_ptr(f, c - first);
   return pgm_read_byte(&glyph->xAdvance);
 }
-uint16_t _textHeight() {
-  const GFXfont *f = Clock_GFXfontPtr;
-  if(!f) return 0;
-  uint8_t first = pgm_read_byte(&f->first);
-  uint8_t last  = pgm_read_byte(&f->last);
-  uint8_t ch = '8';
-  uint8_t idx = (ch < first || ch > last) ? 0 : (ch - first);
-  GFXglyph *glyph = pgm_read_glyph_ptr(f, idx);
-  return pgm_read_byte(&glyph->height);
-}
-  #else
-uint8_t _charWidth(unsigned char c) {
-    #ifndef DSP_LCD
-  return CHARWIDTH * TIME_SIZE;
-    #else
-  return 1;
-    #endif
-}
-uint16_t _textHeight() {
-  return CHARHEIGHT * TIME_SIZE;
-}
-  #endif
-uint16_t _textWidth(const char *txt) {
-  uint16_t w = 0, l = strlen(txt);
-  for (uint16_t c = 0; c < l; c++) { w += _charWidth(txt[c]); }
-  return w;
-}
+*/
 
 uint8_t _charWidth(unsigned char c, const GFXfont *f) {
-  if (!f) return 0;
+  if(!f) return 0;
   uint8_t first = pgm_read_byte(&f->first);
   uint8_t last  = pgm_read_byte(&f->last);
   if (c < first || c > last) return 0;
@@ -784,9 +759,30 @@ uint8_t _charWidth(unsigned char c, const GFXfont *f) {
 
 uint16_t _textWidth(const char *txt, const GFXfont *f) {
   uint16_t w = 0, l = strlen(txt);
-  for (uint16_t c = 0; c < l; c++) { w += _charWidth((unsigned char)txt[c], f); }
+  for (uint16_t c = 0; c < l; c++) { w += _charWidth(txt[c], f); }
   return w;
 }
+
+uint16_t _textHeight() {
+  const GFXfont *f = Clock_GFXfontPtr;
+  if(!f) return 0;
+  uint8_t first = pgm_read_byte(&f->first);
+  uint8_t last  = pgm_read_byte(&f->last);
+  uint8_t ch = '8';
+  uint8_t idx = (ch < first || ch > last) ? 0 : (ch - first);
+  GFXglyph *glyph = pgm_read_glyph_ptr(f, idx);
+  return pgm_read_byte(&glyph->height);
+  #endif
+}
+  
+uint8_t _charWidth(unsigned char c) {
+    #ifndef DSP_LCD
+  return CHARWIDTH * TIME_SIZE;
+    #else
+  return 1;
+    #endif
+}
+
 /************************************************************************************************************
                                                       NUM WIDGET (hangerő stb.)
  ************************************************************************************************************/
@@ -801,33 +797,7 @@ void NumWidget::init(WidgetConfig wconf, uint16_t buffsize, bool uppercase, uint
     _uppercase = uppercase;
     _textheight = TIME_SIZE /*wconf.textsize*/;
 }
-/*
-void NumWidget::setText(const char *txt) {
-  strlcpy(_text, txt, _buffsize);
-  _getBounds();
-  if (strcmp(_oldtext, _text) == 0) {
-    return;
-  }
-  uint16_t realth = _textheight;
-  #if defined(DSP_OLED) && DSP_MODEL != DSP_SSD1322
-  if (Clock_GFXfontPtr == nullptr) {
-    realth = _textheight * 8;  //CHARHEIGHT
-  }
-  #endif
-  if (_active)
-  #ifndef CLOCKFONT5x7
-    dsp.fillRect(_oldleft == 0 ? _realLeft() : min(_oldleft, _realLeft()), _config.top - _textheight + 1, max(_oldtextwidth, _textwidth), realth, _bgcolor);
-  #else
-    dsp.fillRect(_oldleft == 0 ? _realLeft() : min(_oldleft, _realLeft()), _config.top, max(_oldtextwidth, _textwidth), realth, _bgcolor);
-  #endif
 
-  _oldtextwidth = _textwidth;
-  _oldleft = _realLeft();
-  if (_active) {
-    _draw();
-  }
-}
-*/
 
 void NumWidget::setText(const char* txt) {
     strlcpy(_text, txt, _buffsize);
@@ -1060,7 +1030,7 @@ void ClockWidget::_printClock(bool force) {
         gfx.setTextColor(config.theme.clock, config.theme.background);
         // }
         gfx.setCursor(_left(), _top());
-        gfx.print(_timebuffer); // Az óra, perc kiírása.
+        gfx.print(_timebuffer); // Wyświetlanie godzin i minut.
 
         #if DSP_MODEL == DSP_SSD1322
             #ifndef HIDE_DATE
@@ -1088,7 +1058,7 @@ void ClockWidget::_printClock(bool force) {
             #endif
         #endif
 
-        if (_fullclock) { // A másodperceket is kiírja nem csak az óra percet.
+        if (_fullclock) { // Wyświetla także sekundy, a nie tylko godziny i minuty.
             bool fullClockOnScreensaver = (!config.isScreensaver || (_fb->ready() && FULL_SCR_CLOCK));
             _linesleft = _left() + _timewidth + _space;
             if (fullClockOnScreensaver) {
@@ -1101,7 +1071,7 @@ void ClockWidget::_printClock(bool force) {
                 char buf[3];
                 strftime(buf, sizeof(buf), "%p", &network.timeinfo);
                 gfx.setCursor(_linesleft + 8, _top());
-                gfx.print(buf); // AM vagy PM kiírása
+                gfx.print(buf); // Wyświetl AM lub PM
 
         #else
             #if DSP_MODEL == DSP_ILI9341
@@ -1124,7 +1094,7 @@ void ClockWidget::_printClock(bool force) {
                     dsp.setFont();
                     dsp.setTextSize(_dateheight);
                     uint16_t _dateleft = dsp.width() - _datewidth - _dateConf.left;
-                    dsp.setCursor(_dateleft, _dateConf.top); // Zmień własną zmienną ustawień "_dateConf"
+                    dsp.setCursor(_dateleft, _dateConf.top); // Zmień własną zmienną ustawień „_dateConf”
                     dsp.setTextColor(config.theme.date, config.theme.background);
                     dsp.print(_datebuf);
         #endif // HIDE_DATE
@@ -1133,54 +1103,40 @@ void ClockWidget::_printClock(bool force) {
         }
     }
     if (_fullclock || _superfont > 0) { // Wyświetla także sekundy, a nie tylko godziny i minuty.
-    // *** Wyświetl sekundy ***
-    gfx.setTextSize(0);
-    gfx.setFont(Clock_GFXfontPtr_Sec);
-
-    uint16_t topSec;
-    uint16_t leftSec;
-    #if DSP_MODEL == DSP_ILI9341 // 320x240
-        #ifdef AM_PM_STYLE
-    topSec = _top() - _timeheight + 20;
-    leftSec = _linesleft + 8;
-        #else
-    topSec = _top() - _timeheight + 38;
-    leftSec = _linesleft + 3;
-        #endif
-    #else // 480x320
-        #ifdef AM_PM_STYLE
-    topSec = _top() - _timeheight + 30;
-    leftSec = _linesleft + 8;
-        #else
-    topSec = _top() - _timeheight + 50;
-    leftSec = _linesleft + 3;
-        #endif
-    #endif
-
-    gfx.setCursor(leftSec, topSec);
-
-    #ifdef CLOCKFONT_MONO
-        // cień nieaktywnych segmentów – celowy efekt wizualny
+        // *** Wyświetl sekundy ***
+        gfx.setTextSize(0);
+        gfx.setFont(Clock_GFXfontPtr_Sec);
+        #ifdef CLOCKFONT_MONO
         gfx.setTextColor(config.theme.clockbg, config.theme.background);
+        #else
+        gfx.setTextColor(config.theme.background, config.theme.background);
+        #endif
+        uint16_t topSec;
+        uint16_t leftSec;
+        #if DSP_MODEL == DSP_ILI9341 // 320x240
+            #ifdef AM_PM_STYLE
+        topSec = _top() - _timeheight + 20;
+        leftSec = _linesleft + 8;
+            #else
+        topSec = _top() - _timeheight + 38;
+        leftSec = _linesleft + 3;
+            #endif
+        #else // DSP_MODEL DSP_ILI9341  480x320
+            #ifdef AM_PM_STYLE
+        topSec = _top() - _timeheight + 30;
+        leftSec = _linesleft + 8;
+            #else
+        topSec = _top() - _timeheight + 50;
+        leftSec = _linesleft + 3;
+            #endif
+        #endif
+        gfx.setCursor(leftSec, topSec);
         gfx.print("88");
-    #else
-        // kasowanie przez fillRect – działa poprawnie dla wszystkich czcionek
-        uint16_t secW = _textWidth("88", Clock_GFXfontPtr_Sec);
-        int8_t secH = 0;
-        if (Clock_GFXfontPtr_Sec) {
-            GFXglyph *g = pgm_read_glyph_ptr(Clock_GFXfontPtr_Sec,
-                          '8' - pgm_read_byte(&Clock_GFXfontPtr_Sec->first));
-            secH = pgm_read_byte(&g->height);
-        }
-        gfx.fillRect(leftSec, topSec - secH, secW + 2, secH + 2, config.theme.background);
-    #endif
-
-    // rysowanie aktualnych sekund – wspólne dla obu trybów
-    gfx.setTextColor(config.theme.seconds, config.theme.background);
-    gfx.setCursor(leftSec, topSec);
-    sprintf(_tmp, "%02d", network.timeinfo.tm_sec);
-    gfx.print(_tmp); // Wyświetl sekundy
-}
+        gfx.setTextColor(config.theme.seconds, config.theme.background);
+        gfx.setCursor(leftSec, topSec);
+        sprintf(_tmp, "%02d", network.timeinfo.tm_sec);
+        gfx.print(_tmp); // Wyświetl sekundy
+    }
     gfx.setTextSize(Clock_GFXfontPtr == nullptr ? TIME_SIZE : 1);
     gfx.setFont(Clock_GFXfontPtr);
         #ifndef DSP_OLED
@@ -1752,7 +1708,7 @@ void PlayListWidget::drawPlaylist(uint16_t currentItem) {
     dsp.write(uint8_t(126));
 }
         #endif // DSP_LCD
-
-    #endif
+#endif //PLAYLIST_SCROLL_MOVING_CURSOR
+   
 
 #endif // #if DSP_MODEL!=DSP_DUMMY
