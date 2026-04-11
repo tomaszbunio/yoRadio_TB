@@ -482,7 +482,7 @@ bool _getWeather() {
     #ifdef WEATHER_FMT_SHORT
                         sprintf(timekeeper.weatherBuf, LANG::weatherFmt, tempf, press, hum); // Módisítás LANG:: hozzáírva. "weather"
     #else
-        #if EXT_WEATHER
+        #ifdef EXT_WEATHER
                         sprintf(timekeeper.weatherBuf, LANG::weatherFmt, desc, tempf, tempfl, press, hum, wind_speed, LANG::wind[(int)(wind_deg / 22.5)]);
         #else
                         sprintf(timekeeper.weatherBuf, LANG::weatherFmt, desc, tempf, press, hum);
