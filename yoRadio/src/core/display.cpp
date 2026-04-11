@@ -95,6 +95,7 @@ Display::~Display() {
     delete _title2;
     delete _plcurrent;
 }
+
 void Display::init() {
     Serial.print("##[BOOT]#\tdisplay.init\t");
     #ifdef USE_NEXTION
@@ -104,11 +105,14 @@ void Display::init() {
     analogSetAttenuation(ADC_0db);
     #endif
     _bootStep = 0;
-    // --- HARDVER INIT ---
     dsp.initDisplay();
-    // --- QUEUE ---
+    displayQueue = NULL;
     displayQueue = xQueueCreate(5, sizeof(requestParams_t));
-    while (displayQueue == NULL) { delay(1); }
+    while (displayQueue == NULL) { ; }
+    _createDspTask();
+    while (!_bootStep == 0) { delay(10); }
+    //_pager.begin();
+    //_bootScreen();
     _pager = new Pager();
     _footer = new Page();
     _plwidget = new PlayListWidget();
@@ -117,8 +121,6 @@ void Display::init() {
     _meta = new ScrollWidget();
     _title1 = new ScrollWidget();
     _plcurrent = new ScrollWidget();
-    _createDspTask();
-    while (_bootStep == 0) { delay(10); }
     Serial.println("done");
 }
 
@@ -145,7 +147,6 @@ uint16_t Display::height() {
     #endif
 
 void Display::_bootScreen() {
-    if (!_pager) return; // mód
     _boot = new Page();
     _boot->addWidget(new ProgressWidget(bootWdtConf, bootPrgConf, BOOT_PRG_COLOR, 0));
     _bootstring = (TextWidget*)&_boot->addWidget(new TextWidget(bootstrConf, 50, true, BOOT_TXT_COLOR, 0));
@@ -159,17 +160,29 @@ void Display::_buildPager() {
     _meta->init("*", metaConf, config.theme.meta, config.theme.metabg);
     _title1->init("*", title1Conf, config.theme.title1, config.theme.background);
     _clock->init(clockConf, 0, 0);
+    #if DSP_MODEL == DSP_NOKIA5110
+    _plcurrent->init("*", playlistConf, 0, 1);
+    #else
     _plcurrent->init("*", playlistConf, config.theme.plcurrent, config.theme.plcurrentbg);
+    #endif
     _plwidget->init(_plcurrent);
+    #if !defined(DSP_LCD)
     _plcurrent->moveTo({TFT_FRAMEWDT, (uint16_t)(_plwidget->currentTop()), (int16_t)playlistConf.width});
+    #endif
     #ifndef HIDE_TITLE2
     _title2 = new ScrollWidget("*", title2Conf, config.theme.title2, config.theme.background);
     #endif
-    _plbackground = new FillWidget(playlBGConf, config.theme.plcurrentfill);
-    #if DSP_INVERT_TITLE || defined(DSP_OLED)
+    #if !defined(DSP_LCD) && DSP_MODEL != DSP_NOKIA5110
+    _plbackground = new FillWidget(playlBGConf, config.theme.background);
+        #if DSP_INVERT_TITLE || defined(DSP_OLED)
     _metabackground = new FillWidget(metaBGConf, config.theme.metafill);
-    #else
+        #else
     _metabackground = new FillWidget(metaBGConfInv, config.theme.metafill);
+        #endif
+    #endif
+    #if DSP_MODEL == DSP_NOKIA5110
+    _plbackground = new FillWidget(playlBGConf, 1);
+        //_metabackground = new FillWidget(metaBGConf, 1);
     #endif
     #ifndef HIDE_VU // Módosítás config.theme.vumid új
     _vuwidget = new VuWidget(vuConf, bandsConf, config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background);
@@ -221,15 +234,21 @@ void Display::_buildPager() {
     pages[PG_PLAYER]->addWidget(_clock);
     pages[PG_SCREENSAVER]->addWidget(_clock);
     pages[PG_PLAYER]->addPage(_footer);
+
     if (_metabackground) { pages[PG_DIALOG]->addWidget(_metabackground); }
     pages[PG_DIALOG]->addWidget(_meta);
     pages[PG_DIALOG]->addWidget(_nums);
+
+    #if !defined(DSP_LCD) && DSP_MODEL != DSP_NOKIA5110
     pages[PG_DIALOG]->addPage(_footer);
+    #endif
+    #if !defined(DSP_LCD)
     if (_plbackground) {
         pages[PG_PLAYLIST]->addWidget(_plbackground);
         _plbackground->setHeight(_plwidget->itemHeight());
         _plbackground->moveTo({0, (uint16_t)(_plwidget->currentTop() - playlistConf.widget.textsize * 2), (int16_t)playlBGConf.width});
     }
+    #endif
     pages[PG_PLAYLIST]->addWidget(_plcurrent);
     pages[PG_PLAYLIST]->addWidget(_plwidget);
     for (const auto& p : pages) { _pager->addPage(p); }
@@ -237,12 +256,15 @@ void Display::_buildPager() {
 
 void Display::_apScreen() {
     if (_boot) { _pager->removePage(_boot); }
+    #ifndef DSP_LCD
     _boot = new Page();
-    #if DSP_INVERT_TITLE || defined(DSP_OLED)
+        #if DSP_MODEL != DSP_NOKIA5110
+            #if DSP_INVERT_TITLE || defined(DSP_OLED)
     _boot->addWidget(new FillWidget(metaBGConf, config.theme.metafill));
-    #else
+            #else
     _boot->addWidget(new FillWidget(metaBGConfInv, config.theme.metafill));
-    #endif
+            #endif
+        #endif
     ScrollWidget* bootTitle = (ScrollWidget*)&_boot->addWidget(new ScrollWidget("*", apTitleConf, config.theme.meta, config.theme.metabg));
     bootTitle->setText("yoRadio AP Mode");
     TextWidget* apname = (TextWidget*)&_boot->addWidget(new TextWidget(apNameConf, 30, false, config.theme.title1, config.theme.background));
@@ -257,6 +279,9 @@ void Display::_apScreen() {
     bootSett->setText(config.ipToStr(WiFi.softAPIP()), LANG::apSettFmt);
     _pager->addPage(_boot);
     _pager->setPage(_boot);
+    #else
+    dsp.apScreen();
+    #endif
 }
 
 void Display::_start() {
@@ -312,7 +337,6 @@ void Display::_showDialog(const char* title) {
 }
 
 void Display::_swichMode(displayMode_e newmode) {
-    Serial.printf("Display::_swichMode: %d\n", newmode);
     #ifdef USE_NEXTION
     // nextion.swichMode(newmode);
     nextion.putRequest({NEWMODE, newmode});
@@ -330,6 +354,9 @@ void Display::_swichMode(displayMode_e newmode) {
         } else {
             _clock->moveBack();
         }
+    #ifdef DSP_LCD
+        dsp.clearDsp();
+    #endif
         numOfNextStation = 0;
     #ifdef META_MOVE
         _meta->moveBack();
@@ -369,12 +396,7 @@ void Display::_swichMode(displayMode_e newmode) {
     }
     if (newmode == LOST) { _showDialog(LANG::const_DlgLost); }
     if (newmode == UPDATING) { _showDialog(LANG::const_DlgUpdate); }
-    if (newmode == SLEEPING) {
-         _showDialog("SLEEPING"); 
-         delay(2000);
-         dsp.clearDsp();
-         config.doSleepW();
-    }
+    if (newmode == SLEEPING) { _showDialog("SLEEPING"); }
     if (newmode == SDCHANGE) { _showDialog(LANG::const_waitForSD); }
     if (newmode == INFO || newmode == SETTINGS || newmode == TIMEZONE || newmode == WIFI) { _showDialog(LANG::const_DlgNextion); }
     if (newmode == NUMBERS) { _showDialog(""); }
@@ -395,6 +417,81 @@ void Display::_swichMode(displayMode_e newmode) {
 void Display::resetQueue() {
     if (displayQueue != NULL) { xQueueReset(displayQueue); }
 }
+
+void Display::_applyTheme() {
+  // Update widget colors without rebuilding pages (keeps current texts like weather)
+  if (!_pager) return;
+
+  // Important: ClockWidget may use an internal PS frame buffer (PSFBUFFER)
+  // initialized with the background color. When theme background changes at
+  // runtime, the buffer must be reset, otherwise parts of the clock area can
+  // keep the previous background until a full reboot.
+  if (_clock) {
+    // Update clock widget colors first so _reset() uses the new background.
+    _clock->setColors(config.theme.clock, config.theme.background, false);
+    bool wasLocked = _clock->locked();
+    if (wasLocked) _clock->unlock();
+    // lock(true) calls ClockWidget::_reset(), which recreates the buffer using
+    // current config.theme.background.
+    _clock->lock(true);
+    _clock->unlock();
+    if (wasLocked) _clock->lock(true);
+  }
+
+  // Recolor widgets.
+  // Use redraw=true for background/filled widgets so old colors don't linger
+  // (without needing a full reboot).
+  if (_meta)    _meta->setColors(config.theme.meta, config.theme.metabg, true);
+  if (_title1)  _title1->setColors(config.theme.title1, config.theme.background, true);
+  #ifndef HIDE_TITLE2
+  if (_title2)  _title2->setColors(config.theme.title2, config.theme.background, true);
+  #endif
+  #ifndef HIDE_WEATHER
+  if (_weather) _weather->setColors(config.theme.weather, config.theme.background, true);
+  #endif
+
+  if (_metabackground) _metabackground->setColors(0, config.theme.metafill, true);
+  if (_plbackground)   _plbackground->setColors(0, config.theme.plcurrentfill, true);
+  if (_plcurrent)      _plcurrent->setColors(config.theme.plcurrent, config.theme.plcurrentbg, true);
+
+  #ifndef HIDE_VU
+  if (_vuwidget) _vuwidget->setVuColors(config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background, true);
+  #endif
+  #ifndef HIDE_VOLBAR
+  if (_volbar)  _volbar->setColors(config.theme.volbarin, config.theme.background, true);
+  #endif
+  #ifndef HIDE_HEAPBAR
+  if (_heapbar) _heapbar->setColors(config.theme.buffer, config.theme.background, true);
+  #endif
+  #ifndef HIDE_VOL
+  if (_voltxt) _voltxt->setColors(config.theme.vol, config.theme.background, true);
+  #endif
+  #ifndef HIDE_IP
+  if (_volip)  _volip->setColors(config.theme.ip, config.theme.background, true);
+  #endif
+  #ifndef HIDE_RSSI
+  if (_rssi)   _rssi->setColors(config.theme.rssi, config.theme.background, true);
+  #endif
+  if (_nums)   _nums->setColors(config.theme.digit, config.theme.background, true);
+  if (_bitrate) _bitrate->setColors(config.theme.bitrate, config.theme.background, true);
+  if (_fullbitrate) _fullbitrate->setColors(config.theme.bitrate, config.theme.background, true);
+
+  // Redraw current page using the new theme background
+  Page *pg = pages[PG_DIALOG];
+  if (_mode == PLAYER) pg = pages[PG_PLAYER];
+  else if (_mode == STATIONS) pg = pages[PG_PLAYLIST];
+  else if (_mode == PRESETS) pg = pages[PG_PRESETS];
+  else if (_mode == SCREENSAVER || _mode == SCREENBLANK) pg = pages[PG_SCREENSAVER];
+
+  _pager->setPage(pg, false);
+
+  // Force clock redraw (it uses config.theme directly)
+  if (_clock && (pg == pages[PG_PLAYER] || pg == pages[PG_SCREENSAVER])) {
+    _clock->draw(true);
+  }
+  Serial.printf("_applyTheme: _meta=%p _title1=%p _clock=%p _weather=%p\n", _meta, _title1, _clock, _weather);
+}
+
 
 void Display::_drawPlaylist() {
     // dsp.drawPlaylist(currentPlItem);
@@ -564,6 +661,7 @@ void Display::loop() {
     #endif
                     break;
                 }
+				case APPLY_THEME: _applyTheme(); break;
                 default:
                     break;
 
@@ -627,14 +725,10 @@ void Display::_title() {
         char tmpbuf[strlen(config.station.title) + 1];
         strlcpy(tmpbuf, config.station.title, sizeof(tmpbuf));
         char* stitle = split(tmpbuf, " - ");
-       //  Serial.printf("stitle: %s\n", stitle);
         if (stitle && _title2) {
             _title1->setText(tmpbuf);
-          //  Serial.printf("_title1: %s\n", tmpbuf);
             _title2->setText(stitle);
-          //  Serial.printf("_title2: %s\n", stitle);
         } else {
-           //  Serial.printf("else: \n");
             _title1->setText(config.station.title);
             if (_title2) { _title2->setText(""); }
         }
@@ -700,10 +794,14 @@ void Display::invert() {
     dsp.invert();
 }
 
-void Display::setContrast() {}
+void Display::setContrast() {
+    #if DSP_MODEL == DSP_NOKIA5110
+    dsp.setContrast(config.store.contrast);
+    #endif
+}
 
 bool Display::deepsleep() {
-    #if defined(DSP_OLED) || BRIGHTNESS_PIN != 255
+    #if defined(LCD_I2C) || defined(DSP_OLED) || BRIGHTNESS_PIN != 255
     dsp.sleep();
     return true;
     #endif
@@ -711,7 +809,7 @@ bool Display::deepsleep() {
 }
 
 void Display::wakeup() {
-    #if defined(DSP_OLED) || BRIGHTNESS_PIN != 255
+    #if defined(LCD_I2C) || defined(DSP_OLED) || BRIGHTNESS_PIN != 255
     dsp.wake();
     #endif
 }

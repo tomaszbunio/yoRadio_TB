@@ -64,7 +64,7 @@ void Player::init() {
   setBalance(-config.store.balance);  // "audio_change"   -16 to 16 fordítás 16 to -16
   setTone(config.store.bass, config.store.middle, config.store.trebble);
   setVolumeSteps(100);  // "audio_change" "vol_step" Új beállítás, a maximális hangerő.
-  setVolume(0, 0);
+  setVolume(0);
   _status = STOPPED;
   _volTimer = false;
 //randomSeed(analogRead(0));
@@ -208,7 +208,7 @@ void Player::loop() {
       case PR_VOL:
       {
         config.setVolume(requestP.payload);
-        Audio::setVolume(volToI2S(requestP.payload), 0);
+        Audio::setVolume(volToI2S(requestP.payload));
         break;
       }
       #ifdef USE_SD
@@ -365,6 +365,7 @@ void Player::_play(uint16_t stationId) {
       config.saveValue(&config.store.play_mode, static_cast<uint8_t>(PM_WEB));
     }
   }
+  //connproc = false;
   if (config.getMode() == PM_WEB) {
     isConnected = connecttohost(config.station.url);
   }
@@ -487,7 +488,7 @@ uint8_t Player::volToI2S(uint8_t volume) {
 }
 
 void Player::_loadVol(uint8_t volume) {
-  setVolume(volToI2S(volume), 0);
+  setVolume(volToI2S(volume));
 }
 
 void Player::setVol(uint8_t volume) {

@@ -12,23 +12,19 @@
 #include "telnet.h"
 #include "rtcsupport.h"
 #include "../displays/tools/l10n.h"
-#include "driver/rtc_io.h"
 #ifdef USE_SD
-#    include "sdmanager.h"
+    #include "sdmanager.h"
 #endif
 #ifdef USE_NEXTION
-#    include "../displays/nextion.h"
+    #include "../displays/nextion.h"
 #endif
 #include <cstddef>
 
 #if DSP_MODEL == DSP_DUMMY
-#    define DUMMYDISPLAY
+    #define DUMMYDISPLAY
 #endif
 
 Config config;
-#if IR_PIN != 255
-QueueHandle_t irQueue = nullptr;
-#endif
 
 void u8fix(char* src) { // Ha az utolsó tőbbájtos karakter (ékezetes) utolsó bájtja hiányzik akkor az elejét levágja.
     char last = src[strlen(src) - 1];
@@ -36,7 +32,7 @@ void u8fix(char* src) { // Ha az utolsó tőbbájtos karakter (ékezetes) utols�
 }
 
 bool Config::_isFSempty() {
-    const char*   reqiredFiles[] = {"dragpl.js.gz",   "ir.css.gz",    "irrecord.html.gz", "ir.js.gz",        "logo.svg.gz", "options.html.gz",
+    const char*   reqiredFiles[] = {"dragpl.js.gz",   "ir.css.gz",    "irrecord.html.gz", "ir.js.gz",        "logo.svg.gz", "options.html.gz", "calendar.html.gz",
                                     "player.html.gz", "script.js.gz", "style.css.gz",     "updform.html.gz", "theme.css"};
     const uint8_t reqiredFilesSize = 11;
     char          fullpath[28];
@@ -57,7 +53,7 @@ bool Config::_isFSempty() {
 }
 
 void Config::init() {
-    // EEPROM.begin(EEPROM_SIZE);
+    EEPROM.begin(EEPROM_SIZE);
     sdResumePos = 0;
     /*----- I2C init -----*/
 #if (RTC_MODULE == DS3231) || (TS_MODEL == TS_MODEL_FT6X36) || (TS_MODEL == TS_MODEL_GT911)
@@ -93,17 +89,22 @@ void Config::init() {
 #endif
     emptyFS = true;
 #if IR_PIN != 255
-    irBtnId = -1;
+    irindex = -1;
 #endif
 #if defined(SD_SPIPINS) || SD_HSPI
-#    if !defined(SD_SPIPINS)
+    #if !defined(SD_SPIPINS)
     SDSPI.begin();
-#    else
+    #else
     SDSPI.begin(SD_SPIPINS); // SCK, MISO, MOSI
-#    endif
+    #endif
 #endif
     eepromRead(EEPROM_START, store);
-
+    BOOTLOG("---- EEPROM AFTER READ ----");
+    BOOTLOG("fadeEnabled   : %d", store.fadeEnabled);
+    BOOTLOG("fadeStartDelay: %d", store.fadeStartDelay);
+    BOOTLOG("fadeTarget    : %d", store.fadeTarget);
+    BOOTLOG("fadeStep      : %d", store.fadeStep);
+    BOOTLOG("--------------------------");
 #ifdef USE_DLNA
     if (store.lastPlayedSource == PL_SRC_DLNA) {
         store.playlistSource = PL_SRC_DLNA;
@@ -111,7 +112,7 @@ void Config::init() {
         store.playlistSource = PL_SRC_WEB;
     }
 #endif
-    bootInfo();
+    bootInfo(); // https://github.com/e2002/yoradio/pull/149
     if (store.config_set != 4263) { setDefaults(); }
     if (store.version > CONFIG_VERSION) {
         saveValue(&store.version, (uint16_t)CONFIG_VERSION, true, true);
@@ -155,7 +156,9 @@ void Config::init() {
 }
 
 void Config::_setupVersion() {
+	//store.version = 9;
     uint16_t currentVersion = store.version;
+	
     switch (currentVersion) {
         case 1:
             saveValue(&store.screensaverEnabled, false);
@@ -181,12 +184,84 @@ void Config::_setupVersion() {
             saveValue(&store.timeSyncIntervalRTC, (uint16_t)24); // hours
             saveValue(&store.weatherSyncInterval, (uint16_t)30); // min
             break;
-        case 8:
+		case 5:
+      // Added web options: google TTS, custom theme
+      
+      saveValue(&store.ttsgoogle, false);
+      saveValue(&store.ttsclock, (uint16_t)CLOCK_TTS_INTERVAL_MINUTES);
+      saveValue(&store.thememode, false);
+      saveValue(&store.tbg, color565(COLOR_BACKGROUND));
+      saveValue(&store.tpr, color565(COLOR_STATION_NAME));
+      saveValue(&store.tac, color565(COLOR_STATION_BG));
+      saveValue(&store.tt1, color565(COLOR_SNG_TITLE_1));
+      saveValue(&store.tt2, color565(COLOR_SNG_TITLE_2));
+      saveValue(&store.tw, color565(COLOR_WEATHER));
+      saveValue(&store.tvmax, color565(COLOR_VU_MAX));
+      saveValue(&store.tvmid, color565(COLOR_VU_MID));
+      saveValue(&store.tvmin, color565(COLOR_VU_MIN));
+      break;
+    case 6:
+      // v7: EEPROM size increased. On devices that previously used too-small
+      // EEPROM_SIZE, the tail of config_t could be uninitialized (0xFFFF).
+      // Initialize missing custom theme fields to same defaults.
+      if (store.tbg == 0xFFFF)   saveValue(&store.tbg,   color565(COLOR_BACKGROUND));
+      if (store.tpr == 0xFFFF)   saveValue(&store.tpr,   color565(COLOR_STATION_NAME));
+      if (store.tac == 0xFFFF)   saveValue(&store.tac,   color565(COLOR_STATION_BG));
+      if (store.tt1 == 0xFFFF)   saveValue(&store.tt1,   color565(COLOR_SNG_TITLE_1));
+      if (store.tt2 == 0xFFFF)   saveValue(&store.tt2,   color565(COLOR_SNG_TITLE_2));
+      if (store.tw == 0xFFFF)    saveValue(&store.tw,    color565(COLOR_WEATHER));
+      if (store.tvmax == 0xFFFF) saveValue(&store.tvmax, color565(COLOR_VU_MAX));
+      if (store.tvmid == 0xFFFF) saveValue(&store.tvmid, color565(COLOR_VU_MID));
+      if (store.tvmin == 0xFFFF) saveValue(&store.tvmin, color565(COLOR_VU_MIN));
+      break;
+    case 7:
+  // v8: Added more custom theme colors (digits/divider/nameday/date/ip/rssi/bitrate/volume/heap/buffer)
+  if (store.tdig == 0xFFFF)     saveValue(&store.tdig,     color565(COLOR_DIGITS));
+  if (store.tdiv == 0xFFFF)     saveValue(&store.tdiv,     color565(COLOR_DIVIDER));
+  if (store.tnameday == 0xFFFF) saveValue(&store.tnameday, color565(COLOR_NAMEDAY));
+  if (store.tdate == 0xFFFF)    saveValue(&store.tdate,    color565(COLOR_DATE));
+  if (store.theap == 0xFFFF)    saveValue(&store.theap,    color565(COLOR_HEAP));
+  if (store.tbuffer == 0xFFFF)  saveValue(&store.tbuffer,  color565(COLOR_BUFFER));
+  if (store.tip == 0xFFFF)      saveValue(&store.tip,      color565(COLOR_IP));
+  if (store.tvol == 0xFFFF)     saveValue(&store.tvol,     color565(COLOR_VOLUME_VALUE));
+  if (store.trssi == 0xFFFF)    saveValue(&store.trssi,    color565(COLOR_RSSI));
+  if (store.tbitrate == 0xFFFF) saveValue(&store.tbitrate, color565(COLOR_BITRATE));
+  break;	
+    case 8:
             saveValue(&store.fadeEnabled, (uint8_t)FADE_ENABLED);
             saveValue(&store.fadeStartDelay, (uint16_t)FADE_START_DELAY);
             saveValue(&store.fadeTarget, (uint8_t)FADE_TARGET);
             saveValue(&config.store.fadeStep, (uint8_t)FADE_STEP);
             break;
+	case 9:
+            if (store.clockfont < VT_DIGI || store.clockfont > POINTEDLYMAD_51) {
+    saveValue(&store.clockfont, (uint8_t)CLOCKFONT);
+  }
+  
+    // kolory – tylko gdy niezainicjalizowane (0xFFFF = surowy EEPROM)
+  if (store.ttsgoogle   == 0xFF)   saveValue(&store.ttsgoogle,   false);
+  if (store.ttsclock    == 0xFFFF) saveValue(&store.ttsclock,    (uint16_t)CLOCK_TTS_INTERVAL_MINUTES);
+  if (store.thememode   == 0xFF)   saveValue(&store.thememode,   false);
+  if (store.tbg         == 0xFFFF) saveValue(&store.tbg,         color565(COLOR_BACKGROUND));
+  if (store.tpr         == 0xFFFF) saveValue(&store.tpr,         color565(COLOR_STATION_NAME));
+  if (store.tac         == 0xFFFF) saveValue(&store.tac,         color565(COLOR_CLOCK));
+  if (store.tt1         == 0xFFFF) saveValue(&store.tt1,         color565(COLOR_SNG_TITLE_1));
+  if (store.tt2         == 0xFFFF) saveValue(&store.tt2,         color565(COLOR_SNG_TITLE_2));
+  if (store.tw          == 0xFFFF) saveValue(&store.tw,          color565(COLOR_WEATHER));
+  if (store.tvmax       == 0xFFFF) saveValue(&store.tvmax,       color565(COLOR_VU_MAX));
+  if (store.tvmid       == 0xFFFF) saveValue(&store.tvmid,       color565(COLOR_VU_MID));
+  if (store.tvmin       == 0xFFFF) saveValue(&store.tvmin,       color565(COLOR_VU_MIN));
+  if (store.tdig        == 0xFFFF) saveValue(&store.tdig,        color565(COLOR_DIGITS));
+  if (store.tdiv        == 0xFFFF) saveValue(&store.tdiv,        color565(COLOR_DIVIDER));
+  if (store.tnameday    == 0xFFFF) saveValue(&store.tnameday,    color565(COLOR_NAMEDAY));
+  if (store.tdate       == 0xFFFF) saveValue(&store.tdate,       color565(COLOR_DATE));
+  if (store.theap       == 0xFFFF) saveValue(&store.theap,       color565(COLOR_HEAP));
+  if (store.tbuffer     == 0xFFFF) saveValue(&store.tbuffer,     color565(COLOR_BUFFER));
+  if (store.tip         == 0xFFFF) saveValue(&store.tip,         color565(COLOR_IP));
+  if (store.tvol        == 0xFFFF) saveValue(&store.tvol,        color565(COLOR_VOLUME_VALUE));
+  if (store.trssi       == 0xFFFF) saveValue(&store.trssi,       color565(COLOR_RSSI));
+  if (store.tbitrate    == 0xFFFF) saveValue(&store.tbitrate,    color565(COLOR_BITRATE));
+  break;
         default: break;
     }
     currentVersion++;
@@ -254,12 +329,12 @@ void Config::changeMode(int newmode) { // DLNA mod
     initPlaylistMode();
 
     if (pir) {
-#    ifdef USE_DLNA
+    #ifdef USE_DLNA
         uint16_t st = (getMode() == PM_SDCARD) ? store.lastSdStation : (store.playlistSource == PL_SRC_DLNA ? store.lastDlnaStation : store.lastStation);
-#    else
+    #else
         uint16_t st = (getMode() == PM_SDCARD) ? store.lastSdStation : store.lastStation;
         player.sendCommand({PR_PLAY, st});
-#    endif
+    #endif
     }
 
     netserver.resetQueue();
@@ -394,9 +469,6 @@ void Config::initPlaylistMode() {
             uint16_t cs = playlistLength();
             _lastStation = store.lastStation;
             if (_lastStation == 0 && cs > 0) { _lastStation = 1; }
-#if defined(ALWAYS_START_FROM_FIRST)
-            if (cs > 0) _lastStation = 1;
-#endif
         }
     }
 
@@ -411,6 +483,10 @@ void Config::_initHW() {
     loadTheme();
 #if IR_PIN != 255
     eepromRead(EEPROM_START_IR, ircodes);
+    if (ircodes.ir_set != 4224) {
+        ircodes.ir_set = 4224;
+        memset(ircodes.irVals, 0, sizeof(ircodes.irVals));
+    }
 #endif
 #if BRIGHTNESS_PIN != 255
     pinMode(BRIGHTNESS_PIN, OUTPUT);
@@ -422,7 +498,57 @@ uint16_t Config::color565(uint8_t r, uint8_t g, uint8_t b) {
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
+// --- Web helpers ------------------------------------------------------------
+static inline uint16_t _rgb888_to_565(uint8_t r, uint8_t g, uint8_t b) {
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+uint16_t Config::htmlColorTo565(const char *html) {
+  // Expected formats: "#RRGGBB" or "RRGGBB"
+  if (!html) return 0;
+  const char *p = html;
+  if (*p == '#') p++;
+  if (strlen(p) < 6) return 0;
+  char tmp[3] = {0, 0, 0};
+  tmp[0] = p[0]; tmp[1] = p[1];
+  uint8_t r = (uint8_t)strtoul(tmp, nullptr, 16);
+  tmp[0] = p[2]; tmp[1] = p[3];
+  uint8_t g = (uint8_t)strtoul(tmp, nullptr, 16);
+  tmp[0] = p[4]; tmp[1] = p[5];
+  uint8_t b = (uint8_t)strtoul(tmp, nullptr, 16);
+  return _rgb888_to_565(r, g, b);
+}
+
+void Config::rgb565ToHtml(uint16_t color, char out[8]) {
+  if (!out) return;
+  // Expand RGB565 to RGB888 (approx.)
+  uint8_t r5 = (color >> 11) & 0x1F;
+  uint8_t g6 = (color >> 5) & 0x3F;
+  uint8_t b5 = color & 0x1F;
+  uint8_t r = (r5 * 255 + 15) / 31;
+  uint8_t g = (g6 * 255 + 31) / 63;
+  uint8_t b = (b5 * 255 + 15) / 31;
+  snprintf(out, 8, "#%02X%02X%02X", r, g, b);
+}
+
+// --- UI apply scheduler (thread-safe between AsyncWebSocket and main loop) ---
+static portMUX_TYPE _uiApplyMux = portMUX_INITIALIZER_UNLOCKED;
+
+void Config::scheduleUiApply(uint8_t mask) {
+  portENTER_CRITICAL(&_uiApplyMux);
+  _pendingUiApply |= mask;
+  portEXIT_CRITICAL(&_uiApplyMux);
+}
+uint8_t Config::consumeUiApply() {
+  portENTER_CRITICAL(&_uiApplyMux);
+  uint8_t m = _pendingUiApply;
+  _pendingUiApply = 0;
+  portEXIT_CRITICAL(&_uiApplyMux);
+  return m;
+}
+
 void Config::loadTheme() {
+	Serial.printf("loadTheme: thememode=%d tbg=0x%04X\n", store.thememode, store.tbg);
     theme.background = color565(COLOR_BACKGROUND);
     theme.meta = color565(COLOR_STATION_NAME);
     theme.metabg = color565(COLOR_STATION_BG);
@@ -448,6 +574,43 @@ void Config::loadTheme() {
     theme.vol = color565(COLOR_VOLUME_VALUE);
     theme.rssi = color565(COLOR_RSSI);
     theme.bitrate = color565(COLOR_BITRATE);
+	
+	 if (store.thememode) {
+    // User-editable colors
+    theme.background = store.tbg;
+    theme.meta       = store.tpr;
+    theme.title1     = store.tt1;
+    theme.title2     = store.tt2;
+    theme.weather    = store.tw;
+    theme.vumax      = store.tvmax;
+    theme.vumid      = store.tvmid;
+    theme.vumin      = store.tvmin;
+theme.digit     = store.tdig;
+theme.div       = store.tdiv;
+theme.nameday   = store.tnameday;
+theme.date      = store.tdate;
+theme.heap      = store.theap;
+theme.buffer    = store.tbuffer;
+theme.ip        = store.tip;
+theme.vol       = store.tvol;
+theme.rssi      = store.trssi;
+theme.bitrate   = store.tbitrate;
+
+
+    // Accent repurposed: clock digits color
+    theme.clock      = store.tac;
+    theme.seconds    = theme.clock; // keep seconds same as clock color
+
+    // Solid background across the whole UI (no separate bars / panels)
+    theme.metabg        = theme.background;
+    theme.metafill      = theme.background;
+    theme.clockbg       = theme.background;
+    theme.plcurrentbg   = theme.background;
+    theme.plcurrentfill = theme.background;
+  }
+  #include "../displays/tools/tftinverttitle.h"
+
+	
     theme.volbarout = color565(COLOR_VOLBAR_OUT);
     theme.volbarin = color565(COLOR_VOLBAR_IN);
     theme.plcurrent = color565(COLOR_PL_CURRENT);
@@ -476,29 +639,41 @@ void Config::reset() {
 }
 void Config::enableScreensaver(bool val) {
     saveValue(&store.screensaverEnabled, val);
+#ifndef DSP_LCD
     display.putRequest(NEWMODE, PLAYER);
+#endif
 }
 void Config::setScreensaverTimeout(uint16_t val) {
     val = constrain(val, 5, 65520);
     saveValue(&store.screensaverTimeout, val);
+#ifndef DSP_LCD
     display.putRequest(NEWMODE, PLAYER);
+#endif
 }
 void Config::setScreensaverBlank(bool val) {
     saveValue(&store.screensaverBlank, val);
+#ifndef DSP_LCD
     display.putRequest(NEWMODE, PLAYER);
+#endif
 }
 void Config::setScreensaverPlayingEnabled(bool val) {
     saveValue(&store.screensaverPlayingEnabled, val);
+#ifndef DSP_LCD
     display.putRequest(NEWMODE, PLAYER);
+#endif
 }
 void Config::setScreensaverPlayingTimeout(uint16_t val) {
     val = constrain(val, 1, 1080);
     config.saveValue(&config.store.screensaverPlayingTimeout, val);
+#ifndef DSP_LCD
     display.putRequest(NEWMODE, PLAYER);
+#endif
 }
 void Config::setScreensaverPlayingBlank(bool val) {
     saveValue(&store.screensaverPlayingBlank, val);
+#ifndef DSP_LCD
     display.putRequest(NEWMODE, PLAYER);
+#endif
 }
 void Config::setSntpOne(const char* val) {
     bool tzdone = false;
@@ -527,25 +702,13 @@ void Config::setWeatherKey(const char* val) {
 
 #if IR_PIN != 255
 void Config::setIrBtn(int val) {
-    irBtnId = val;
-    netserver.irRecordEnable = (irBtnId >= 0);
-    irBankId = 0;
-    netserver.irValsToWs(); // kiküldi a három mentett gombot a webszervernek
-    IRCommand ircmd;
-    if (val >= 0) {
-        ircmd.irBtnId = val;   // a gombhoz tartozó index, -1 a mentéséshez
-        ircmd.hasBtnId = true; // mentés engedélyezése
-        ircmd.irBankId = 0;    // 0, 1, 2
-        ircmd.hasBank = true;  // mentés engedélyezése
-        xQueueSend(irQueue, &ircmd, 0);
-        Serial.printf("config.cpp--> setIrBtn--> xQueueSend\n");
-    } else {
-        saveIR();
-        Serial.println("config.cpp--> setIrBtn--> val: -1 (save)");
-    }
+    irindex = val;
+    netserver.irRecordEnable = (irindex >= 0);
+    irchck = 0;
+    netserver.irValsToWs();
+    if (irindex < 0) { saveIR(); }
 }
 #endif
-
 void Config::resetSystem(const char* val, uint8_t clientId) {
     BOOTLOG("***************** RESET SYSTEM *****************");
     if (strcmp(val, "system") == 0) {
@@ -636,20 +799,20 @@ void Config::setDefaults() {
     store.version = CONFIG_VERSION;
     store.volume = 12;
     store.balance = 0;
-    store.trebble = 0;
+    store.trebble = 6;
     store.middle = 0;
-    store.bass = 0;
-    store.lastStation = 0;
+    store.bass = 6;
+    store.lastStation = 1;
     store.countStation = 0;
     store.lastSSID = 0;
-    store.audioinfo = false;
-    store.smartstart = 2;
-    store.tzHour = 3;
+    store.audioinfo = true;
+    store.smartstart = 1;
+    store.tzHour = 1;
     store.tzMin = 0;
     store.timezoneOffset = 0;
-    store.vumeter = false;
+    store.vumeter = true;
     store.softapdelay = 0;
-    store.flipscreen = false;
+    store.flipscreen = true;
     store.invertdisplay = false;
     store.numplaylist = false;
     store.fliptouch = false;
@@ -657,12 +820,12 @@ void Config::setDefaults() {
     store.dspon = true;
     store.brightness = 100;
     store.contrast = 55;
-    strlcpy(store.sntp1, "hu.pool.ntp.org", 35);
-    strlcpy(store.sntp2, "time.google.com", 35);
-    store.showweather = false;
-    strlcpy(store.weatherlat, "46.3873", 10);
-    strlcpy(store.weatherlon, "18.1513", 10);
-    strlcpy(store.weatherkey, "", WEATHERKEY_LENGTH);
+    strlcpy(store.sntp1, "pool.ntp.org", 35);
+    strlcpy(store.sntp2, "1.ru.pool.ntp.org", 35);
+    store.showweather = true;
+    strlcpy(store.weatherlat,"50.0413", 10);
+    strlcpy(store.weatherlon,"21.999", 10);
+    strlcpy(store.weatherkey,"4caffcd4ce6e1aced8f190d4afafaa06", WEATHERKEY_LENGTH);
     store._reserved = 0;
     store.lastSdStation = 0;
     store.lastDlnaStation = 0; // DLNA mod
@@ -701,6 +864,32 @@ void Config::setDefaults() {
     store.fadeStartDelay = FADE_START_DELAY;
     store.fadeTarget = FADE_TARGET;
     store.fadeStep = FADE_STEP;
+	
+	// --- Web options defaults ---
+  
+  store.clockfont = (uint8_t)CLOCKFONT;
+  store.ttsgoogle = false;
+  store.ttsclock = (uint16_t)CLOCK_TTS_INTERVAL_MINUTES;
+  store.thememode = false;
+  store.tbg = color565(COLOR_BACKGROUND);
+  store.tpr = color565(COLOR_STATION_NAME);
+  store.tac = color565(COLOR_CLOCK);
+  store.tt1 = color565(COLOR_SNG_TITLE_1);
+  store.tt2 = color565(COLOR_SNG_TITLE_2);
+  store.tw  = color565(COLOR_WEATHER);
+  store.tvmax = color565(COLOR_VU_MAX);
+  store.tvmid = color565(COLOR_VU_MID);
+  store.tvmin = color565(COLOR_VU_MIN);
+  store.tdig = color565(COLOR_DIGITS);
+  store.tdiv = color565(COLOR_DIVIDER);
+  store.tnameday = color565(COLOR_NAMEDAY);
+  store.tdate = color565(COLOR_DATE);
+  store.theap = color565(COLOR_HEAP);
+  store.tbuffer = color565(COLOR_BUFFER);
+  store.tip = color565(COLOR_IP);
+  store.tvol = color565(COLOR_VOLUME_VALUE);
+  store.trssi = color565(COLOR_RSSI);
+  store.tbitrate = color565(COLOR_BITRATE);
     // DLNA mod
     store.playlistSource = PL_SRC_WEB;
 
@@ -728,7 +917,6 @@ void Config::setSnuffle(bool sn) {
 #if IR_PIN != 255
 void Config::saveIR() {
     eepromWrite(EEPROM_START_IR, ircodes);
-    Serial.println("IR codes saved to EEPROM");
 }
 #endif
 
@@ -1107,13 +1295,20 @@ bool Config::initNetwork() {
 }
 
 void Config::setBrightness(bool dosave) {
+//#if BRIGHTNESS_PIN != 255
+    Serial.printf("config.cpp--> setBrightness() dosave: %d\n", dosave);
     if (!store.dspon && dosave) { display.wakeup(); }
+    //#if DSP_MODEL == DSP_SSD1322
     display.setBrightnessPercent(store.brightness);
+    //#else
+    //analogWrite(BRIGHTNESS_PIN, map(store.brightness, 0, 100, 0, 255));
+    //#endif
     if (!store.dspon) { store.dspon = true; }
     if (dosave) {
         saveValue(&store.brightness, store.brightness, false, true);
         saveValue(&store.dspon, store.dspon, true, true);
     }
+//#endif
 #ifdef USE_NEXTION
     nextion.wake();
     char cmd[15];
@@ -1158,49 +1353,23 @@ void Config::doSleep() {
 #ifdef USE_NEXTION
     nextion.sleep();
 #endif
-    uint64_t mask = 0;
-#if WAKE_PIN1 >= 0 && WAKE_PIN1 < 64
-    if (rtc_gpio_is_valid_gpio((gpio_num_t)WAKE_PIN1)) {
-        rtc_gpio_pullup_en((gpio_num_t)WAKE_PIN1);
-        rtc_gpio_pulldown_dis((gpio_num_t)WAKE_PIN1);
-        mask |= (1ULL << WAKE_PIN1);
-    }
-#endif
-#if WAKE_PIN2 >= 0 && WAKE_PIN2 < 64
-    if (rtc_gpio_is_valid_gpio((gpio_num_t)WAKE_PIN2)) {
-        rtc_gpio_pullup_en((gpio_num_t)WAKE_PIN2);
-        rtc_gpio_pulldown_dis((gpio_num_t)WAKE_PIN2);
-        mask |= (1ULL << WAKE_PIN2);
-    }
-#endif
-    if (mask != 0) { esp_sleep_enable_ext1_wakeup(mask, ESP_EXT1_WAKEUP_ANY_LOW); }
-    esp_sleep_enable_timer_wakeup(config.sleepfor * 60ULL * 1000000ULL);
+#if !defined(ARDUINO_ESP32C3_DEV)
+    if (WAKE_PIN != 255) { esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_PIN, LOW); }
+    esp_sleep_enable_timer_wakeup(config.sleepfor * 60 * 1000000ULL);
     esp_deep_sleep_start();
+#endif
 }
 
 void Config::doSleepW() {
+    if (BRIGHTNESS_PIN != 255) { analogWrite(BRIGHTNESS_PIN, 0); }
     display.deepsleep();
 #ifdef USE_NEXTION
     nextion.sleep();
 #endif
-    uint64_t mask = 0;
-#if WAKE_PIN1 >= 0 && WAKE_PIN1 < 64
-    if (rtc_gpio_is_valid_gpio((gpio_num_t)WAKE_PIN1)) {
-        rtc_gpio_pullup_en((gpio_num_t)WAKE_PIN1);
-        rtc_gpio_pulldown_dis((gpio_num_t)WAKE_PIN1);
-        mask |= (1ULL << WAKE_PIN1);
-    }
-#endif
-#if WAKE_PIN2 >= 0 && WAKE_PIN2 < 64
-    if (rtc_gpio_is_valid_gpio((gpio_num_t)WAKE_PIN2)) {
-        rtc_gpio_pullup_en((gpio_num_t)WAKE_PIN2);
-        rtc_gpio_pulldown_dis((gpio_num_t)WAKE_PIN2);
-        mask |= (1ULL << WAKE_PIN2);
-    }
-#endif
-    delay(200);
-    if (mask != 0) { esp_sleep_enable_ext1_wakeup(mask, ESP_EXT1_WAKEUP_ANY_LOW); }
+#if !defined(ARDUINO_ESP32C3_DEV)
+    if (WAKE_PIN != 255) { esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_PIN, LOW); }
     esp_deep_sleep_start();
+#endif
 }
 
 void Config::sleepForAfter(uint16_t sf, uint16_t sa) {
@@ -1210,25 +1379,6 @@ void Config::sleepForAfter(uint16_t sf, uint16_t sa) {
     } else {
         doSleep();
     }
-}
-
-/*----- number to formated string -----*/
-const char* fmtThousands(uint32_t v) {
-    static char buf[16];
-    char        tmp[16];
-    sprintf(tmp, "%lu", v);
-
-    int len = strlen(tmp);
-    int pos = len % 3;
-    int j = 0;
-
-    for (int i = 0; i < len; i++) {
-        if (i && (i % 3) == pos) buf[j++] = ' ';
-        buf[j++] = tmp[i];
-    }
-    buf[j] = 0;
-
-    return buf;
 }
 
 void Config::bootInfo() {
@@ -1260,22 +1410,9 @@ void Config::bootInfo() {
             ENC2_INTERNALPULLUP ? "true" : "false");
     BOOTLOG("ir:\t\t%d", IR_PIN);
     if (SDC_CS != 255) { BOOTLOG("SD:\t\t%d", SDC_CS); }
-
+    BOOTLOG("------------------------------------------------");
     BOOTLOG("------------------------------------------------");
     BOOTLOG("CONFIG:\tsizeof(store)=%u B | EEPROM_START=%u | EEPROM_END=%u | EEPROM_SIZE=%u", (unsigned)sizeof(config.store), (unsigned)EEPROM_START, (unsigned)(EEPROM_START + sizeof(config.store)),
             (unsigned)EEPROM_SIZE);
-    BOOTLOG("------------------------------------------------");
-    BOOTLOG("------------- EEPROM AFTER READ ----------------");
-    BOOTLOG("fadeEnabled   : %s", store.fadeEnabled ? "true" : "false");
-    BOOTLOG("fadeStartDelay: %4s", fmtThousands(store.fadeStartDelay));
-    BOOTLOG("fadeTarget    : %4s", fmtThousands(store.fadeTarget));
-    BOOTLOG("fadeStep      : %4s", fmtThousands(store.fadeStep));
-    BOOTLOG("------------------------------------------------");
-    BOOTLOG("----------------- HEAP AND PSRAM ---------------");
-    BOOTLOG("Total heap : %10s byte", fmtThousands(ESP.getHeapSize()));
-    BOOTLOG("Free heap  : %10s byte", fmtThousands(ESP.getFreeHeap()));
-    BOOTLOG(psramFound() ? "✅ PSRAM found!" : "❌ PSRAM not found!");
-    BOOTLOG("Total PSRAM: %10s byte", fmtThousands(ESP.getPsramSize()));
-    BOOTLOG("Free PSRAM : %10s byte", fmtThousands(ESP.getFreePsram()));
     BOOTLOG("------------------------------------------------");
 }

@@ -14,6 +14,7 @@
 #include "controls.h"
 #include "commandhandler.h"
 #include "timekeeper.h"
+#include "../Scheduler/scheduler.h"
 #include "../displays/dspcore.h"
 #include "../displays/widgets/widgetsconfig.h"  //BitrateFormat
 
@@ -303,8 +304,9 @@ bool NetServer::begin(bool quiet) {
 
     request->send(200, "text/plain", "OK");
   });
-
+	
 #endif
+  scheduler.load();  //*******Scheduler ***************
   webserver.serveStatic("/", SPIFFS, "/www/");
   webserver.begin();
 
@@ -312,9 +314,6 @@ bool NetServer::begin(bool quiet) {
   //  MDNS.begin(config.store.mdnsname);
   websocket.onEvent(onWsEvent);
   webserver.addHandler(&websocket);
-  websocket.enable(true);            // mód
-//websocket.setPingInterval(5000);     // 5 mp-enként ping
-//websocket.setPongTimeout(3000);      // 3 mp-en belül válasz kell
 #ifdef USE_DLNA  //DLNA mod
   dlna_worker_start();
 #endif
@@ -436,7 +435,7 @@ void NetServer::processQueue() {
         if (network.status == CONNECTED) {
           //act += F("\"group_system\",");
           APPEND_GROUP("group_system");
-          if (BRIGHTNESS_PIN != 255 || DSP_CAN_FLIPPED || dbgact) {
+          if (BRIGHTNESS_PIN != 255 || DSP_CAN_FLIPPED || DSP_MODEL == DSP_NOKIA5110 || dbgact) {
             APPEND_GROUP("group_display");
           }
 #ifdef USE_NEXTION
@@ -460,6 +459,9 @@ void NetServer::processQueue() {
           }
           if (TS_MODEL != TS_MODEL_UNDEFINED || dbgact) {
             APPEND_GROUP("group_touch");
+          }
+          if (DSP_MODEL == DSP_NOKIA5110) {
+            APPEND_GROUP("group_nokia");
           }
           APPEND_GROUP("group_timezone");
           if (SHOW_WEATHER || dbgact) {
@@ -509,17 +511,49 @@ void NetServer::processQueue() {
         break;
       }
 
-      case GETSYSTEM:
-        sprintf(
-          wsBuf,
-          "{\"sst\":%d,\"aif\":%d,\"vu\":%d,\"softr\":%d,\"vut\":%d,\"mdns\":\"%s\",\"ipaddr\":\"%s\", \"abuff\": %d, \"telnet\": %d, \"watchdog\": %d, "
-          "\"nameday\": %d }",  // "nameday"
-          config.store.smartstart != 2, config.store.audioinfo, config.store.vumeter, config.store.softapdelay, config.vuRefLevel, config.store.mdnsname,
-          config.ipToStr(WiFi.localIP()), config.store.abuff, config.store.telnet, config.store.watchdog, config.store.nameday
-        );
-        Serial.printf("netserver-> config.store.nameday %d \n", config.store.nameday);
-        break;
-      case GETSCREEN:
+  case GETSYSTEM:
+  {
+    char tbg[8], tpr[8], tac[8], tt1[8], tt2[8], tw[8], tvmax[8], tvmid[8], tvmin[8], tdig[8], tdiv[8], tnameday[8], tdate[8], theap[8], tbuffer[8], tip[8], tvol[8], trssi[8], tbitrate[8];
+    Config::rgb565ToHtml(config.store.tbg, tbg);
+    Config::rgb565ToHtml(config.store.tpr, tpr);
+    Config::rgb565ToHtml(config.store.tac, tac);
+    Config::rgb565ToHtml(config.store.tt1, tt1);
+    Config::rgb565ToHtml(config.store.tt2, tt2);
+    Config::rgb565ToHtml(config.store.tw,  tw);
+    Config::rgb565ToHtml(config.store.tvmax, tvmax);
+    Config::rgb565ToHtml(config.store.tvmid, tvmid);
+    Config::rgb565ToHtml(config.store.tvmin, tvmin);
+    Config::rgb565ToHtml(config.store.tdig, tdig);
+    Config::rgb565ToHtml(config.store.tdiv, tdiv);
+    Config::rgb565ToHtml(config.store.tnameday, tnameday);
+    Config::rgb565ToHtml(config.store.tdate, tdate);
+    Config::rgb565ToHtml(config.store.theap, theap);
+    Config::rgb565ToHtml(config.store.tbuffer, tbuffer);
+    Config::rgb565ToHtml(config.store.tip, tip);
+    Config::rgb565ToHtml(config.store.tvol, tvol);
+    Config::rgb565ToHtml(config.store.trssi, trssi);
+    Config::rgb565ToHtml(config.store.tbitrate, tbitrate);
+    snprintf(
+      wsBuf, sizeof(wsBuf),
+      "{\"sst\":%d,\"aif\":%d,\"vu\":%d,\"softr\":%d,\"vut\":%d,\"mdns\":\"%s\",\"ipaddr\":\"%s\","
+      "\"abuff\":%d,\"telnet\":%d,\"watchdog\":%d,\"nameday\":%d,"
+      "\"ttsgoogle\":%d,\"ttsclock\":%d,\"clockfont\":%d,\"thememode\":%d,"
+      "\"tbg\":\"%s\",\"tpr\":\"%s\",\"tac\":\"%s\",\"tt1\":\"%s\",\"tt2\":\"%s\",\"tw\":\"%s\","
+      "\"tvmax\":\"%s\",\"tvmid\":\"%s\",\"tvmin\":\"%s\","
+      "\"tdig\":\"%s\",\"tdiv\":\"%s\",\"tnameday\":\"%s\",\"tdate\":\"%s\","
+      "\"theap\":\"%s\",\"tbuffer\":\"%s\",\"tip\":\"%s\",\"tvol\":\"%s\","
+      "\"trssi\":\"%s\",\"tbitrate\":\"%s\"}",
+      config.store.smartstart != 2, config.store.audioinfo, config.store.vumeter, config.store.softapdelay, config.vuRefLevel,
+      config.store.mdnsname, config.ipToStr(WiFi.localIP()),
+      config.store.abuff, config.store.telnet, config.store.watchdog, config.store.nameday,
+      (int)config.store.ttsgoogle, (int)config.store.ttsclock, (int)config.store.clockfont, (int)config.store.thememode,
+      tbg, tpr, tac, tt1, tt2, tw, tvmax, tvmid, tvmin,
+      tdig, tdiv, tnameday, tdate, theap, tbuffer, tip, tvol, trssi, tbitrate
+    );
+    Serial.printf("netserver-> config.store.nameday %d \n", config.store.nameday);
+  }
+  break;
+  case GETSCREEN:
   sprintf(
     wsBuf,
     "{\"flip\":%d,\"inv\":%d,\"nump\":%d,\"tsf\":%d,\"tsd\":%d,\"dspon\":%d,"
@@ -690,28 +724,7 @@ void NetServer::loop() {
       break;
     default: break;
   }
-  static uint32_t lastPing = 0;
-
-if (millis() - lastPing > 5000) {  // 5 mp
-    lastPing = millis();
-
-    if (websocket.count() > 0) {
-        websocket.textAll("{\"ping\":1}");
-    }
-}
-static uint32_t lastWsActivity = 0;
-
-// ha van kliens, frissítjük az aktivitást
-if (websocket.count() > 0) {
-    lastWsActivity = millis();
-}
-
-// ha 15 mp óta nincs aktivitás → zárjuk
-if (millis() - lastWsActivity > 15000 && websocket.count() > 0) {
-    Serial.println("[WS] Force reconnect");
-    websocket.closeAll();
-}
-
+  //processQueue();
 }
 
 #if IR_PIN != 255
@@ -720,15 +733,14 @@ void NetServer::irToWs(const char *protocol, uint64_t irvalue) {
   sprintf(wsBuf, "{\"ircode\": %llu, \"protocol\": \"%s\"}", irvalue, protocol);
   websocket.textAll(wsBuf);
 }
-
 void NetServer::irValsToWs() {
   if (!irRecordEnable) {
     return;
   }
   wsBuf[0] = '\0';
   sprintf(
-    wsBuf, "{\"irvals\": [%llu, %llu, %llu]}", config.ircodes.irVals[config.irBtnId][0], config.ircodes.irVals[config.irBtnId][1],
-    config.ircodes.irVals[config.irBtnId][2]
+    wsBuf, "{\"irvals\": [%llu, %llu, %llu]}", config.ircodes.irVals[config.irindex][0], config.ircodes.irVals[config.irindex][1],
+    config.ircodes.irVals[config.irindex][2]
   );
   websocket.textAll(wsBuf);
 }
@@ -769,6 +781,43 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
         }
         return;
       }
+	  
+	  // ── SCHEDULER ──────────────────────────────────
+if (strcmp(_wscmd, "sched_get") == 0) {
+  char buf[2048];
+  scheduler.buildJson(buf, sizeof(buf));
+  websocket.text(clientId, buf);
+  return;
+}
+if (strcmp(_wscmd, "sched_save") == 0) {
+  scheduler.addEvent(_wsval);
+  char buf[64];
+  Scheduler::buildOkJson(buf, sizeof(buf));
+  websocket.text(clientId, buf);
+  // odślij zaktualizowany harmonogram
+  char buf2[2048];
+  scheduler.buildJson(buf2, sizeof(buf2));
+  websocket.text(clientId, buf2);
+  return;
+}
+if (strcmp(_wscmd, "sched_del") == 0) {
+  scheduler.deleteEvent(_wsval);
+  char buf[64];
+  Scheduler::buildOkJson(buf, sizeof(buf));
+  websocket.text(clientId, buf);
+  char buf2[2048];
+  scheduler.buildJson(buf2, sizeof(buf2));
+  websocket.text(clientId, buf2);
+  return;
+}
+if (strcmp(_wscmd, "sched_enable") == 0) {
+  scheduler.setEnabled(atoi(_wsval) == 1);
+  char buf[64];
+  Scheduler::buildOkJson(buf, sizeof(buf));
+  websocket.text(clientId, buf);
+  return;
+}
+// ── EOF SCHEDULER ───────────────────────────────
 
 #ifdef USE_DLNA  //DLNA mod
       // ===== WEB playlist aktiválás =====
