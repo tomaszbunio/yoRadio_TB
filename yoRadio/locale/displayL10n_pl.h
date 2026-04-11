@@ -90,7 +90,7 @@ const char        apSettFmt[]    PROGMEM = "TU SIĘ ZALOGUJ: HTTP://%s/";
 #ifdef WEATHER_FMT_SHORT
 const char weatherFmt[] PROGMEM = "%.1f\011C  \007  %d hPa  \007  %d%% RH";
 #else
-  #if EXT_WEATHER
+  #ifdef EXT_WEATHER
     #ifdef WIND_SPEED_IN_KMH
       #define WIND_UNIT "km/h"
     #else
