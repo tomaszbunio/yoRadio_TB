@@ -37,7 +37,7 @@ https://www.aliexpress.com/item/1005005407437987.html
 https://www.aliexpress.com/item/1005008621695365.html
 
 - 10PCS Single Row Pin Female Header Socket Pitch 2.54mm 22p Pin Connector  
-https://www.aliexpress.com/item/1005003335405213.html
+https://www.aliexpress.com/item/1005007563546219.html
 
 - 230 PCS 2/3/4/5p 2.54mm Male and Female Pin Terminal Kit Housing Pin Header JST XH-2.54 4Value Connectors Adaptor 
 https://www.aliexpress.com/item/1005009454589816.html 
@@ -88,5 +88,5 @@ https://www.aliexpress.com/item/1005007813766293.html
 - SN-68B Crimps Plug JST ,TE,XH,SM,VH,PH,Molex Terminals Ratchet Crimper Pliers For 0.08-1.5mm²(28-16 AWG) Wires Tool
 https://www.aliexpress.com/item/1005008523636465.html?spm=a2g0o.order_list.order_list_main.66.514b1802aakfO9
 
-### Ha támogatni szeretnéd a munkámat itt meghívhatsz egy kávéra!!!     
+## Itt meghívhatsz egy kávéra!!!     
 https://buymeacoffee.com/vtom

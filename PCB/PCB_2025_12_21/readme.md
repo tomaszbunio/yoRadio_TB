@@ -4,8 +4,7 @@
 - **SMD alkatrészek mérete:** 1206
 - Kapcsolási rajz PDF formátumban letölthető: [wiring_diagram_2025_dec_21.pdf](../../PCB/PCB_2025_12_21/wiring_diagram_2025_dec_21.pdf) 
 - A `GPIO_1`, `GPIO_2`, `GPIO_42`, `GPIO_17` kivezetések nem használt PIN-ek, kivétel ha capacitive touch -ot használsz.  
-  Ez esetben a `GPIO_17 - INT` és 10kΩ felhúzóellenállás használata szükséges!  
-  GT911 esetén a `GPIO_42 - RST` touch.
+  Ez esetben a `GPIO_17 - INT` és csak GT911 esetén a `GPIO_42 - RST` touch.
 - **R1-R2** az I2C busz SCL és SCA felhúzóellenállásai. 2.2kΩ (Capacitive touch és RTC modul DS3132 használja.)
 - Az **R3–R6** ellenállások a nem használt pinek felhúzóellenállásai. 
   Csak szükség esetén kell beforrasztani őket. 10kΩ
@@ -122,11 +121,11 @@ Az ilyen modult akkor érdemes használni, ha például egy mikrokontroller vagy
   https://github.com/e2002/yoradio/wiki/How-to-flash
 
 
-### Ez a PCB verzió legyártható 2 EURO / 5 darab áráért a [jlcpcb.com](https://jlcpcb.com/?from=AMOSWLDYVIS) oldalon a [yoradio_gerber.zip](../../PCB/PCB_2025_12_21/yoradio_gerber.zip)   fájl feltöltésével.     
+### Ez a PCB verzió legyártható a [jlcpcb.com](https://jlcpcb.com/) oldalon a [yoradio_gerber.zip](../../PCB/PCB_2025_12_21/yoradio_gerber.zip)   fájl feltöltésével.     
 
 ![PCB front](2D_top_98x100mm.jpg)<br><br>
 ![PCB back](2D_bottom_98x100mm.jpg)<br><br>
 ![3D top](3D_top.jpg)<br><br>
 
-### Ha támogatni szeretnéd a munkámat itt meghívhatsz egy kávéra!!!     
+## Itt meghívhatsz egy kávéra!!!     
 https://buymeacoffee.com/vtom

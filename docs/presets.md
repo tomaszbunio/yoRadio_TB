@@ -1,5 +1,4 @@
 ## 📻 YoRadio – Presets kezelési útmutató
-<img src="../images/presets.png" alt="Projekt logó" width="400">
 
 A Presets rendszer lehetővé teszi, hogy bármely rádióállomást elments és később egyetlen érintéssel visszahívd, még akkor is, ha a playlist időközben megváltozik. Érintéses képernyőmód bekapcsolása szükséges és csak 320x480 pixeles felbontáson működik. Mentés az NVS memóriába történik.
 
@@ -27,5 +26,5 @@ Van ID, de nincs név vagy URL program automatikusan:
 
 - Nem engedi, hogy „láthatatlan” preset maradjon
 
-### Ha támogatni szeretnéd a munkámat itt meghívhatsz egy kávéra!!!     
+## Itt meghívhatsz egy kávéra!!!     
 https://buymeacoffee.com/vtom
