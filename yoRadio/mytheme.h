@@ -1,3 +1,5 @@
+// v8.2
+
 #ifndef _my_theme_h
 #define _my_theme_h
 
@@ -9,10 +11,10 @@
 #define COLOR_BACKGROUND          0,   0,   0
 
 /*----- META -----*/
-#define COLOR_STATION_NAME      102, 178, 255 // 4, 122, 255  
+#define COLOR_STATION_NAME        4, 122, 255  
 #define COLOR_STATION_BG          0,   0,   0   
-#define COLOR_STATION_FILL      102, 178, 255 // 4, 122, 255   
-#define COLOR_SNG_TITLE_1       200, 200, 200
+#define COLOR_STATION_FILL        4, 122, 255   
+#define COLOR_SNG_TITLE_1       255, 255, 255
 #define COLOR_SNG_TITLE_2       165, 162, 132
 #define COLOR_BITRATE           231, 211,  90
 
@@ -45,13 +47,13 @@
 #define COLOR_CH                165, 162, 132
 #define COLOR_RSSI              165, 162, 132
 #define COLOR_HEAP               41,  40,  41
-#define COLOR_BUFFER            102, 178, 255
+#define COLOR_BUFFER              4, 122, 255
 
 /*----- PLAYLIST -----*/
 #ifdef PLAYLIST_SCROLL_MOVING_CURSOR
-    #define COLOR_PL_CURRENT        250,  250,  250
+    #define COLOR_PL_CURRENT        255, 255,   255
     #define COLOR_PL_CURRENT_BG       0,    0,    0
-    #define COLOR_PL_CURRENT_FILL     0,    0,    0
+    #define COLOR_PL_CURRENT_FILL    24, 122, 255
     #define COLOR_PLAYLIST_0        165,  165,  165
     #define COLOR_PLAYLIST_1        165,  165,  165
     #define COLOR_PLAYLIST_2        165,  165,  165

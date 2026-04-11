@@ -72,20 +72,20 @@ const char* const dowf[]    PROGMEM = { sunf, monf, tuef, wedf, thuf, frif, satf
 const char* const mnths[]   PROGMEM = { jan, feb, mar, apr, may, jun, jul, aug, sep, octt, nov, decc };
 const char* const wind[]    PROGMEM = { wn_N, wn_NNE, wn_NE, wn_ENE, wn_E, wn_ESE, wn_SE, wn_SSE, wn_S, wn_SSW, wn_SW, wn_WSW, wn_W, wn_WNW, wn_NW, wn_NNW, wn_N };
 
-const char    const_PlReady[]    PROGMEM = "[ready]";
-const char  const_PlStopped[]    PROGMEM = "[stopped]";
-const char  const_PlConnect[]    PROGMEM = "[connecting]";
-const char  const_DlgVolume[]    PROGMEM = "VOLUME";
-const char    const_DlgLost[]    PROGMEM = "* LOST *";
-const char  const_DlgUpdate[]    PROGMEM = "* UPDATING *";
+const char    const_PlReady[]    PROGMEM = "START";
+const char  const_PlStopped[]    PROGMEM = "PAUZA";
+const char  const_PlConnect[]    PROGMEM = "yoRadio";
+const char  const_DlgVolume[]    PROGMEM = "SIŁA GŁOSU";
+const char    const_DlgLost[]    PROGMEM = "* ROZŁĄCZONY *";
+const char  const_DlgUpdate[]    PROGMEM = "* AKTUALIZACJA *";
 const char const_DlgNextion[]    PROGMEM = "* NEXTION *";
 const char const_getWeather[]    PROGMEM = "";
 const char  const_waitForSD[]    PROGMEM = "INDEX SD";
 
-const char        apNameTxt[]    PROGMEM = "AP NAME";
-const char        apPassTxt[]    PROGMEM = "PASSWORD";
-const char       bootstrFmt[]    PROGMEM = "Connecting %s";
-const char        apSettFmt[]    PROGMEM = "SETTINGS PAGE ON: HTTP://%s/";
+const char        apNameTxt[]    PROGMEM = "WYSZUKAJ WIFI ";
+const char        apPassTxt[]    PROGMEM = "WPISZ PONIŻSZE HASŁO ";
+const char       bootstrFmt[]    PROGMEM = "ŁĄCZE SIĘ Z %s";
+const char        apSettFmt[]    PROGMEM = "TU SIĘ ZALOGUJ: HTTP://%s/";
 // clang-format on
 #ifdef WEATHER_FMT_SHORT
 const char weatherFmt[] PROGMEM = "%.1f\011C  \007  %d hPa  \007  %d%% RH";
