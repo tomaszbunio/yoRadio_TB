@@ -10,18 +10,24 @@
 #include "rtcsupport.h"
 #include "../displays/tools/l10n.h"
 #include "../pluginsManager/pluginsManager.h"
+#include "../Scheduler/scheduler.h"
+#include "commandhandler.h"
+
+extern void goToSleep();
+
+
 #ifdef USE_NEXTION
-#    include "../displays/nextion.h"
+    #include "../displays/nextion.h"
 #endif
 #if DSP_MODEL == DSP_DUMMY
-#    define DUMMYDISPLAY
+    #define DUMMYDISPLAY
 #endif
 
 #if RTCSUPPORTED
-// #define TIME_SYNC_INTERVAL  24*60*60*1000
-#    define TIME_SYNC_INTERVAL config.store.timeSyncIntervalRTC * 60 * 60 * 1000
+    // #define TIME_SYNC_INTERVAL  24*60*60*1000
+    #define TIME_SYNC_INTERVAL config.store.timeSyncIntervalRTC * 60 * 60 * 1000
 #else
-#    define TIME_SYNC_INTERVAL config.store.timeSyncInterval * 60 * 1000
+    #define TIME_SYNC_INTERVAL config.store.timeSyncInterval * 60 * 1000
 #endif
 #define WEATHER_SYNC_INTERVAL config.store.weatherSyncInterval * 60 * 1000
 
@@ -41,9 +47,9 @@ void printHeapFragmentationInfo(const char* title) {
     Serial.printf("* Fragmentation: %.2f%%\n", fragmentation);
     Serial.printf("*************************************\n\n");
 }
-#    define HEAP_INFO() printHeapFragmentationInfo(__PRETTY_FUNCTION__)
+    #define HEAP_INFO() printHeapFragmentationInfo(__PRETTY_FUNCTION__)
 #else
-#    define HEAP_INFO()
+    #define HEAP_INFO()
 #endif
 
 TimeKeeper timekeeper;
@@ -80,18 +86,39 @@ bool TimeKeeper::loop0() { // core0 (display)
     static uint32_t _last1s = 0;
     static uint32_t _last2s = 0;
     static uint32_t _last5s = 0;
-    if (currentTime - _last05s >= 500) { // 0,5 sec
+   if(currentTime - _last05s >= 500){ // 0,5 sec
         _last05s = currentTime;
         pm.on_ticker();
     }
     if (currentTime - _last1s >= 1000) { // 1sec
         _last1s = currentTime;
-
+   
+   // ── SCHEDULER ──────────────────────────────
+    getLocalTime(&network.timeinfo);
+    uint8_t schedDay    = (network.timeinfo.tm_wday + 6) % 7;
+    uint8_t schedHour   = network.timeinfo.tm_hour;
+    uint8_t schedMinute = network.timeinfo.tm_min;
+    const char* schedAction = scheduler.check(schedDay, schedHour, schedMinute);
+if (strlen(schedAction) > 0) {
+  if (strcmp(schedAction, "start") == 0) {
+    cmd.exec("play", "", 0);
+  } else if (strcmp(schedAction, "stop") == 0) {
+    goToSleep();
+  }
+}
+	//Serial.printf("Scheduler: day=%d hour=%d min=%d enabled=%d action=%s\n", 
+	//schedDay, schedHour, schedMinute, scheduler.enabled, schedAction);
+    if (strlen(schedAction) > 0) {
+        cmd.exec(schedAction, "", 0);
+    }
+	
+    // ── EOF SCHEDULER ───────────────────────────
+   
 // #ifndef DUMMYDISPLAY
 #if !defined(DUMMYDISPLAY) || defined(USE_NEXTION)
-#    ifndef UPCLOCK_CORE1
+    #ifndef UPCLOCK_CORE1
         _upClock();
-#    endif
+    #endif
 #endif
     }
     if (currentTime - _last2s >= 2000) { // 2sec
@@ -118,12 +145,12 @@ bool TimeKeeper::loop1() { // core1 (player)
 #endif
     if (currentTime - _last1s >= 1000) { // 1sec
         _last1s = currentTime;
-        //   pm.on_ticker();
+       //   pm.on_ticker();
 // #ifndef DUMMYDISPLAY
 #if !defined(DUMMYDISPLAY) || defined(USE_NEXTION)
-#    ifdef UPCLOCK_CORE1
+    #ifdef UPCLOCK_CORE1
         _upClock();
-#    endif
+    #endif
 #endif
         _upScreensaver();
         _upSDPos();
@@ -198,13 +225,11 @@ void TimeKeeper::waitAndReturnPlayer(uint8_t time_s) {
 void TimeKeeper::_returnPlayer() {
     if (_returnPlayerTime > 0 && millis() >= _returnPlayerTime) {
         _returnPlayerTime = 0;
-#ifdef DIRECT_CHANNEL_CHANGE // "direct_channel_change"
-        if (display.mode() == STATIONS) {
-            if (config.lastStation() != display.currentPlItem) {
-                config.lastStation(display.currentPlItem);
-                player.sendCommand({PR_PLAY, config.lastStation()});
-            }
-        }
+#ifdef DIRECT_CHANNEL_CHANGE                                     // "direct_channel_change"
+        if (display.mode() == STATIONS) {                        // zsb
+            config.lastStation(display.currentPlItem);           // zsb
+            player.sendCommand({PR_PLAY, config.lastStation()}); // zsb
+        } // zsb
 #endif
         display.putRequest(NEWMODE, PLAYER);
     }
@@ -234,13 +259,14 @@ void TimeKeeper::_upClock() {
 }
 
 void TimeKeeper::_upScreensaver() {
+#ifndef DSP_LCD
     if (!display.ready()) { return; }
     if (config.store.screensaverEnabled && display.mode() == PLAYER && (!player.isRunning() || config.store.volume == 0)) { // "PWR_AMP"
         config.screensaverTicks++;
         if (config.screensaverTicks > config.store.screensaverTimeout + SCREENSAVERSTARTUPDELAY) {
-#if PWR_AMP != 255 // "PWR_AMP"
+    #if PWR_AMP != 255 // "PWR_AMP"
             digitalWrite(PWR_AMP, LOW);
-#endif
+    #endif
             if (config.store.screensaverBlank) {
                 display.putRequest(NEWMODE, SCREENBLANK);
             } else {
@@ -260,6 +286,7 @@ void TimeKeeper::_upScreensaver() {
             config.screensaverPlayingTicks = SCREENSAVERSTARTUPDELAY;
         }
     }
+#endif
 }
 
 void TimeKeeper::_upRSSI() {
@@ -412,15 +439,15 @@ bool _getWeather() {
                             Serial.println("##WEATHER###: wind deg not found !");
                             result = false;
                         }
-// press = press / 1.333;
-// press = press / 0.973; //Módosítva hPa kijelzéshez. "weather"
-#    ifdef WIND_SPEED_IN_KMH
+    // press = press / 1.333;
+    // press = press / 0.973; //Módosítva hPa kijelzéshez. "weather"
+    #ifdef WIND_SPEED_IN_KMH
                         wind_speed *= 3.6f;
-#    endif
+    #endif
 
                         if (!result) { return; }
 
-#    ifdef USE_NEXTION
+    #ifdef USE_NEXTION
                         nextion.putcmdf("press_txt.txt=\"%dmm\"", press);
                         nextion.putcmdf("hum_txt.txt=\"%d%%\"", hum);
                         char cmd[30];
@@ -449,18 +476,18 @@ bool _getWeather() {
                             iconofset = 9;
                         nextion.putcmd("cond_img.pic", 50 + iconofset);
                         nextion.weatherVisible(1);
-#    endif
+    #endif
 
                         Serial.printf("##WEATHER###: description: %s, temp:%.1f C, pressure:%dmmHg, humidity:%d%%, wind: %d\n", desc, tempf, press, hum, (int)(wind_deg / 22.5));
-#    ifdef WEATHER_FMT_SHORT
+    #ifdef WEATHER_FMT_SHORT
                         sprintf(timekeeper.weatherBuf, LANG::weatherFmt, tempf, press, hum); // Módisítás LANG:: hozzáírva. "weather"
-#    else
-#        if EXT_WEATHER
+    #else
+        #if EXT_WEATHER
                         sprintf(timekeeper.weatherBuf, LANG::weatherFmt, desc, tempf, tempfl, press, hum, wind_speed, LANG::wind[(int)(wind_deg / 22.5)]);
-#        else
+        #else
                         sprintf(timekeeper.weatherBuf, LANG::weatherFmt, desc, tempf, press, hum);
-#        endif
-#    endif
+        #endif
+    #endif
                         display.putRequest(NEWWEATHER);
                     } else {
                         Serial.println("##WEATHER###: weather not found !");

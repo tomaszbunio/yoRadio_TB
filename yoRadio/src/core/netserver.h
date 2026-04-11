@@ -44,7 +44,7 @@ input[type=text],input[type=password]{width:170px;background:#272727;color:#e3d2
 </div>
 </section>
 <p><a href="/emergency">emergency firmware uploader</a></p>
-<div id="copy">powered by <a target="_blank" href="https://github.com/VaraiTamas/yoRadio">yoRadio_V-Tom</a><span id="version"></span></div>
+<div id="copy">powered by <a target="_blank" href="https://github.com/VaraiTamas/yoRadio">ёRadio_V-Tom</a><span id="version"></span></div>
 </body>
 <script>
 document.wifiform.action = `/${formAction}`;
@@ -117,7 +117,7 @@ class NetServer {
     requestType_e request;
     QueueHandle_t nsQueue;
     char _wscmd[65], _wsval[65];
-    char wsBuf[BUFLEN*2];
+    char wsBuf[BUFLEN*4];
     int rssi;
     uint32_t playerBufMax;
     void getPlaylist(uint8_t clientId);

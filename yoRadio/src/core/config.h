@@ -12,7 +12,7 @@
 #define EEPROM_START_IR 0
 #define EEPROM_START_2  10
 #ifndef BUFLEN
-#    define BUFLEN 170
+    #define BUFLEN 170
 #endif
 #define PLAYLIST_PATH "/data/playlist.csv"
 #define SSIDS_PATH    "/data/wifi.csv"
@@ -22,15 +22,15 @@
 #define PLAYLIST_SD_PATH "/data/playlistsd.csv"
 #define INDEX_SD_PATH    "/data/indexsd.dat"
 #ifdef USE_DLNA                                          // DLNA mod
-#    define PLAYLIST_DLNA_PATH "/data/playlist_dlna.csv" // DLNA mod
-#    define INDEX_DLNA_PATH    "/data/indexdlna.dat"     // DLNA mod
+    #define PLAYLIST_DLNA_PATH "/data/playlist_dlna.csv" // DLNA mod
+    #define INDEX_DLNA_PATH    "/data/indexdlna.dat"     // DLNA mod
 
-#    define REAL_PLAYL (config.getMode() == PM_SDCARD ? PLAYLIST_SD_PATH : config.store.playlistSource == PL_SRC_DLNA ? PLAYLIST_DLNA_PATH : PLAYLIST_PATH)
+    #define REAL_PLAYL (config.getMode() == PM_SDCARD ? PLAYLIST_SD_PATH : config.store.playlistSource == PL_SRC_DLNA ? PLAYLIST_DLNA_PATH : PLAYLIST_PATH)
 
-#    define REAL_INDEX (config.getMode() == PM_SDCARD ? INDEX_SD_PATH : config.store.playlistSource == PL_SRC_DLNA ? INDEX_DLNA_PATH : INDEX_PATH)
+    #define REAL_INDEX (config.getMode() == PM_SDCARD ? INDEX_SD_PATH : config.store.playlistSource == PL_SRC_DLNA ? INDEX_DLNA_PATH : INDEX_PATH)
 #else
-#    define REAL_PLAYL (config.getMode() == PM_WEB ? PLAYLIST_PATH : PLAYLIST_SD_PATH)
-#    define REAL_INDEX (config.getMode() == PM_WEB ? INDEX_PATH : INDEX_SD_PATH)
+    #define REAL_PLAYL (config.getMode() == PM_WEB ? PLAYLIST_PATH : PLAYLIST_SD_PATH)
+    #define REAL_INDEX (config.getMode() == PM_WEB ? INDEX_PATH : INDEX_SD_PATH)
 #endif
 
 #define MAX_PLAY_MODE     1
@@ -38,21 +38,19 @@
 #define MDNS_LENGTH       24
 
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-#    define ESP_ARDUINO_3 1
+    #define ESP_ARDUINO_3 1
 #endif
 
-#define CONFIG_VERSION 8
+#define CONFIG_VERSION 9
 
 enum playMode_e : uint8_t { // DLNA mod
     PM_WEB = 0,
     PM_SDCARD = 1,
 };
 
-#if IR_PIN != 255
-extern QueueHandle_t irQueue;
-#endif
 
 enum PlaylistSource : uint8_t { PL_SRC_WEB = 0, PL_SRC_DLNA = 1 };
+
 
 void u8fix(char* src);
 
@@ -170,22 +168,47 @@ struct config_t {
     uint16_t fadeStartDelay;
     uint8_t  fadeTarget;
     uint8_t  fadeStep;
-    // DLNA mod
+ // DLNA mod
     uint8_t playlistSource;
     void    indexDLNAPlaylist();
     uint8_t lastPlayedSource;
+	
+	 // Selected clock font id (options.html)
+  uint8_t clockfont;
+
+  // Google clock TTS (options.html)
+  bool ttsgoogle;
+  uint16_t ttsclock;  // minutes
+
+  // Custom display theme (options.html)
+  bool thememode;
+  uint16_t tbg;
+  uint16_t tpr;
+  uint16_t tac;
+  uint16_t tt1;
+  uint16_t tt2;
+  uint16_t tw;
+  uint16_t tvmax;
+  uint16_t tvmid;
+  uint16_t tvmin;
+// Extra theme colors (options.html)
+uint16_t tdig;
+uint16_t tdiv;
+uint16_t tnameday;
+uint16_t tdate;
+uint16_t theap;
+uint16_t tbuffer;
+uint16_t tip;
+uint16_t tvol;
+uint16_t trssi;
+uint16_t tbitrate;
+
 };
 
 #if IR_PIN != 255
-struct IRCommand {
-    int irBtnId;
-    int irBankId;
-    bool hasBtnId;
-    bool hasBank;
-};
-
 struct ircodes_t {
-    uint64_t irVals[20][3];
+    unsigned int ir_set; // must be 4224
+    uint64_t     irVals[20][3];
 };
 #endif
 
@@ -224,8 +247,8 @@ class Config {
     station_t station;
     theme_t   theme;
 #if IR_PIN != 255
-    int       irBtnId;
-    uint8_t   irBankId;
+    int       irindex;
+    uint8_t   irchck;
     ircodes_t ircodes;
 #endif
     BitrateFormat configFmt = BF_UNKNOWN;
@@ -254,6 +277,23 @@ class Config {
 #endif
     void    init();
     void    loadTheme();
+	
+  // Helpers for web UI (options.html color pickers)
+  // - htmlColorTo565("#RRGGBB") -> RGB565
+  // - rgb565ToHtml(0xFFFF) -> "#FFFFFF"
+  static uint16_t htmlColorTo565(const char *html);
+  static void rgb565ToHtml(uint16_t color, char out[8]);
+  
+  // UI apply scheduler (avoid heavy display work in AsyncWebSocket task)
+  enum UiApplyFlags : uint8_t {
+    UI_APPLY_NONE      = 0,
+    UI_APPLY_CLOCKFONT = 1 << 0,
+    UI_APPLY_THEME     = 1 << 1,
+  };
+  
+  void scheduleUiApply(uint8_t mask);
+  uint8_t consumeUiApply();
+  
     uint8_t setVolume(uint8_t val);
     void    saveVolume();
     void    setTone(int8_t bass, int8_t middle, int8_t trebble);
@@ -364,6 +404,24 @@ class Config {
         if (commit) { EEPROM.commit(); }
     }
 
+// ---------------------------------------------------------------------------
+  // EEPROM commit debounce
+  // ---------------------------------------------------------------------------
+  // Some web UI controls (e.g. color pickers) can generate many updates quickly.
+  // Committing EEPROM on every single update can block long enough to trip WDTs
+  // and/or cause visible reboots. For such controls we write EEPROM without
+  // committing, and schedule a single commit a moment later.
+  void scheduleEEPROMCommit(uint32_t delayMs = 800) {
+    _eepromCommitPending = true;
+    _eepromCommitDueMs = millis() + delayMs;
+  }
+  void loopEEPROMCommit() {
+    if (_eepromCommitPending && (int32_t)(millis() - _eepromCommitDueMs) >= 0) {
+      EEPROM.commit();
+      _eepromCommitPending = false;
+    }
+  }
+  
     uint32_t getChipId() {
         uint32_t chipId = 0;
         for (int i = 0; i < 17; i = i + 8) { chipId |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i; }
@@ -371,8 +429,11 @@ class Config {
     }
 
   private:
-    // template <class T> int eepromWrite(int ee, const T& value);  /* ----- Auto On-Off Timer --original in private class--- */
-    // template <class T> int eepromRead(int ee, T& value);  /* ----- Auto On-Off Timer --original in private class--- */
+  
+  volatile uint8_t _pendingUiApply = 0;
+  //template<class T> int eepromWrite(int ee, const T &value);
+  //template<class T> int eepromRead(int ee, T &value);
+  
     bool        _bootDone;
     bool        _rtcFound;
     FS*         _SDplaylistFS;
@@ -382,6 +443,10 @@ class Config {
     void        _setupVersion();
     void        _initHW();
     bool        _isFSempty();
+	
+	bool _eepromCommitPending = false;
+	uint32_t _eepromCommitDueMs = 0;
+	
     uint16_t    _randomStation() {
         randomSeed(esp_random() ^ millis());
         uint16_t station = random(1, store.countStation);
