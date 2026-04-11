@@ -116,9 +116,6 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 /*----- The color display displays a grayscale image -----*/
 // #define THEME_GRAY
 
-// niebieskie podświetlenie playlisty
-#define PL_WIDGET_WITCH_BAR true  // niebieskie tło na playliście
-
 /*----- Az inaktív szegmens megjelenítése az óra számaiban true -> engedélyez, false -> nem engedélyez. -----*/
 /*----- Inactive segments of the clock, true or false. -----*/
  //#define CLOCKFONT_MONO
