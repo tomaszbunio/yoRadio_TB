@@ -678,10 +678,18 @@ void Config::setScreensaverPlayingBlank(bool val) {
 void Config::setSntpOne(const char* val) {
     bool tzdone = false;
     if (strlen(val) > 0 && strlen(store.sntp2) > 0) {
+#ifdef TIMEZONE_POSIX
+        configTime(0, 0, val, store.sntp2);
+#else
         configTime(store.tzHour * 3600 + store.tzMin * 60, getTimezoneOffset(), val, store.sntp2);
+#endif
         tzdone = true;
     } else if (strlen(val) > 0) {
+#ifdef TIMEZONE_POSIX
+        configTime(0, 0, val);
+#else
         configTime(store.tzHour * 3600 + store.tzMin * 60, getTimezoneOffset(), val);
+#endif
         tzdone = true;
     }
     if (tzdone) {
@@ -760,7 +768,11 @@ void Config::resetSystem(const char* val, uint8_t clientId) {
         saveValue(store.sntp2, "time.google.com", 35);
         saveValue(&store.timeSyncInterval, (uint16_t)60);
         saveValue(&store.timeSyncIntervalRTC, (uint16_t)24);
+#ifdef TIMEZONE_POSIX
+        configTime(0, 0, store.sntp1, store.sntp2);
+#else
         configTime(store.tzHour * 3600 + store.tzMin * 60, getTimezoneOffset(), store.sntp1, store.sntp2);
+#endif
         timekeeper.forceTimeSync = true;
         netserver.requestOnChange(GETTIMEZONE, clientId);
         return;
@@ -1270,11 +1282,22 @@ bool Config::saveWifi() {
 }
 
 void Config::setTimeConf() {
-    if (strlen(store.sntp1) > 0 && strlen(store.sntp2) > 0) {
+    if (strlen(store.sntp1) == 0) return;
+#ifdef TIMEZONE_POSIX
+    if (strlen(store.sntp2) > 0) {
+        configTime(0, 0, store.sntp1, store.sntp2);
+    } else {
+        configTime(0, 0, store.sntp1);
+    }
+    setenv("TZ", TIMEZONE_POSIX, 1);
+    tzset();
+#else
+    if (strlen(store.sntp2) > 0) {
         configTime(store.tzHour * 3600 + store.tzMin * 60, getTimezoneOffset(), store.sntp1, store.sntp2);
-    } else if (strlen(store.sntp1) > 0) {
+    } else {
         configTime(store.tzHour * 3600 + store.tzMin * 60, getTimezoneOffset(), store.sntp1);
     }
+#endif
 }
 
 bool Config::initNetwork() {

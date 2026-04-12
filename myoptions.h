@@ -211,6 +211,25 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 
 
 
+/*----- Automatyczna zmiana czasu letniego/zimowego (DST) -----*/
+/*----- Automatic DST adjustment via POSIX TZ string          -----*/
+/* Wybierz/Select TIMEZONE_POSIX odpowiednie dla swojej lokalizacji: */
+/*                                                                    */
+/* DE  Niemcy       (Germany):     "CET-1CEST,M3.5.0,M10.5.0/3"    */
+/* EN  Wielka Bryt. (UK):          "GMT0BST,M3.5.0/1,M10.5.0"       */
+/* ES  Hiszpania    (Spain):       "CET-1CEST,M3.5.0,M10.5.0/3"     */
+/* GR  Grecja       (Greece):      "EET-2EEST,M3.5.0/3,M10.5.0/4"   */
+/* HU  Węgry        (Hungary):     "CET-1CEST,M3.5.0,M10.5.0/3"     */
+/* IT  Włochy       (Italy):       "CET-1CEST,M3.5.0,M10.5.0/3"     */
+/* NL  Holandia     (Netherlands): "CET-1CEST,M3.5.0,M10.5.0/3"     */
+/* PL  Polska       (Poland):      "CET-1CEST,M3.5.0,M10.5.0/3"     */
+/* RU  Rosja/Moskwa (Russia/MSK):  "MSK-3"                           */
+/* SK  Słowacja     (Slovakia):    "CET-1CEST,M3.5.0,M10.5.0/3"     */
+/* UA  Ukraina      (Ukraine):     "EET-2EEST,M3.5.0/3,M10.5.0/4"   */
+/*                                                                    */
+/* Pełna baza stref: https://github.com/nayarsystems/posix_tz_db     */
+#define TIMEZONE_POSIX "CET-1CEST,M3.5.0,M10.5.0/3"
+
 /*----- Widget logo stacji radiowej -----*/
 /*  Pliki PNG (160x120, 24-bit) umieszczaj na SPIFFS w katalogu głównym.
     Nazwa pliku = nazwa stacji ze spacjami zamienionymi na '_', np.:
