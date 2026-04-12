@@ -1713,7 +1713,7 @@ class ps_ptr {
     T* get() const { return static_cast<T*>(mem.get()); }
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
     // 📌📌📌  C_G E T  (safe)   📌📌📌
-    const char* c_get(const char* fallback = "NA") const {
+    const char* c_get(const char* fallback = "") const {
         if constexpr (std::is_same_v<T, char>) {
             return mem ? mem.get() : fallback;
         } else {
@@ -2007,6 +2007,7 @@ class ps_ptr {
 
     void remove_chars(const char* chars) {
         if (!valid() || !chars) return;
+        char* n = name;
         char* dst = get();
         char* src = get();
 
@@ -2015,6 +2016,8 @@ class ps_ptr {
             ++src;
         }
         *dst = '\0';
+        name = n;
+
     }
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
     // 📌📌📌  R E P L A C E   📌📌📌
@@ -2361,7 +2364,7 @@ class ps_ptr {
     // Safe operator[] with logging
     T& operator[](std::size_t index) noexcept {
         if (index >= allocated_size) {
-            log_e("ps_ptr[]: Index %zu out of bounds (size = %zu)", index, allocated_size);
+            log_e("[%s:%i] ps_ptr[]: Index %zu out of bounds (size = %zu, name = %s)",__FILE__, __LINE__, index, allocated_size,  name ? name : "unnamed");
             return dummy; // Access allowed, but ineffective
         }
         return mem[index];
@@ -2369,7 +2372,7 @@ class ps_ptr {
 
     const T& operator[](std::size_t index) const noexcept {
         if (index >= allocated_size) {
-            log_e("ps_ptr[] (const): Index %zu out of bounds (size = %zu)", index, allocated_size);
+            log_e("[%s:%i] ps_ptr[]: Index %zu out of bounds (size = %zu, name = %s)",__FILE__, __LINE__, index, allocated_size,  name ? name : "unnamed");
             return dummy;
         }
         return mem[index];
@@ -2791,7 +2794,7 @@ template <typename... Args> inline void free_fields(Args&... fields) {
 // ps_array2d<int32_t> s_samples; // standard constructor
 // s_samples.alloc(2, 1152);      // mem alloc for [2][1152]
 //
-// int ch = 0; // exanole: channel 0
+// int ch = 0; // exanple: channel 0
 //
 // declaration of PCM1 as a pointer on the first element of the line (similar to samples [CH])
 // int32_t* pcm1;
