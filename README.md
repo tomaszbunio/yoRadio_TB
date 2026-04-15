@@ -8,6 +8,8 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 - Flip clock
 - logo stacji radiowych zamiast pogody i bitrate
 - automatyczna zmiana czasu z wykorzystaniem TIMEZONE_POSIX
+- rozdzielenie tasków dsp i audio, aby nie rywalizowały o zasoby rdzenia
+- upłynnienie scrollingu title (co 3px zamiast co 7px).
 
 Opis do konwertera logo.
 
