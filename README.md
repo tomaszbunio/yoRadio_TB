@@ -3,7 +3,7 @@
 Moje modyfikacje projektu yoRadio autorstwa [e2002](https://github.com/e2002/yoradio)
 i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
-## Moje zmiany: v0.8.7_TB
+## Moje zmiany: v0.8.7_TB - testowałem tylko na lcd ILI9488.
 
 - Flip clock
 - logo stacji radiowych zamiast pogody i bitrate
