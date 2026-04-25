@@ -261,6 +261,11 @@ void Config::_setupVersion() {
   if (store.tvol        == 0xFFFF) saveValue(&store.tvol,        color565(COLOR_VOLUME_VALUE));
   if (store.trssi       == 0xFFFF) saveValue(&store.trssi,       color565(COLOR_RSSI));
   if (store.tbitrate    == 0xFFFF) saveValue(&store.tbitrate,    color565(COLOR_BITRATE));
+  saveValue(&store.tseconds,  color565(COLOR_SECONDS));
+  saveValue(&store.tfliptext, (uint16_t)0x0000);
+  break;
+  case 10:
+  saveValue(&store.tflipcard, (uint16_t)0xFFFF);
   break;
         default: break;
     }
@@ -564,7 +569,9 @@ void Config::loadTheme() {
     theme.nameday = color565(COLOR_NAMEDAY); // Módosítás: plussz sor.
     theme.clock = color565(COLOR_CLOCK);
     theme.clockbg = color565(COLOR_CLOCK_BG);
-    theme.seconds = color565(COLOR_SECONDS);
+    theme.seconds  = color565(COLOR_SECONDS);
+    theme.flipText = 0x0000;
+    theme.flipCard = 0xFFFF;
     theme.dow = color565(COLOR_DAY_OF_W);
     theme.date = color565(COLOR_DATE);
     theme.heap = color565(COLOR_HEAP);
@@ -599,7 +606,9 @@ theme.bitrate   = store.tbitrate;
 
     // Accent repurposed: clock digits color
     theme.clock      = store.tac;
-    theme.seconds    = theme.clock; // keep seconds same as clock color
+    theme.seconds    = store.tseconds;
+    theme.flipText   = store.tfliptext;
+    theme.flipCard   = store.tflipcard;
 
     // Solid background across the whole UI (no separate bars / panels)
     theme.metabg        = theme.background;
@@ -824,7 +833,7 @@ void Config::setDefaults() {
     store.timezoneOffset = 0;
     store.vumeter = true;
     store.softapdelay = 0;
-    store.flipscreen = true;
+    store.flipscreen = false;	//false 4"
     store.invertdisplay = false;
     store.numplaylist = false;
     store.fliptouch = false;
@@ -902,6 +911,9 @@ void Config::setDefaults() {
   store.tvol = color565(COLOR_VOLUME_VALUE);
   store.trssi = color565(COLOR_RSSI);
   store.tbitrate = color565(COLOR_BITRATE);
+  store.tseconds  = color565(COLOR_SECONDS);
+  store.tfliptext = 0x0000;
+  store.tflipcard = 0xFFFF;
     // DLNA mod
     store.playlistSource = PL_SRC_WEB;
 

@@ -66,7 +66,7 @@ void handleIndex(AsyncWebServerRequest *request);
 void handleNotFound(AsyncWebServerRequest *request);
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
 
-bool shouldReboot = false;
+volatile bool shouldReboot = false;
 #ifdef MQTT_ROOT_TOPIC
 //Ticker mqttplaylistticker;
 bool mqttplaylistblock = false;
@@ -307,7 +307,42 @@ bool NetServer::begin(bool quiet) {
 	
 #endif
   scheduler.load();  //*******Scheduler ***************
-  webserver.serveStatic("/", SPIFFS, "/www/");
+  {
+    File wf = SPIFFS.open(SSIDS_PATH, "r");
+    if (wf) { wifiCsvCache = wf.readString(); wf.close(); }
+  }
+  webserver.on(SSIDS_PATH, HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/octet-stream", netserver.wifiCsvCache);
+  });
+  webserver.on(PLAYLIST_PATH, HTTP_GET, [](AsyncWebServerRequest *request) {
+#ifdef MQTT_ROOT_TOPIC
+    while (mqttplaylistblock) { vTaskDelay(5); }
+#endif
+    netserver.chunkedHtmlPage("application/octet-stream", request, REAL_PLAYL);
+  });
+  webserver.on("/webboard", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send_P(200, "text/html", emptyfs_html);
+  });
+  webserver.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "image/x-icon", "data:,");
+  });
+  webserver.on("/variables.js", HTTP_GET, [](AsyncWebServerRequest *request) {
+    snprintf(
+      netserver.nsBuf, sizeof(netserver.nsBuf),
+      "var yoVersion='%s';\n"
+      "var formAction='%s';\n"
+      "var playMode='%s';\n"
+      "var dlnaSupported=%d;\n",
+      YOVERSION, (network.status == CONNECTED && !config.emptyFS) ? "webboard" : "", (network.status == CONNECTED) ? "player" : "ap",
+#ifdef USE_DLNA
+      1
+#else
+      0
+#endif
+    );
+    request->send(200, "application/javascript", netserver.nsBuf);
+  });
+  webserver.serveStatic("/", SPIFFS, "/www/").setCacheControl("max-age=86400");
   webserver.begin();
 
   //if(strlen(config.store.mdnsname)>0)
@@ -515,7 +550,7 @@ void NetServer::processQueue() {
 
   case GETSYSTEM:
   {
-    char tbg[8], tpr[8], tac[8], tt1[8], tt2[8], tw[8], tvmax[8], tvmid[8], tvmin[8], tdig[8], tdiv[8], tnameday[8], tdate[8], theap[8], tbuffer[8], tip[8], tvol[8], trssi[8], tbitrate[8];
+    char tbg[8], tpr[8], tac[8], tt1[8], tt2[8], tw[8], tvmax[8], tvmid[8], tvmin[8], tdig[8], tdiv[8], tnameday[8], tdate[8], theap[8], tbuffer[8], tip[8], tvol[8], trssi[8], tbitrate[8], tseconds[8], tfliptext[8], tflipcard[8];
     Config::rgb565ToHtml(config.store.tbg, tbg);
     Config::rgb565ToHtml(config.store.tpr, tpr);
     Config::rgb565ToHtml(config.store.tac, tac);
@@ -535,6 +570,9 @@ void NetServer::processQueue() {
     Config::rgb565ToHtml(config.store.tvol, tvol);
     Config::rgb565ToHtml(config.store.trssi, trssi);
     Config::rgb565ToHtml(config.store.tbitrate, tbitrate);
+    Config::rgb565ToHtml(config.store.tseconds,  tseconds);
+    Config::rgb565ToHtml(config.store.tfliptext, tfliptext);
+    Config::rgb565ToHtml(config.store.tflipcard, tflipcard);
     snprintf(
       wsBuf, sizeof(wsBuf),
       "{\"sst\":%d,\"aif\":%d,\"vu\":%d,\"softr\":%d,\"vut\":%d,\"mdns\":\"%s\",\"ipaddr\":\"%s\","
@@ -544,13 +582,15 @@ void NetServer::processQueue() {
       "\"tvmax\":\"%s\",\"tvmid\":\"%s\",\"tvmin\":\"%s\","
       "\"tdig\":\"%s\",\"tdiv\":\"%s\",\"tnameday\":\"%s\",\"tdate\":\"%s\","
       "\"theap\":\"%s\",\"tbuffer\":\"%s\",\"tip\":\"%s\",\"tvol\":\"%s\","
-      "\"trssi\":\"%s\",\"tbitrate\":\"%s\"}",
+      "\"trssi\":\"%s\",\"tbitrate\":\"%s\","
+      "\"tseconds\":\"%s\",\"tfliptext\":\"%s\",\"tflipcard\":\"%s\"}",
       config.store.smartstart != 2, config.store.audioinfo, config.store.vumeter, config.store.softapdelay, config.vuRefLevel,
       config.store.mdnsname, config.ipToStr(WiFi.localIP()),
       config.store.abuff, config.store.telnet, config.store.watchdog, config.store.nameday,
       (int)config.store.ttsgoogle, (int)config.store.ttsclock, (int)config.store.clockfont, (int)config.store.thememode,
       tbg, tpr, tac, tt1, tt2, tw, tvmax, tvmid, tvmin,
-      tdig, tdiv, tnameday, tdate, theap, tbuffer, tip, tvol, trssi, tbitrate
+      tdig, tdiv, tnameday, tdate, theap, tbuffer, tip, tvol, trssi, tbitrate,
+      tseconds, tfliptext, tflipcard
     );
     Serial.printf("netserver-> config.store.nameday %d \n", config.store.nameday);
   }
@@ -705,6 +745,7 @@ void NetServer::processQueue() {
 }
 
 void NetServer::loop() {
+  if (shouldReboot) Serial.printf("[DBG] loop: shouldReboot=true, netStatus=%d, core=%d\n", network.status, xPortGetCoreID());
   if (network.status == SDREADY) {
     return;
   }
@@ -1112,6 +1153,10 @@ void handleNotFound(AsyncWebServerRequest *request) {
         netserver.chunkedHtmlPage("application/octet-stream", request, REAL_INDEX);  //DLNA mod
         return;
       }
+      if (strcmp(request->url().c_str(), SSIDS_PATH) == 0) {
+        request->send(200, "application/octet-stream", netserver.wifiCsvCache);
+        return;
+      }
       netserver.chunkedHtmlPage("application/octet-stream", request, request->url().c_str());
       return;
     }  // if (strcmp(request->url().c_str(), PLAYLIST_PATH) == 0 ||
@@ -1119,6 +1164,8 @@ void handleNotFound(AsyncWebServerRequest *request) {
 
   if (request->method() == HTTP_POST) {
     if (request->url() == "/webboard") {
+      shouldReboot = true;
+      Serial.printf("[DBG] POST /webboard -> shouldReboot=true, core=%d\n", xPortGetCoreID());
       request->redirect("/");
       return;
     }  // <--post files from /data/www
@@ -1143,27 +1190,6 @@ void handleNotFound(AsyncWebServerRequest *request) {
     }
   }  // if (request->method() == HTTP_POST)
 
-  if (request->url() == "/favicon.ico") {
-    request->send(200, "image/x-icon", "data:,");
-    return;
-  }
-  if (request->url() == "/variables.js") {  //DLNA mod
-    snprintf(
-      netserver.nsBuf, sizeof(netserver.nsBuf),
-      "var yoVersion='%s';\n"
-      "var formAction='%s';\n"
-      "var playMode='%s';\n"
-      "var dlnaSupported=%d;\n",
-      YOVERSION, (network.status == CONNECTED && !config.emptyFS) ? "webboard" : "", (network.status == CONNECTED) ? "player" : "ap",
-#ifdef USE_DLNA
-      1
-#else
-      0
-#endif
-    );
-    request->send(200, "text/html", netserver.nsBuf);
-    return;
-  }
   if (strcmp(request->url().c_str(), "/settings.html") == 0 || strcmp(request->url().c_str(), "/update.html") == 0
       || strcmp(request->url().c_str(), "/ir.html") == 0) {
     //request->send_P(200, "text/html", index_html);

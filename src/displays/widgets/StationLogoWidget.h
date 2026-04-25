@@ -239,24 +239,41 @@ private:
             return false;
         }
         if (rows > STATION_LOGO_H) rows = STATION_LOGO_H;
-        // Bufor jednego wiersza
-        static uint16_t rowBuf[STATION_LOGO_W];
+        const size_t totalBytes = rows * rowBytes;
+
+        // Wczytaj cały plik do bufora (PSRAM jeśli dostępna, inaczej heap)
+        uint16_t *imgBuf = nullptr;
+        if (psramInit())
+            imgBuf = (uint16_t*)ps_malloc(totalBytes);
+        if (!imgBuf)
+            imgBuf = (uint16_t*)malloc(totalBytes);
+        if (!imgBuf) {
+            Serial.println("[StationLogo] brak pamięci na bufor obrazu");
+            f.close();
+            return false;
+        }
+        if (f.read((uint8_t*)imgBuf, totalBytes) != totalBytes) {
+            Serial.println("[StationLogo] Błąd odczytu pliku");
+            free(imgBuf);
+            f.close();
+            return false;
+        }
 
         // Wyczyść obszar przed rysowaniem
         dsp.fillRect(STATION_LOGO_X, STATION_LOGO_Y,
                      STATION_LOGO_W, STATION_LOGO_H, _bgColor);
 
+#ifdef DEBUG_SPI_TIMING
+        int64_t t0 = esp_timer_get_time();
+#endif
         dsp.startWrite();
-        for (int16_t row = 0; row < rows; row++) {
-            if (f.read((uint8_t*)rowBuf, rowBytes) != rowBytes) {
-                Serial.printf("[StationLogo] Błąd odczytu wiersza %d\n", row);
-                break;
-            }
-            dsp.setAddrWindow(STATION_LOGO_X, STATION_LOGO_Y + row,
-                              STATION_LOGO_W, 1);
-            dsp.writePixels(rowBuf, STATION_LOGO_W);
-        }
+        dsp.setAddrWindow(STATION_LOGO_X, STATION_LOGO_Y, STATION_LOGO_W, rows);
+        dsp.writePixels(imgBuf, STATION_LOGO_W * rows);
         dsp.endWrite();
+        free(imgBuf);
+#ifdef DEBUG_SPI_TIMING
+        Serial.printf("[SPI] StationLogo %dx%d (%d rows): %lld us\n", STATION_LOGO_W, STATION_LOGO_H, rows, esp_timer_get_time() - t0);
+#endif
 
         f.close();
         return true;

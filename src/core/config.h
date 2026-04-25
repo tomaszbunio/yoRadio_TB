@@ -41,7 +41,7 @@
     #define ESP_ARDUINO_3 1
 #endif
 
-#define CONFIG_VERSION 9
+#define CONFIG_VERSION 11
 
 enum playMode_e : uint8_t { // DLNA mod
     PM_WEB = 0,
@@ -72,6 +72,8 @@ struct theme_t {
     uint16_t clock;
     uint16_t clockbg;
     uint16_t seconds;
+    uint16_t flipText;
+    uint16_t flipCard;
     uint16_t nameday; // Módosítás: plussz változó. "nameday"
     uint16_t dow;
     uint16_t date;
@@ -202,6 +204,9 @@ uint16_t tip;
 uint16_t tvol;
 uint16_t trssi;
 uint16_t tbitrate;
+uint16_t tseconds;
+uint16_t tfliptext;
+uint16_t tflipcard;
 
 };
 
