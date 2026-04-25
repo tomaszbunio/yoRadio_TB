@@ -915,6 +915,11 @@ void ProgressWidget::loop() {
  *************************************************************************************************************************/
 void ClockWidget::init(WidgetConfig wconf, uint16_t fgcolor, uint16_t bgcolor) {
     Widget::init(wconf, fgcolor, bgcolor);
+#if defined(FLIP_CLOCK) && defined(FLIP_CLOCK_BASELINE)
+    _config.top   = FLIP_CLOCK_BASELINE;
+    _config.left  = FLIP_CLOCK_LEFT;
+    _config.align = FLIP_CLOCK_ALIGN;
+#endif
     _timeheight = _textHeight();
     _fullclock = TIME_SIZE > 35 || DSP_MODEL == DSP_ILI9225;
     if (_fullclock) {
@@ -1021,6 +1026,7 @@ void ClockWidget::_beginFlipSecBuf() {
     // Przed ponownym wywołaniem (np. z _reset()) najpierw zwalniamy istniejący bufor.
     if (_fb->ready()) { _fb->freeBuffer(); }
     _fb->begin(&dsp, leftSec, topSec - secH, secW + 2, secH + 2, config.theme.background);
+    _fb->setLabel("SEKUNDY");
 }
 #endif
 
@@ -1535,6 +1541,8 @@ void ClockWidget::_initFlipDigits() {
 
     _flipHH.init(&dsp, xHH, y, fdW, fdH);
     _flipMM.init(&dsp, xMM, y, fdW, fdH);
+    _flipHH.setLabel("flip HH");
+    _flipMM.setLabel("flip MM");
 
     // Wyświetl aktualny czas natychmiast (bez animacji) po inicjalizacji
     char hhStr[3] = { _timebuffer[0], _timebuffer[1], '\0' };

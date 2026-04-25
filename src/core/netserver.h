@@ -98,6 +98,7 @@ class NetServer {
     bool resumePlay;
     char chunkedPathBuffer[40];
     char nsBuf[BUFLEN], nsBuf2[BUFLEN];
+    String wifiCsvCache;
   public:
     NetServer() {};
     bool begin(bool quiet=false);

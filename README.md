@@ -11,12 +11,21 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 - rozdzielenie tasków dsp i audio, aby nie rywalizowały o zasoby rdzenia
 - upłynnienie scrollingu title (co 3px zamiast co 7px).
 
-Opis do konwertera logo.
+### Konwerter logo stacji (`convert_logos.bat`)
 
-- skrypt jest konwerterem logo stacji radiowych z formatu PNG do binarnego formatu RGB565, gotowego do wyświetlenia na wyświetlaczu TFT (sterownik ILI9486_SPI).
-- konwertuje wszystkie pliki .png z katalogu yoRadio/data/ do plików .raw (binarny RGB565, little-endian) do katalogu www.
-- aby logo się wczytało uploadujemy plik \*.raw przez webboard (settings/BOARD), nazwa pliku raw musi być identyczna z tą wyświetlaną na górze ekranu w playerze.
-- wymaga biblioteki Pillow (pip install Pillow).
+- konwertuje wszystkie pliki `.png` z katalogu `data/` do binarnego formatu RGB565 (little-endian, 120×90 px)
+- pliki `.raw` zapisywane są bezpośrednio do `data/www/`
+- aby logo się wczytało, uploadujemy pliki `.raw` przez webboard (Settings → BOARD); nazwa pliku musi być identyczna z nazwą stacji wyświetlaną na górze ekranu
+- wymaga biblioteki Pillow: `pip install Pillow`
+
+### Konwerter boot logo (`convert_bootlogo.bat`)
+
+- konwertuje plik `logos_src/logo.png` do nagłówków C z tablicą RGB565, wkompilowanych w firmware
+- generuje dwa pliki:
+  - `bootlogo80x80.h` – dla wyświetlaczy 480×320 (ILI9488, ST7796)
+  - `bootlogo54x54.h` – dla wyświetlaczy 320×240 (ILI9341, ST7789)
+- po konwersji należy skompilować i wgrać firmware
+- wymaga biblioteki Pillow: `pip install Pillow`
 
 ---
 

@@ -9,7 +9,7 @@
   #include "fonts/bootlogo62x40.h"
   #include "fonts/dsfont35.h"
 #else
-  #include "fonts/bootlogo99x64.h"
+  #include "fonts/bootlogo54x54.h"
   #include "fonts/dsfont52.h"
 #endif
 
