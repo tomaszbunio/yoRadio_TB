@@ -180,6 +180,7 @@ public:
   void loop();
   void setText(const char *txt);
   void setText(const char *txt, const char *format);
+  void setFbLabel(const char *lbl) { if (_fb) _fb->setLabel(lbl); }
 
 private:
   char *_sep;

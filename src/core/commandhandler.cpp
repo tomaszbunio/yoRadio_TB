@@ -271,8 +271,29 @@ if (strEquals(command, "tbitrate")) {
   config.scheduleUiApply(Config::UI_APPLY_THEME);
   return true;
 }
+if (strEquals(command, "tseconds")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tseconds, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tfliptext")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tfliptext, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tflipcard")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tflipcard, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
 
-	
+
 	if (strEquals(command, "ttsgoogle")) {
     bool en = static_cast<bool>(atoi(value));
     config.saveValue(&config.store.ttsgoogle, en);

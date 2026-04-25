@@ -113,8 +113,6 @@ void Display::init() {
     displayQueue = NULL;
     displayQueue = xQueueCreate(5, sizeof(requestParams_t));
     while (displayQueue == NULL) { ; }
-    _createDspTask();
-    while (!_bootStep == 0) { delay(10); }
     //_pager.begin();
     //_bootScreen();
     _pager = new Pager();
@@ -125,6 +123,7 @@ void Display::init() {
     _meta = new ScrollWidget();
     _title1 = new ScrollWidget();
     _plcurrent = new ScrollWidget();
+    _createDspTask();  // po inicjalizacji wszystkich widgetów – DspTask nie trafi na _pager=nullptr
     Serial.println("done");
 }
 
@@ -162,7 +161,9 @@ void Display::_bootScreen() {
 
 void Display::_buildPager() {
     _meta->init("*", metaConf, config.theme.meta, config.theme.metabg);
+    _meta->setFbLabel("META");
     _title1->init("*", title1Conf, config.theme.title1, config.theme.background);
+    _title1->setFbLabel("TITLE");
     _clock->init(clockConf, 0, 0);
     #if DSP_MODEL == DSP_NOKIA5110
     _plcurrent->init("*", playlistConf, 0, 1);
@@ -175,6 +176,7 @@ void Display::_buildPager() {
     #endif
     #ifndef HIDE_TITLE2
     _title2 = new ScrollWidget("*", title2Conf, config.theme.title2, config.theme.background);
+    _title2->setFbLabel("TITLE2");
     #endif
     #if !defined(DSP_LCD) && DSP_MODEL != DSP_NOKIA5110
     _plbackground = new FillWidget(playlBGConf, config.theme.background);

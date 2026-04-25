@@ -9,7 +9,8 @@ class  psFrameBuffer : public Adafruit_GFX {
     psFrameBuffer(int16_t w, int16_t h):Adafruit_GFX(w, h){ setTextWrap(false); cp437(true); }
     ~psFrameBuffer(){ freeBuffer(); }
     bool ready() { return _ready; }
-    
+    void setLabel(const char *lbl) { strncpy(_label, lbl, sizeof(_label) - 1); _label[sizeof(_label)-1] = '\0'; }
+
     void freeBuffer(){
       _ready = false;
       if(buffer) {
@@ -35,10 +36,16 @@ class  psFrameBuffer : public Adafruit_GFX {
     }
     void display(){
       if(!buffer) return;
+#ifdef DEBUG_SPI_TIMING
+      int64_t t0 = esp_timer_get_time();
+#endif
       _dspl->startWrite();
       _dspl->setAddrWindow(_ll, _tt, _ww, _hh);
       _dspl->writePixels((uint16_t*)buffer,  _ww * _hh);
       _dspl->endWrite();
+#ifdef DEBUG_SPI_TIMING
+      Serial.printf("[SPI] %-12s %dx%d @ (%d,%d): %lld us\n", _label, _ww, _hh, _ll, _tt, esp_timer_get_time() - t0);
+#endif
     }
     void clear(){
       if(!buffer) return;
@@ -56,6 +63,7 @@ class  psFrameBuffer : public Adafruit_GFX {
     uint16_t *buffer=nullptr;
     bool _ready = false;
     uint16_t _bgcolor;
+    char _label[16] = "psFrameBuffer";
     void _createBuffer(){
       if(USE_FBUFFER){
         if(psramInit())
