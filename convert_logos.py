@@ -29,6 +29,7 @@ TARGET_W = 120
 TARGET_H = 90
 
 DATA_DIR = Path(__file__).parent / "data"
+OUT_DIR  = Path(__file__).parent / "data" / "www"
 
 def png_to_rgb565(png_path: Path, bin_path: Path):
     img = Image.open(png_path).convert("RGB")
@@ -60,18 +61,20 @@ def png_to_rgb565(png_path: Path, bin_path: Path):
     print(f"  -> {bin_path.name} ({kb:.1f} KB)")
 
 def main():
-    print(f"Szukam w: {DATA_DIR.resolve()}")
+    print(f"Szukam PNG w:  {DATA_DIR.resolve()}")
+    print(f"Zapisuję .raw: {OUT_DIR.resolve()}\n")
+    OUT_DIR.mkdir(exist_ok=True)
+
     png_files = sorted(DATA_DIR.glob("*.png"))
     if not png_files:
         print(f"Brak plików .png w {DATA_DIR}")
         return
 
-    print(f"Konwersja {len(png_files)} plików PNG -> RGB565 binary ({TARGET_W}x{TARGET_H})")
-    print(f"Katalog: {DATA_DIR}\n")
+    print(f"Konwersja {len(png_files)} plików PNG -> RGB565 binary ({TARGET_W}x{TARGET_H})\n")
 
     ok = 0
     for png in png_files:
-        bin_path = png.with_suffix(".raw")
+        bin_path = OUT_DIR / png.with_suffix(".raw").name
         print(f"{png.name}")
         try:
             png_to_rgb565(png, bin_path)
@@ -80,7 +83,7 @@ def main():
             print(f"  BŁĄD: {e}")
 
     print(f"\nGotowe: {ok}/{len(png_files)} plików")
-    total_kb = sum(p.stat().st_size for p in DATA_DIR.glob("*.raw")) / 1024
+    total_kb = sum(p.stat().st_size for p in OUT_DIR.glob("*.raw")) / 1024
     print(f"Łączny rozmiar .raw: {total_kb:.0f} KB")
 
 if __name__ == "__main__":

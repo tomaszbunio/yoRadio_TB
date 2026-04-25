@@ -71,6 +71,7 @@
 #endif
 
 #include "../tools/psframebuffer.h"
+#include "../../core/config.h"
 extern const GFXfont *Clock_GFXfontPtr;  // wskaźnik na aktywną czcionkę zegara
 
 class FlipDigit {
@@ -159,6 +160,10 @@ public:
   bool        isFlipping() const { return _flipping; }
   const char* current()    const { return _current; }
   void        freeBuffers()      { _freeBuffers(); }
+  void        setLabel(const char *lbl) {
+    if (_bufA) _bufA->setLabel(lbl);
+    if (_bufB) _bufB->setLabel(lbl);
+  }
 
 private:
   yoDisplay     *_dspl    = nullptr;
@@ -200,7 +205,7 @@ private:
     // Cień: przesunięty prostokąt z zaokrąglonymi rogami
     buf->fillRoundRect(sOff, sOff, W - sOff, H - sOff, r, FLIP_SHADOW_COLOR);
     // Karteczka: biały prostokąt na wierzchu cienia
-    buf->fillRoundRect(0, 0, W - sOff, H - sOff, r, FLIP_CARD_COLOR);
+    buf->fillRoundRect(0, 0, W - sOff, H - sOff, r, config.theme.flipCard);
     // Linia środkowa – poziomy podział na górną i dolną połowę (2 px grubości)
     int16_t lineY = (H - sOff) / 2;
     buf->drawFastHLine(0, lineY,     W - sOff, FLIP_LINE_COLOR);
@@ -209,7 +214,7 @@ private:
     // Ustawienie czcionki i koloru tekstu
     buf->setFont(Clock_GFXfontPtr);
     buf->setTextSize(1);
-    buf->setTextColor(FLIP_TEXT_COLOR);
+    buf->setTextColor(config.theme.flipText);
 
     // Pomiar szerokości tekstu przez getTextBounds (zwraca rzeczywiste piksele)
     int16_t bx, by;
@@ -304,12 +309,31 @@ private:
       }
     }
 
-    // Wyślij złożoną klatkę bezpośrednio na ekran (jeden blok danych SPI)
-    int16_t screenY = _y - _h - FLIP_CARD_MARGIN;  // Y górnej krawędzi bufora
+    // Wyślij tylko zmienioną połowę bufora:
+    //   Faza 1: dolna połowa niezmieniona na ekranie (z ostatniego setValue) → wysyłaj tylko górną [0, midY)
+    //   Faza 2 frame==half: ustal nową górną połowę jednym pełnym transferem
+    //   Faza 2 frame>half:  górna połowa już ustalona → wysyłaj tylko dolną [midY, H)
+    int16_t screenY = _y - _h - FLIP_CARD_MARGIN;
+#ifdef DEBUG_SPI_TIMING
+    int64_t t0 = esp_timer_get_time();
+#endif
     _dspl->startWrite();
-    _dspl->setAddrWindow(_x, screenY, _w, H);
-    _dspl->writePixels(fb, _w * H);
+    if (frame < half) {
+      _dspl->setAddrWindow(_x, screenY, _w, midY);
+      _dspl->writePixels(fb, _w * midY);
+    } else if (frame == half) {
+      _dspl->setAddrWindow(_x, screenY, _w, H);
+      _dspl->writePixels(fb, _w * H);
+    } else {
+      _dspl->setAddrWindow(_x, screenY + midY, _w, H - midY);
+      _dspl->writePixels(fb + _w * midY, _w * (H - midY));
+    }
     _dspl->endWrite();
+#ifdef DEBUG_SPI_TIMING
+    int16_t sentH = (frame == half) ? H : midY;
+    int16_t sentY = (frame > half)  ? screenY + midY : screenY;
+    Serial.printf("[SPI] FlipDigit %dx%d @ (%d,%d): %lld us\n", _w, sentH, _x, sentY, esp_timer_get_time() - t0);
+#endif
     free(fb);
   }
 

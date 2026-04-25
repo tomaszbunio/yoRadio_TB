@@ -54,6 +54,7 @@ void Player::init() {
   #if !I2S_INTERNAL
   setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
   #endif
+  setAudioTaskCore(0); // I2S task on Core 0; Arduino loop runs on Core 1
 #else
   SPI.begin();
   if (VS1053_RST > 0) {

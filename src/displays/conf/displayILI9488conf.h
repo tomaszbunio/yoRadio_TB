@@ -83,7 +83,21 @@ const WidgetConfig apNameConf     PROGMEM = {TFT_FRAMEWDT, 88, 3, WA_CENTER};
 const WidgetConfig apName2Conf    PROGMEM = {TFT_FRAMEWDT, 120, 3, WA_CENTER};
 const WidgetConfig apPassConf     PROGMEM = {TFT_FRAMEWDT, 173, 3, WA_CENTER};
 const WidgetConfig apPass2Conf    PROGMEM = {TFT_FRAMEWDT, 205, 3, WA_CENTER};
-const WidgetConfig clockConf      PROGMEM = {1, 185, 2, WA_RIGHT}; // {jobb oldali távolság, top, fontsize}
+const WidgetConfig clockConf      PROGMEM = {1, 185, 2, WA_RIGHT}; // używany tylko bez FLIP_CLOCK
+
+/* ── Flip Clock position (tylko gdy #define FLIP_CLOCK w myoptions.h) ──
+   Nadpisuje clockConf dla zegara flip; clockConf zostaje dla trybu bez flip.
+   FLIP_CLOCK_BASELINE – Y bazowa czcionki (dół glifów), px od góry ekranu
+   FLIP_CLOCK_ALIGN    – WA_LEFT / WA_CENTER / WA_RIGHT
+   FLIP_CLOCK_LEFT     – offset: dla WA_RIGHT = margines od prawej krawędzi (px)
+                                  dla WA_LEFT  = margines od lewej  krawędzi (px)
+                                  dla WA_CENTER= przesunięcie od centrum (px)
+   Ekran 480×320, logo stacji: x=1..120 px po lewej. Zegar wyrównany do prawej. */
+#ifdef FLIP_CLOCK
+  #define FLIP_CLOCK_BASELINE  185   // Y baseline (dół cyfr HH:MM)
+  #define FLIP_CLOCK_ALIGN     WA_RIGHT
+  #define FLIP_CLOCK_LEFT      1     // 1 px od prawej krawędzi ekranu
+#endif
 const WidgetConfig vuConf         PROGMEM = {35, 258, 1, WA_CENTER}; // center fektetett, "align" nincs használva
 const WidgetConfig bootWdtConf    PROGMEM = {0, 216, 1, WA_CENTER};
 const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 226, 2, WA_LEFT };  // Módosítás új sor "nameday"
