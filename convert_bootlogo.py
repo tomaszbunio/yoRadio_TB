@@ -3,7 +3,7 @@
 Konwerter boot logo PNG -> nagłówki C (RGB565)
 Użycie: python convert_bootlogo.py
 
-Wejście:  logos_src/logo.png
+Wejście:  logos_src/bootlogo.png
 Wyjście:  src/displays/fonts/bootlogo{W}x{H}.h  (jeden plik na rozmiar)
 
 Rozmiary dopasowane do karteczki flip clock:
@@ -30,7 +30,7 @@ SIZES = [
     (54, 54),   # ILI9341, ST7789  (320x240)
 ]
 
-SRC      = Path(__file__).parent / "logos_src" / "logo.png"
+SRC      = Path(__file__).parent / "logos_src" / "bootlogo.png"
 FONT_DIR = Path(__file__).parent / "src" / "displays" / "fonts"
 
 def resize_letterbox(img: Image.Image, w: int, h: int) -> Image.Image:
@@ -69,7 +69,7 @@ def convert(img: Image.Image, w: int, h: int):
 
 def main():
     if not SRC.exists():
-        print(f"Nie znaleziono pliku: {SRC}")
+        print(f"Nie znaleziono pliku: {SRC}\nUmieść plik bootlogo.png w katalogu logos_src/")
         sys.exit(1)
 
     img = Image.open(SRC).convert("RGB")

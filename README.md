@@ -3,12 +3,18 @@
 Moje modyfikacje projektu yoRadio autorstwa [e2002](https://github.com/e2002/yoradio)
 i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
+## Moje zmiany: v8.7.1_TB
+
+- poprawienie błędów z v8.7
+- możliwość zmiany bootlogo, czytaj [convert_bootlogo.md](convert_bootlogo.md)
+
+---
+
 ## Moje zmiany: v0.8.7_TB - testowałem tylko na lcd ILI9488.
 
 - Flip clock
 - logo stacji radiowych zamiast pogody i bitrate
 - automatyczna zmiana czasu z wykorzystaniem TIMEZONE_POSIX
-- rozdzielenie tasków dsp i audio, aby nie rywalizowały o zasoby rdzenia
 - upłynnienie scrollingu title (co 3px zamiast co 7px).
 
 ### Konwerter logo stacji (`convert_logos.bat`)
@@ -16,15 +22,6 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 - konwertuje wszystkie pliki `.png` z katalogu `data/` do binarnego formatu RGB565 (little-endian, 120×90 px)
 - pliki `.raw` zapisywane są bezpośrednio do `data/www/`
 - aby logo się wczytało, uploadujemy pliki `.raw` przez webboard (Settings → BOARD); nazwa pliku musi być identyczna z nazwą stacji wyświetlaną na górze ekranu
-- wymaga biblioteki Pillow: `pip install Pillow`
-
-### Konwerter boot logo (`convert_bootlogo.bat`)
-
-- konwertuje plik `logos_src/logo.png` do nagłówków C z tablicą RGB565, wkompilowanych w firmware
-- generuje dwa pliki:
-  - `bootlogo80x80.h` – dla wyświetlaczy 480×320 (ILI9488, ST7796)
-  - `bootlogo54x54.h` – dla wyświetlaczy 320×240 (ILI9341, ST7789)
-- po konwersji należy skompilować i wgrać firmware
 - wymaga biblioteki Pillow: `pip install Pillow`
 
 ---

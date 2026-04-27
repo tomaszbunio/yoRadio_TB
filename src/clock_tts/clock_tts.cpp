@@ -48,7 +48,7 @@ void clock_tts_setup() {
   clock_lastTTSMillis = 0;
   clock_ttsActive = false;
   clock_lastMinute = -1;
-  clock_tts_enabled = CLOCK_TTS_ENABLED;
+  clock_tts_enabled = config.store.ttsgoogle;
 }
 
 void clock_tts_force(const char *text, const char *lang) {
