@@ -6,7 +6,7 @@
 // #define DEBUG_SPI_TIMING
 /* https://trip5.github.io/ehRadio_myoptions/generator.html?b=ESP32-S3-DevKitC-1_44Pin&r=72,1,2,4,5,6,76,7,8,31,42,43,54,55,58,60,63,65,77&i=1,2,3,4,15,16,17,28,29,30,31,32,33,34,39,48,49&v=9,10,-1,14,4,5,6,40,41,39,48,47,21,3,18,8,7
    Read the before use !!!
-   https://github.com/VaraiTamas/yoRadio/blob/main/README.md !!!
+   https://github.com/tomaszbunio/yoRadio_TB/blob/main/README.md
 
   
     
@@ -33,7 +33,7 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 
 #define USE_BUILTIN_LED false /* The RGB LED does not turn on.. */
 
-/* DspTask na Core 1 – AudioTask ma Core 1  */
+/* DspTask na Core 1 – AudioTask na Core 0 */
 #define DSP_TASK_CORE_ID 1
 
 /* netserver.loop() w Arduino loop() (Core 1), bezwarunkowo – bez bramkowania przez timekeeper.
@@ -68,8 +68,8 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 */
 
 /*----- Touch ISP -----*/
- //#define TS_MODEL TS_MODEL_XPT2046
- //#define TS_CS    48
+ #define TS_MODEL TS_MODEL_XPT2046
+ #define TS_CS    48
  
 /*----- Touch I2C -----*/
 // #define TS_MODEL TS_MODEL_FT6X36
