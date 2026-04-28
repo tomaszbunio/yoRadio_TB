@@ -1817,7 +1817,7 @@ void _loadPlaylistPage(int pageIndex, int itemsPerPage, int totalItems) {
         line.trim();
 
         if (config.store.numplaylist && line.length() > 0) {
-            _plCache[i] = String(currentGlobalIdx + 1) + " " + line;
+            _plCache[i] = String(currentGlobalIdx + 1) + ". " + line;
         } else {
             _plCache[i] = line;
         }
@@ -1889,8 +1889,12 @@ void PlayListWidget::_printPLitem(uint8_t pos, const char* item) {
     }
 #endif
 }
+
+void PlayListWidget::resetCache() {
+    _plLoadedPage = -1;
+}
     #else
-		
+
 void PlayListWidget::init(ScrollWidget* current) {
     Widget::init({0, 0, 0, WA_LEFT}, 0, 0);
     _current = current;
@@ -1933,7 +1937,7 @@ uint8_t PlayListWidget::_fillPlMenu(int from, uint8_t count) {
             pla = playlist.available();
             String stationName = playlist.readStringUntil('\n');
             stationName = stationName.substring(0, stationName.indexOf('\t'));
-            if (config.store.numplaylist && stationName.length() > 0) { stationName = String(from + c) + " " + stationName; }
+            if (config.store.numplaylist && stationName.length() > 0) { stationName = String(from + c) + ". " + stationName; }
             _printPLitem(c, stationName.c_str());
             c++;
             if (c >= count) { break; }
@@ -1982,6 +1986,7 @@ void PlayListWidget::drawPlaylist(uint16_t currentItem) {
 }
         #endif // DSP_LCD
 
+void PlayListWidget::resetCache() {}
     #endif
 
 #endif // #if DSP_MODEL!=DSP_DUMMY

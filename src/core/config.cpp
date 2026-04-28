@@ -833,7 +833,7 @@ void Config::setDefaults() {
     store.timezoneOffset = 0;
     store.vumeter = true;
     store.softapdelay = 0;
-    store.flipscreen = false;	//false 4"
+    store.flipscreen = true;	//false 4"
     store.invertdisplay = false;
     store.numplaylist = false;
     store.fliptouch = false;
