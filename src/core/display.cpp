@@ -508,6 +508,10 @@ void Display::_applyTheme() {
 }
 
 
+void Display::resetPlaylistCache() {
+    if (_plwidget) _plwidget->resetCache();
+}
+
 void Display::_drawPlaylist() {
     // dsp.drawPlaylist(currentPlItem);
     _plwidget->drawPlaylist(currentPlItem);

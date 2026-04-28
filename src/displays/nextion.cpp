@@ -467,7 +467,7 @@ uint8_t Nextion::_fillPlMenu(int from, uint8_t count) {
       pla = playlist.available();
       String stationName = playlist.readStringUntil('\n');
       stationName = stationName.substring(0, stationName.indexOf('\t'));
-      if(config.store.numplaylist && stationName.length()>0) stationName = String(from+c)+" "+stationName;
+      if(config.store.numplaylist && stationName.length()>0) stationName = String(from+c)+". "+stationName;
       printPLitem(c, stationName.c_str());
       c++;
       if (c >= count) break;

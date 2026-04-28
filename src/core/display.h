@@ -47,6 +47,7 @@ class Display {
     uint16_t height();
     void setBrightnessPercent(uint8_t percent);
     void setContrast(uint8_t value);
+    void resetPlaylistCache();
    static uint8_t gamma100to255(uint8_t percent);
 
   private:

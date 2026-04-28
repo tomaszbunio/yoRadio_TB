@@ -350,6 +350,7 @@ if (strEquals(command, "tflipcard")) {
     }
     if (strEquals(command, "numplaylist")) {
         config.saveValue(&config.store.numplaylist, static_cast<bool>(atoi(value)));
+        display.resetPlaylistCache();
         display.putRequest(NEWMODE, CLEAR);
         display.putRequest(NEWMODE, PLAYER);
         return true;

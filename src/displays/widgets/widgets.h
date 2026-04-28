@@ -413,6 +413,7 @@ public:
   using Widget::init;
   void init(ScrollWidget *current);
   void drawPlaylist(uint16_t currentItem);
+  void resetCache();
   inline uint16_t itemHeight() {
     return _plItemHeight;
   }
