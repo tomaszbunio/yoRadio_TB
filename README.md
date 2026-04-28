@@ -6,6 +6,7 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 ## Moje zmiany: v8.7.1_TB
 
 - poprawienie błędów z v8.7
+- pooprawa działania TTS
 - możliwość zmiany bootlogo, czytaj [convert_bootlogo.md](convert_bootlogo.md)
 
 ---
