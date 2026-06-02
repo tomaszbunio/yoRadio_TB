@@ -5,12 +5,15 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
 ## Moje zmiany: v8.8_TB
 
-- ekran `SD_PLAYER` z obsługą transportu dotykiem i dodatkowymi informacjami o pliku
-- okładki albumów na ekranie `SD_PLAYER`
-- ustawienia NeoPixel, motywów i zegara rozszerzone oraz zapisywane z WWW
-- poprawki przełączania trybów `PLAYER` / `STATIONS` / `SD_PLAYER`
-- poprawki resume i startu odtwarzania z SD
-- poprawienie błędów z `v8.7.1`
+- Sortowanie playlisty SD alfabetycznie zamiast kolejności FAT, co umożliwia poprawną numerację  albumów.
+- Wprowadzono wybudzanie ESP32 z soft standby przez pilot IR (zmiana IR_PIN na GPIO 2).
+- Dodano zmianę czcionki zegara dotykiem obszaru minut oraz zapisywanie wyboru do EEPROM.
+- Umożliwiono przełączanie trybu SD/Radio dotykiem obszaru sekund zegara na ekranie PLAYER.
+- Dodano dedykowany ekran SD_PLAYER dla odtwarzania z karty SD, z paskiem postępu i sterowaniem.
+- Naprawiono auto-play.
+- Obsługa NeoPixel i Clock przez www.
+- Dodano pobieranie okładki z Last.fm, gdy nie uda się jej zdekodować z pliku MP3.
+- Dodano wizualizację FFT do odtwarzacza dla trybu noTouch.
 
 ---
 
