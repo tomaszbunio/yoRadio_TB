@@ -3,6 +3,9 @@
 .claude
 build
 zbudujradio
+zbudujradioadmin
+zbudujradioadmin/
+zbudujradio/
 *.txt
 Claude.md
 mywifi.h
