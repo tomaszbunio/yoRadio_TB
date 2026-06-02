@@ -102,12 +102,13 @@ class Audio {
         const char*           msg = nullptr;
         const char*           s = nullptr;
         event_t               e = (event_t)0; // event type
-        uint8_t               i2s_num = 0;
+        int32_t               i2s_num = 0;
         int32_t               arg1 = 0;
         int32_t               arg2 = 0;
         std::vector<uint32_t> vec = {}; // apic [pos, len, pos, len, pos, len, ....]
     } msg_t;
     inline static std::function<void(msg_t i)> audio_info_callback;
+    using VolumeCurveFn = std::function<float(float t)>;
     // -------------------------------------------------------------------
 
     bool openai_speech(const String& api_key, const String& model, const String& input, const String& instructions, const String& voice, const String& response_format, const String& speed);
@@ -129,10 +130,11 @@ class Audio {
     void             setVolumeSteps(uint8_t steps);
     uint8_t          getVolumeSteps();
     void             setVolume(uint8_t vol, uint8_t curve = 0);
+    void             setVolumeCurve(VolumeCurveFn curve);
     uint8_t          getVolume();
     void             setMute(bool mute);
     bool             getMute();
-    uint8_t          getI2sPort();
+    int32_t          getI2sPort();
     uint32_t         getFileSize();
     uint32_t         getSampleRate();
     uint8_t          getBitsPerSample();
@@ -143,6 +145,7 @@ class Audio {
     uint32_t         getAudioFilePosition();
     bool             setAudioFilePosition(uint32_t pos);
     uint16_t         getVUlevel();
+    void             getSpectrum(uint8_t* out, uint8_t maxBands);
     uint32_t         inBufferFilled();  // returns the number of stored bytes in the inputbuffer
     uint32_t         inBufferFree();    // returns the number of free bytes in the inputbuffer
     uint32_t         getInBufferSize(); // returns the size of the inputbuffer in bytes
@@ -247,6 +250,7 @@ class Audio {
     int32_t                mp3_correctResumeFilePos();
     int32_t                wav_correctResumeFilePos();
     uint8_t                determineCodec(uint8_t presumed_codec);
+    bool                   get_info();
     void                   strlower(char* str);
     void                   trim(char* str);
     bool                   startsWith(const char* base, const char* str);
@@ -324,6 +328,8 @@ class Audio {
 
   public:
     struct audioSettings {
+        uint16_t DMA_DESC_NUM = 32;        // number of I2S DMA buffer
+        uint16_t DMA_FRAME_NUM = 256;      // number of frames in one DMA buffer
         uint16_t FREQ_LS_HZ = 500;         // IIR Filter, lowshelf
         uint16_t FREQ_PEAK_HZ = 1800;      // IIR Filter, peakingEQ
         uint16_t FREQ_HS_HZ = 6000;        // IIR Filter, highshelf
@@ -376,6 +382,7 @@ class Audio {
     ps_ptr<char>             m_streamTitle; // stores the last StreamTitle
     ps_ptr<char>             m_streamURL;   // stores the last StreamURL
     ps_ptr<char>             m_playlistBuff;
+    VolumeCurveFn            m_volumeCurve = nullptr;
 
     const uint16_t m_plsBuffEntryLen = 256;         // length of each entry in playlistBuff
     int            m_LFcount = 0;                   // Detection of end of header
@@ -496,6 +503,7 @@ class Audio {
     audiolib::fft_items_t  m_fft_items;
     audiolib::i2s_items_t  m_i2s_items;
     audiolib::resampler_t  m_resampler;
+    audiolib::info_queue_t m_info_queue;
 
     // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
   public:
@@ -555,28 +563,45 @@ class Audio {
         char* p = result.get();
         if (!p) return false;
         std::snprintf(p, len + 1, fmt, safe_arg(std::forward<Args>(args))...);
-        msg_t i = {0};
-        i.msg = result.c_get();
-        i.e = e;
-        i.s = eventStr[e];
-        i.arg1 = extract_last_number(result.c_get());
-        i.i2s_num = instance.m_i2s_items.i2s_num;
-        audio_info_callback(i);
+        // msg_t i = {0};
+        // i.msg = result.c_get();
+        // i.e = e;
+        // i.s = eventStr[e];
+        // i.arg1 = extract_last_number(result.c_get());
+        // i.i2s_num = instance.m_i2s_items.i2s_num;
+        // audio_info_callback(i);
+        std::vector<uint32_t> v; // dummy
+        v.push_back(0);
+        instance.m_info_queue.msg.emplace_front(result);
+        instance.m_info_queue.s.emplace_front(eventStr[e]);
+        instance.m_info_queue.arg1.emplace_front(extract_last_number(result.c_get()));
+        instance.m_info_queue.arg2.emplace_front(0);
+        instance.m_info_queue.vec.emplace_front(v);
+        instance.m_info_queue.e.emplace_front((uint8_t)e);
+
         result.reset();
         return true;
     }
 
     static bool info(Audio& instance, event_t e, std::vector<uint32_t>& v) {
         if (!audio_info_callback) return false;
-        ps_ptr<char> apic;
-        apic.assignf("APIC found at pos %lu", v[0]);
-        msg_t i;
-        i.msg = apic.c_get();
-        i.e = e;
-        i.s = eventStr[e];
-        i.i2s_num = instance.m_i2s_items.i2s_num;
-        i.vec = v;
-        audio_info_callback(i);
+        std::lock_guard<std::mutex> lock(instance.mutex_info); // lock mutex
+        ps_ptr<char>                apic;
+        apic.assignf("APIC found at pos %u", v[0]);
+        // msg_t i;
+        // i.msg = apic.c_get();
+        // i.e = e;
+        // i.s = eventStr[e];
+        // i.i2s_num = instance.m_i2s_items.i2s_num;
+        // i.vec = v;
+        // audio_info_callback(i);
+
+        instance.m_info_queue.msg.emplace_front(apic);
+        instance.m_info_queue.s.emplace_front(eventStr[e]);
+        instance.m_info_queue.arg1.emplace_front(0);
+        instance.m_info_queue.arg2.emplace_front(0);
+        instance.m_info_queue.vec.emplace_front(v);
+        instance.m_info_queue.e.emplace_front((uint8_t)e);
         return true;
     }
     //----------------------------------------------------------------------------------------------------------------------

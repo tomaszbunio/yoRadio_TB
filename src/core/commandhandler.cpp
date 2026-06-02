@@ -10,6 +10,7 @@
 #include "../clock_tts/clock_tts.h"
 #include "../displays/dspcore.h"
 #include "../plugins/backlight/backlight.h"
+#include "../NeoPixel/NeoPixel.h"
 
 #if DSP_MODEL == DSP_DUMMY
     #define DUMMYDISPLAY
@@ -117,6 +118,50 @@ bool CommandHandler::exec(const char* command, const char* value, uint8_t cid) {
     clock_tts_set_interval((int)mins);
     return true;
   }
+#ifdef NEOPIXEL_ON
+  if (strEquals(command, "neopixel_enabled")) {
+    uint8_t en = static_cast<uint8_t>(atoi(value) ? 1 : 0);
+    config.saveValue(&config.store.neopixel_enabled, en);
+    NeoPixel_setEnabled(en == 1);
+    return true;
+  }
+  if (strEquals(command, "neopixel_brightness")) {
+    int b = atoi(value);
+    if (b < 0) b = 0;
+    if (b > 255) b = 255;
+    config.saveValue(&config.store.neopixel_brightness, static_cast<uint8_t>(b));
+    NeoPixel_setBrightness(config.store.neopixel_brightness);
+    return true;
+  }
+  if (strEquals(command, "neopixel_effect")) {
+    uint8_t effect = static_cast<uint8_t>(atoi(value));
+    if (effect > 4) effect = 4;
+    config.saveValue(&config.store.neopixel_effect, effect);
+    NeoPixel_setEffect(effect);
+    return true;
+  }
+  if (strEquals(command, "neopixel_effect2")) {
+    uint8_t effect = static_cast<uint8_t>(atoi(value));
+    if (effect > 4) effect = 4;
+    config.saveValue(&config.store.neopixel_effect2, effect);
+    NeoPixel_applyConfig();
+    return true;
+  }
+  if (strEquals(command, "neopixel_enc1_color")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.neopixel_enc1_color, col, false);
+    config.scheduleEEPROMCommit();
+    NeoPixel_setEncoderColor(1, col);
+    return true;
+  }
+  if (strEquals(command, "neopixel_enc2_color")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.neopixel_enc2_color, col, false);
+    config.scheduleEEPROMCommit();
+    NeoPixel_setEncoderColor(2, col);
+    return true;
+  }
+#endif
 
   // --- Clock font (options.html) ---
   if (strEquals(command, "clockfont")) {
@@ -126,6 +171,20 @@ bool CommandHandler::exec(const char* command, const char* value, uint8_t cid) {
     config.saveValue(&config.store.clockfont, id, false);
     config.scheduleEEPROMCommit();
     config.scheduleUiApply(Config::UI_APPLY_CLOCKFONT);
+    return true;
+  }
+  if (strEquals(command, "clockmode")) {
+    uint8_t mode = static_cast<uint8_t>(atoi(value) ? 1 : 0);
+    config.saveValue(&config.store.clockmode, mode, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_CLOCK);
+    return true;
+  }
+  if (strEquals(command, "clockseconds")) {
+    uint8_t seconds = static_cast<uint8_t>(atoi(value) ? 1 : 0);
+    config.saveValue(&config.store.clockseconds, seconds, false);
+    config.scheduleEEPROMCommit();
+    config.scheduleUiApply(Config::UI_APPLY_CLOCK);
     return true;
   }
 
@@ -154,6 +213,8 @@ bool CommandHandler::exec(const char* command, const char* value, uint8_t cid) {
     uint16_t col = Config::htmlColorTo565(value);
 	Serial.printf("tac: value=%s col=0x%04X\n", value, col);
     config.saveValue(&config.store.tac, col, false);
+    // Keep classic/flip clock text pickers aligned (some UIs send tac, some tfliptext).
+    config.saveValue(&config.store.tfliptext, col, false);
     config.scheduleEEPROMCommit();
     config.scheduleUiApply(Config::UI_APPLY_THEME);
     return true;
@@ -257,6 +318,20 @@ if (strEquals(command, "tvol")) {
   config.scheduleUiApply(Config::UI_APPLY_THEME);
   return true;
 }
+if (strEquals(command, "tvolbar")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tvolbar, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
+if (strEquals(command, "tch")) {
+  uint16_t col = Config::htmlColorTo565(value);
+  config.saveValue(&config.store.tch, col, false);
+  config.scheduleEEPROMCommit();
+  config.scheduleUiApply(Config::UI_APPLY_THEME);
+  return true;
+}
 if (strEquals(command, "trssi")) {
   uint16_t col = Config::htmlColorTo565(value);
   config.saveValue(&config.store.trssi, col, false);
@@ -281,6 +356,9 @@ if (strEquals(command, "tseconds")) {
 if (strEquals(command, "tfliptext")) {
   uint16_t col = Config::htmlColorTo565(value);
   config.saveValue(&config.store.tfliptext, col, false);
+  // Keep classic and flip clock text colors in sync unconditionally.
+  // This avoids edge-cases when clockmode updates arrive out of order.
+  config.saveValue(&config.store.tac, col, false);
   config.scheduleEEPROMCommit();
   config.scheduleUiApply(Config::UI_APPLY_THEME);
   return true;
@@ -368,7 +446,7 @@ if (strEquals(command, "tflipcard")) {
         config.saveValue(&config.store.flipscreen, static_cast<bool>(atoi(value)));
         display.flip();
         display.putRequest(NEWMODE, CLEAR);
-        display.putRequest(NEWMODE, PLAYER);
+        display.putRequest(NEWMODE, config.getMode() == PM_SDCARD ? SD_PLAYER : PLAYER);
         return true;
     }
     if (strEquals(command, "brightness")) {
@@ -575,7 +653,6 @@ if (strEquals(command, "tflipcard")) {
 
     if (strEquals(command, "smartstart")) {
         uint8_t ss = atoi(value) == 1 ? 1 : 2;
-        if (!player.isRunning() && ss == 1) { ss = 0; }
         config.setSmartStart(ss);
         return true;
     }

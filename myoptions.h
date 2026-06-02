@@ -1,15 +1,10 @@
 
-// v8.7.1_TB
+#define VERSION v8.8_TB
 // clang-format off
-
-// Odkomentuj aby zmierzyć czasy transferów SPI do wyświetlacza (Serial Monitor)
-// #define DEBUG_SPI_TIMING
-/* https://trip5.github.io/ehRadio_myoptions/generator.html?b=ESP32-S3-DevKitC-1_44Pin&r=72,1,2,4,5,6,76,7,8,31,42,43,54,55,58,60,63,65,77&i=1,2,3,4,15,16,17,28,29,30,31,32,33,34,39,48,49&v=9,10,-1,14,4,5,6,40,41,39,48,47,21,3,18,8,7
+/*
    Read the before use !!!
    https://github.com/tomaszbunio/yoRadio_TB/blob/main/README.md
 
-  
-    
   - The // sign at the beginning of the line makes the command inactive, so the compiler ignores it! 
     This allows you to set the appropriate configuration for your hardware.
 */
@@ -22,6 +17,7 @@
 #endif
 
 // #define HEAP_DBG
+// #define DEBUG_MODE_SWITCH   // Debug przełączania trybów (IR MENU / playlist return / display mode)
 
 /* You can set the program language here.
    Supported languages: HU NL PL RU EN GR SK DE UA ES. */
@@ -41,7 +37,7 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #define NETSERVER_LOOP1
 
 /* Arduino OTA Support */
-// #define USE_OTA true                    /* Enable OTA updates from Arduino IDE */
+#define USE_OTA true                    /* Enable OTA updates from Arduino IDE */
 // #define OTA_PASS "myotapassword12345"   /* OTA password for secure updates */
 
 /* HTTP Authentication */
@@ -94,7 +90,6 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #define ENC_BTNR      4  // S2
 #define ENC_BTNL      5  // S1
 #define ENC_BTNB      6  // KEY
-
 //#define ENC_INTERNALPULLUP	true
 
 /* ENCODER 2 */
@@ -103,18 +98,23 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #define ENC2_BTNB      3  // KEY
 //#define ENC2_INTERNALPULLUP	true
 
+// Dwa niezależne enkodery: lewy=stacje, prawy=głośność
+#define TWO_ENCODERS
+
 /*----- CLOCK MODUL RTC DS3132 -----*/
 // #define RTC_SCL			     7
 // #define RTC_SDA			     8
 // #define RTC_MODULE DS3231
 
 /*----- REMOTE CONTROL INFRARED RECEIVER -----*/
-#define IR_PIN 47
+#define IR_PIN 2
+
+/* Built-in IR default mapping (loaded when IR EEPROM section is empty). */
+#include "myir_defaults.h"
 
 /*----- SD CARD -----*/
  #define SDC_CS     38
- #define SDSPISPEED 4000000 /* 4MHz - Slower speed to prevent display flicker on shared SPI bus */
- #define SD_AUTOPLAY      true
+ //#define SDSPISPEED 4000000 /* 4MHz - Slower speed to prevent display flicker on shared SPI bus */
 
  /*----- by Maciej Bednarski -----*/
 /*---- Activating this will move the cursor up and down in the playlist -----*/
@@ -184,16 +184,16 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 
 #define NEOPIXEL_ON
 #ifdef NEOPIXEL_ON
-   #define NEOPIXEL_PIN 2
+   #define NEOPIXEL_PIN 42
    #define LED_COUNT    16
 #endif
 
-// Dwa niezależne enkodery: lewy=stacje, prawy=głośność
-#define TWO_ENCODERS
+/*----- Tested on Synology NAS ----- */
+// #define USE_DLNA
+// #define dlnaHost "192.168.1.200"
+// #define dlnaIDX  21
 
 // zegar w stylu FLIP CLOCK
-#define FLIP_CLOCK
-#define PRINT_SECONDS
 #define FLIP_DIGIT_PAD  1   // padding wewnątrz panelu (px)
 #define FLIP_DIGIT_GAP  1   // odstęp między panelami (px)
 #define FLIP_PANEL_VPAD 10   // margines pionowy: 5px góra + 5px dół panelu
@@ -216,6 +216,20 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 /*                                                                    */
 /* Pełna baza stref: https://github.com/nayarsystems/posix_tz_db     */
 #define TIMEZONE_POSIX "CET-1CEST,M3.5.0,M10.5.0/3"
+
+/*----- Deep sleep wake sources -----*/
+// false = wybudzanie tylko przyciskiem enkodera (stabilniej)
+// true  = dodatkowo wybudzanie przez IR (może łapać zakłócenia)
+#define SLEEP_WAKE_BY_IR false
+
+/*----- Autostart przy każdym włączeniu (0=idle, 1=ostatni stan, 2=zawsze) -----*/
+//#define SMARTSTART_DEFAULT 2
+
+/*----- Wznowienie odtwarzania SD od ostatniego miejsca po zatrzymaniu -----*/
+#define SD_RESUME_ENABLED
+
+/*----- Zawsze zacznij odtwarzanie SD od 1. utworu (ignoruj zapamiętany numer) -----*/
+//#define SD_ALWAYS_START_FROM_FIRST
 
 /*----- Widget logo stacji radiowej -----*/
 /*  Pliki PNG (160x120, 24-bit) umieszczaj na SPIFFS w katalogu głównym.
@@ -241,6 +255,23 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
     { "eska",       "radio_eska"   }, \
     { "open fm",    "open_fm"      }, \
     { "e m",        "radio_em"      },
+#endif
+
+/*----- Okładka albumu na ekranie SD_PLAYER -----*/
+#define SD_COVER_ART
+#ifdef SD_COVER_ART
+  #define SD_COVER_W  215
+  #define SD_COVER_H  215
+  #define SD_COVER_X  10   // TFT_FRAMEWDT
+  #define SD_COVER_Y  95   // dół okładki na dolnej linii paska postępu
+  // Odkomentuj, aby pobierać okładki z Last.fm. Zakomentowane = szuka lokalnego front.jpg.
+  #define SD_COVER_SOURCE_LASTFM
+
+  #ifdef SD_COVER_SOURCE_LASTFM
+    #define LASTFM_API_KEY "0b783abd18c1a0b35c2261b4d5a7a046"
+    #define LASTFM_COVER_TIMEOUT_MS 5000
+  #endif
+  #define CORE_STACK_SIZE (1024 * 16)  // JPEGDEC decode needs larger DspTask stack
 #endif
 
 #endif // myoptions_h

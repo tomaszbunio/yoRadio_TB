@@ -31,6 +31,11 @@ void NeoPixel_init();
 // Główna pętla animacji LED
 // Wywoływać w loop()
 void NeoPixel_loop();
+void NeoPixel_setBrightness(uint8_t value);
+void NeoPixel_setEnabled(bool enabled);
+void NeoPixel_setEffect(uint8_t effectId);
+void NeoPixel_setEncoderColor(uint8_t encoderId, uint16_t rgb565);
+void NeoPixel_applyConfig();
 
 // Automatyczna aktualizacja stanu LED
 // Na podstawie display.mode() i network.status

@@ -2,6 +2,8 @@
 #define common_gfx_h
 #include "../widgets/widgetsconfig.h" // displayXXXDDDDconf.h
 #include "utf8To.h"
+#include <U8g2_for_Adafruit_GFX.h>
+extern U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 #define ADAFRUIT_CLIPPING  DSP_MODEL != DSP_ILI9225
 
 typedef struct clipArea {

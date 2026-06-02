@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <SD.h>
+#include <vector>
+#include <algorithm>
 #include "vfs_api.h"
 #include "sd_diskio.h"
 //#define USE_SD
@@ -21,6 +23,13 @@ SPIClass  SDSPI(HSPI);
 
 #ifndef SDSPISPEED
   #define SDSPISPEED 20000000
+#endif
+
+#ifndef SD_INDEX_YIELD_EVERY
+  #define SD_INDEX_YIELD_EVERY 16
+#endif
+#ifndef SD_INDEX_PROGRESS_EVERY
+  #define SD_INDEX_PROGRESS_EVERY 16
 #endif
 
 SDManager sdman(FSImplPtr(new VFSImpl()));
@@ -82,40 +91,53 @@ void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uin
         return;
     }
 
-    uint32_t pos = 0;
-    char* filePath;
+    std::vector<String> dirs;
+    std::vector<String> files;
+
+    uint16_t scanCounter = 0;
     while (true) {
-        vTaskDelay(2);
-        player.loop();
+        if ((scanCounter++ % SD_INDEX_YIELD_EVERY) == 0) {
+            vTaskDelay(1);
+            player.loop();
+        }
         bool isDir;
         String fileName = root.getNextFileName(&isDir);
         if (fileName.isEmpty()) break;
-        filePath = (char*)malloc(fileName.length() + 1);
-        if (filePath == NULL) {
-            Serial.println("Memory allocation failed");
-            break;
-        }
-        strcpy(filePath, fileName.c_str());
-        const char* fn = strrchr(filePath, '/') + 1;
         if (isDir) {
-            if (levels && !_checkNoMedia(filePath)) {
-                listSD(plSDfile, plSDindex, filePath, levels - 1);
+            if (levels && !_checkNoMedia(fileName.c_str())) {
+                dirs.push_back(fileName);
             }
         } else {
-            if (_endsWith(strlwr((char*)fn), ".mp3") || _endsWith(fn, ".m4a") || _endsWith(fn, ".aac") ||
-                _endsWith(fn, ".wav") || _endsWith(fn, ".flac")) {
-                pos = plSDfile.position();
-                plSDfile.printf("%s\t%s\t0\n", fn, filePath);
-                plSDindex.write((uint8_t*)&pos, 4);
-                Serial.print(".");
-                if(display.mode()==SDCHANGE) display.putRequest(SDFILEINDEX, _sdFCount+1);
-                _sdFCount++;
-                if (_sdFCount % 64 == 0) Serial.println();
+            String fnLower = fileName;
+            fnLower.toLowerCase();
+            if (fnLower.endsWith(".mp3") || fnLower.endsWith(".m4a") || fnLower.endsWith(".aac") ||
+                fnLower.endsWith(".wav") || fnLower.endsWith(".flac")) {
+                files.push_back(fileName);
             }
         }
-        free(filePath);
     }
     root.close();
+
+    std::sort(dirs.begin(), dirs.end());
+    std::sort(files.begin(), files.end());
+
+    for (auto& dir : dirs) {
+        listSD(plSDfile, plSDindex, dir.c_str(), levels - 1);
+    }
+
+    for (auto& fp : files) {
+        const char* fn = strrchr(fp.c_str(), '/');
+        fn = fn ? fn + 1 : fp.c_str();
+        uint32_t pos = plSDfile.position();
+        plSDfile.printf("%s\t%s\t0\n", fn, fp.c_str());
+        plSDindex.write((uint8_t*)&pos, 4);
+        _sdFCount++;
+        if ((_sdFCount % SD_INDEX_PROGRESS_EVERY) == 0) {
+            Serial.print(".");
+            if (display.mode() == SDCHANGE) display.putRequest(SDFILEINDEX, _sdFCount);
+            if ((_sdFCount % (64 * SD_INDEX_PROGRESS_EVERY)) == 0) Serial.println();
+        }
+    }
 }
 
 void SDManager::indexSDPlaylist() {
@@ -132,8 +154,8 @@ void SDManager::indexSDPlaylist() {
   index.close();
   playlist.flush();
   playlist.close();
+  if (display.mode() == SDCHANGE) display.putRequest(SDFILEINDEX, _sdFCount);
   Serial.println();
   delay(50);
 }
 #endif
-

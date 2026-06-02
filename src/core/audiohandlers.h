@@ -56,7 +56,9 @@ void my_audio_info(Audio::msg_t m) {
   const char *msg = (m.msg != nullptr) ? m.msg : "";
 
   // Debug: mindent kiírunk
+#ifdef AUDIO_DEBUG
   Serial.printf("##AUDIO -> e:%d  m.s:'%s'  m.msg:'%s'\n", static_cast<int>(m.e), s, msg);
+#endif
 
   // Ha a kimenet zárolva, semmit nem frissítünk
   if (player.lockOutput) {
@@ -265,6 +267,7 @@ void my_audio_info(Audio::msg_t m) {
  * a mentett stop pozícióra.
  */
 void seekSD() {
+#ifdef SD_RESUME_ENABLED
   if (config.getMode() == PM_SDCARD && config.sdResumePos > 0) {
     if (currentStationId == config.stopedSdStationId) {
       uint32_t offset = 0;
@@ -274,37 +277,47 @@ void seekSD() {
       player.setAudioFilePosition(offset);
     }
   }
+#endif
 }
 
 void processID3(const char *msg) {
-  bool updated = false;
-  if (!msg) {
-    return;
-  }
-  // "Artist: " → hossz 8
-  if (strstr(msg, "Artist") == msg) {
-    String s = String(msg).substring(8);
-    s.trim();
+  if (!msg) return;
+  // Handles both "Key: value" (MP3 ID3v2) and "KEY=value" (FLAC/OGG Vorbis)
+  auto getVal = [](const char *s, const char *key) -> const char* {
+    size_t n = strlen(key);
+    if (strncasecmp(s, key, n) != 0) return nullptr;
+    const char *p = s + n;
+    if (*p == '=') return p + 1;
+    if (*p == ':' && *(p + 1) == ' ') return p + 2;
+    return nullptr;
+  };
+  auto setArtist = [](const char *v) {
+    String s = String(v); s.trim();
+    if (s.length() == 0) return;
     currentArtist = s;
-    updated = true;
-  }
-  // "Title: " → hossz 7
-  else if (strstr(msg, "Title") == msg) {
-    String s = String(msg).substring(7);
-    s.trim();
+    strlcpy(config.station.sdArtist, s.c_str(), BUFLEN);
+    display.putRequest(NEWTITLE);
+  };
+  const char *v;
+  if ((v = getVal(msg, "Title")) != nullptr) {
+    String s = String(v); s.trim();
     currentTitle = s;
-    updated = true;
-  }
-  if (updated) {
-    String info;
-    if (currentArtist.length() > 0 && currentTitle.length() > 0) {
-      info = currentArtist + " - " + currentTitle;
-    } else if (currentArtist.length() > 0) {
-      info = currentArtist + " -  ";  // cím még nincs
-    }
-    if (info.length() > 0) {
-      config.setTitle(info.c_str());
-    }
+    config.setTitle(s.c_str());
+  } else if ((v = getVal(msg, "Artist")) != nullptr) {
+    setArtist(v);
+  } else if ((v = getVal(msg, "Album Artist")) != nullptr) {
+    // FLAC/Vorbis files often provide ALBUMARTIST without ARTIST.
+    if (config.station.sdArtist[0] == '\0') setArtist(v);
+  } else if ((v = getVal(msg, "AlbumArtist")) != nullptr) {
+    if (config.station.sdArtist[0] == '\0') setArtist(v);
+  } else if ((v = getVal(msg, "ALBUMARTIST")) != nullptr) {
+    if (config.station.sdArtist[0] == '\0') setArtist(v);
+  } else if ((v = getVal(msg, "Performer")) != nullptr) {
+    if (config.station.sdArtist[0] == '\0') setArtist(v);
+  } else if ((v = getVal(msg, "Album")) != nullptr) {
+    String s = String(v); s.trim();
+    strlcpy(config.station.sdAlbum, s.c_str(), BUFLEN);
+    display.putRequest(NEWTITLE);
   }
 }
 
@@ -461,6 +474,10 @@ void audio_icy_description(const char *info) {
 
 void audio_beginSDread() {
   config.setTitle("");
+  config.station.sdArtist[0] = '\0';
+  config.station.sdAlbum[0] = '\0';
+  currentArtist = "";
+  currentTitle = "";
 }
 
 void audio_id3data(const char *info) {
@@ -470,7 +487,9 @@ void audio_id3data(const char *info) {
   if (!info) {
     return;
   }
+#ifdef AUDIO_DEBUG
   telnet.printf("##AUDIO.ID3#: %s\r\n", info);
+#endif
 }
 
 void audio_eof() {

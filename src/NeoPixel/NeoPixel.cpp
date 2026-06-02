@@ -1,258 +1,176 @@
 #include <Adafruit_NeoPixel.h>
 #include "NeoPixel.h"
-#include "../core/controls.h"
-#include "../core/network.h"
-#include "../core/display.h"
+#include "../core/config.h"
 #include "../../myoptions.h"
-// ------------------------------------------------------
-// KONFIGURACJA SPRZĘTOWA
-// ------------------------------------------------------
 
 Adafruit_NeoPixel strip(LED_COUNT, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+static constexpr uint16_t RING1_START = 0;
+static constexpr uint16_t RING_SIZE = 8;
+static constexpr uint16_t RING2_START = RING1_START + RING_SIZE;
 
-// ------------------------------------------------------
-// ZMIENNE GLOBALNE
-// ------------------------------------------------------
-static LedState currentLedState = LED_BOOT;
-static uint8_t currentEffect = 0;
-static uint32_t lastUpdate = 0;
-
-// ------------------------------------------------------
-// COLOR WIPE
-// ------------------------------------------------------
-static uint16_t wipeIndex = 0;
-static uint32_t wipeColor = 0;
-static uint16_t wipeWait = 0;
-static bool wipeActive = false;
-
-// ------------------------------------------------------
-// RAINBOW
-// ------------------------------------------------------
-static uint16_t rainbowIndex = 0;
-static uint16_t rainbowWait = 0;
-static bool rainbowActive = false;
-
-// ------------------------------------------------------
-// RAINBOW CYCLE
-// ------------------------------------------------------
-static uint16_t rainbowCycleIndex = 0;
-static uint16_t rainbowCycleWait = 0;
-static bool rainbowCycleActive = false;
-
-// ------------------------------------------------------
-// THEATER CHASE
-// ------------------------------------------------------
-static uint32_t chaseColor = 0;
-static uint16_t chaseWait = 0;
-static uint8_t chaseQ = 0;
-static uint8_t chaseJ = 0;
-static bool chaseActive = false;
-
-// ------------------------------------------------------
-// ENCODER OVERLAY
-// ------------------------------------------------------
+static uint8_t ringPhase1 = 0;
+static uint8_t ringPhase2 = 0;
+static uint32_t lastFrame = 0;
 static bool encoderAnimActive = false;
 static int encoderPos = 0;
 static uint32_t encoderLast = 0;
+static uint16_t encoderOverlayColor = 0xFFFF;
 
-// ------------------------------------------------------
-// NARZĘDZIA
-// ------------------------------------------------------
-static void stopAllEffects() {
-  wipeActive = rainbowActive = rainbowCycleActive = false;
-  chaseActive = false;
-  strip.clear();
-  strip.show();
-}
-
-static uint32_t Wheel(byte WheelPos) {
-  WheelPos = 255 - WheelPos;
-  if (WheelPos < 85)
-    return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  if (WheelPos < 170) {
-    WheelPos -= 85;
-    return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+static uint32_t Wheel(byte wheelPos) {
+  wheelPos = 255 - wheelPos;
+  if (wheelPos < 85) return strip.Color(255 - wheelPos * 3, 0, wheelPos * 3);
+  if (wheelPos < 170) {
+    wheelPos -= 85;
+    return strip.Color(0, wheelPos * 3, 255 - wheelPos * 3);
   }
-  WheelPos -= 170;
-  return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  wheelPos -= 170;
+  return strip.Color(wheelPos * 3, 255 - wheelPos * 3, 0);
 }
 
-// ------------------------------------------------------
-// STARTY EFEKTÓW
-// ------------------------------------------------------
-static void startColorWipe(uint32_t color, uint16_t wait) {
-  wipeIndex = 0;
-  wipeColor = color;
-  wipeWait = wait;
-  wipeActive = true;
+static uint32_t color565ToNeo(uint16_t color565) {
+  uint8_t r = ((color565 >> 11) & 0x1F) * 255 / 31;
+  uint8_t g = ((color565 >> 5) & 0x3F) * 255 / 63;
+  uint8_t b = (color565 & 0x1F) * 255 / 31;
+  return strip.Color(r, g, b);
 }
 
-static void startRainbowCycle(uint16_t wait) {
-  rainbowCycleIndex = 0;
-  rainbowCycleWait = wait;
-  rainbowCycleActive = true;
+static uint32_t color565ToNeoScaled(uint16_t color565, uint8_t scale) {
+  uint8_t r = (((color565 >> 11) & 0x1F) * 255 / 31) * scale / 255;
+  uint8_t g = (((color565 >> 5) & 0x3F) * 255 / 63) * scale / 255;
+  uint8_t b = ((color565 & 0x1F) * 255 / 31) * scale / 255;
+  return strip.Color(r, g, b);
 }
 
-static void startTheaterChase(uint32_t color, uint16_t wait) {
-  chaseColor = color;
-  chaseWait = wait;
-  chaseQ = 0;
-  chaseJ = 0;
-  chaseActive = true;
-}
+static void renderRing(uint16_t start, uint16_t end, uint8_t effect, uint16_t color565, uint8_t phase) {
+  uint16_t count = end - start;
+  if (count == 0) return;
 
-// ------------------------------------------------------
-// KROKI EFEKTÓW
-// ------------------------------------------------------
-static void colorWipe_step() {
-  if (!wipeActive || millis() - lastUpdate < wipeWait) return;
-  lastUpdate = millis();
-
-  strip.setPixelColor(wipeIndex++, wipeColor);
-  strip.show();
-
-  if (wipeIndex >= strip.numPixels()) wipeActive = false;
-}
-
-static void rainbowCycle_step() {
-  if (!rainbowCycleActive || millis() - lastUpdate < rainbowCycleWait) return;
-  lastUpdate = millis();
-
-  for (uint16_t i = 0; i < strip.numPixels(); i++) {
-    strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + rainbowCycleIndex) & 255));
-  }
-  strip.show();
-
-  rainbowCycleIndex = (rainbowCycleIndex + 1) % (256 * 5);
-}
-
-static void theaterChase_step() {
-  if (!chaseActive || millis() - lastUpdate < chaseWait) return;
-  lastUpdate = millis();
-
-  for (uint16_t i = 0; i < strip.numPixels(); i += 3)
-    strip.setPixelColor(i + chaseQ, chaseColor);
-
-  strip.show();
-
-  for (uint16_t i = 0; i < strip.numPixels(); i += 3)
-    strip.setPixelColor(i + chaseQ, 0);
-
-  chaseQ = (chaseQ + 1) % 3;
-}
-
-// ------------------------------------------------------
-// STEROWANIE STANEM LED
-// ------------------------------------------------------
- void setLedState(LedState state) {
-  if (state == currentLedState) return;
-  currentLedState = state;
-
-  stopAllEffects();
-
-  switch (state) {
-    case LED_PLAYER:
-      startColorWipe(strip.Color(0, 0, 80), 20);
-      currentEffect = 1;
+  switch (effect) {
+    case 0: // off
+      for (uint16_t i = start; i < end; i++) strip.setPixelColor(i, 0);
       break;
-
-    case LED_STATIONS:
-      startTheaterChase(strip.Color(0, 80, 0), 60);
-      currentEffect = 4;
+    case 2: // theater chase
+      for (uint16_t i = 0; i < count; i++) {
+        strip.setPixelColor(start + i, ((i + phase) % 3 == 0) ? color565ToNeo(color565) : 0);
+      }
       break;
-
-    case LED_SCREENSAVER:
-      startRainbowCycle(40);
-      currentEffect = 3;
+    case 3: // rainbow cycle
+      for (uint16_t i = 0; i < count; i++) {
+        strip.setPixelColor(start + i, Wheel(((i * 256 / count) + phase) & 255));
+      }
       break;
-
-    case LED_LOST:
-	  startTheaterChase(strip.Color(80, 0, 0), 120);
-      currentEffect = 4;
+    case 4: { // breathing
+      uint8_t breathPhase = phase * 2;
+      uint8_t breath = (breathPhase < 128) ? (breathPhase * 2) : ((255 - breathPhase) * 2);
+      for (uint16_t i = start; i < end; i++) strip.setPixelColor(i, color565ToNeoScaled(color565, breath));
       break;
-    case LED_NO_WIFI:
-      startTheaterChase(strip.Color(80, 0, 0), 120);
-      currentEffect = 4;
-      break;
-
-    case LED_SD_READY:
-      startColorWipe(strip.Color(80, 0, 80), 30);
-      currentEffect = 1;
-      break;
-
+    }
+    case 1: // static
     default:
+      for (uint16_t i = start; i < end; i++) strip.setPixelColor(i, color565ToNeo(color565));
       break;
   }
 }
 
-// ------------------------------------------------------
-// DETEKCJA STANU SYSTEMU (YO-RADIO)
-// ------------------------------------------------------
-void updateLedState() {
-  if (network.status != CONNECTED) {
-    setLedState(LED_NO_WIFI);
+static void renderRingsAndShow() {
+  if (!config.store.neopixel_enabled) {
+    strip.clear();
+    strip.show();
     return;
   }
 
-  if (network.status == SDREADY) {
-    setLedState(LED_SD_READY);
-    return;
+  uint16_t total = strip.numPixels();
+  uint16_t ring1End = (RING1_START + RING_SIZE < total) ? (RING1_START + RING_SIZE) : total;
+  uint16_t ring2End = (RING2_START + RING_SIZE < total) ? (RING2_START + RING_SIZE) : total;
+
+  uint8_t ring2Phase = ringPhase2;
+  if (config.store.neopixel_effect == 4 && config.store.neopixel_effect2 == 4) {
+    ring2Phase = ringPhase1;
   }
 
-  switch (display.mode()) {
-    case PLAYER:      setLedState(LED_PLAYER); break;
-    case STATIONS:    setLedState(LED_STATIONS); break;
-    case SCREENSAVER: setLedState(LED_SCREENSAVER); break;
-    case LOST:        setLedState(LED_LOST); break;
-    default: break;
+  renderRing(RING1_START, ring1End, config.store.neopixel_effect, config.store.neopixel_enc1_color, ringPhase1);
+  renderRing(RING2_START, ring2End, config.store.neopixel_effect2, config.store.neopixel_enc2_color, ring2Phase);
+
+  // Any extra LEDs outside two 8-LED rings are forced off.
+  for (uint16_t i = ring2End; i < total; i++) strip.setPixelColor(i, 0);
+
+  if (encoderAnimActive && millis() - encoderLast <= 120) {
+    strip.setPixelColor(encoderPos, color565ToNeo(encoderOverlayColor));
+  } else {
+    encoderAnimActive = false;
   }
+
+  strip.show();
 }
 
+void setLedState(LedState state) {
+  (void)state;
+}
+
+void updateLedState() {
+}
 
 void NeoPixel_off() {
   strip.clear();
   strip.show();
 }
 
-// ------------------------------------------------------
-// OVERLAY: ENKODER
-// ------------------------------------------------------
 void ledEncoderRotate(bool dir) {
   encoderAnimActive = true;
   encoderLast = millis();
-
+  uint16_t controlledPixels = strip.numPixels() < (RING_SIZE * 2) ? strip.numPixels() : (RING_SIZE * 2);
+  if (controlledPixels == 0) return;
   encoderPos += dir ? 1 : -1;
-  if (encoderPos < 0) encoderPos = strip.numPixels() - 1;
-  if (encoderPos >= strip.numPixels()) encoderPos = 0;
+  if (encoderPos < 0) encoderPos = controlledPixels - 1;
+  if (encoderPos >= controlledPixels) encoderPos = 0;
 }
 
-static void encoderOverlayStep() {
-  if (!encoderAnimActive) return;
-  if (millis() - encoderLast > 120) {
-    encoderAnimActive = false;
-    return;
-  }
-  strip.setPixelColor(encoderPos, strip.Color(80, 80, 80));
-  strip.show();
-}
-
-// ------------------------------------------------------
-// INIT + LOOP
-// ------------------------------------------------------
 void NeoPixel_init() {
   strip.begin();
+  strip.setBrightness(config.store.neopixel_brightness);
   strip.clear();
   strip.show();
-  setLedState(LED_BOOT);
+  renderRingsAndShow();
+}
+
+void NeoPixel_setBrightness(uint8_t value) {
+  strip.setBrightness(value);
+  renderRingsAndShow();
+}
+
+void NeoPixel_setEnabled(bool enabled) {
+  if (!enabled) {
+    NeoPixel_off();
+    return;
+  }
+  NeoPixel_applyConfig();
+}
+
+void NeoPixel_setEffect(uint8_t effectId) {
+  config.store.neopixel_effect = effectId;
+  renderRingsAndShow();
+}
+
+void NeoPixel_setEncoderColor(uint8_t encoderId, uint16_t rgb565) {
+  if (encoderId == 2) {
+    config.store.neopixel_enc2_color = rgb565;
+  } else {
+    config.store.neopixel_enc1_color = rgb565;
+  }
+  encoderOverlayColor = rgb565;
+  renderRingsAndShow();
+}
+
+void NeoPixel_applyConfig() {
+  strip.setBrightness(config.store.neopixel_brightness);
+  encoderOverlayColor = config.store.neopixel_enc1_color;
+  renderRingsAndShow();
 }
 
 void NeoPixel_loop() {
-	updateLedState();
-  switch (currentEffect) {
-    case 1: colorWipe_step(); break;
-    case 3: rainbowCycle_step(); break;
-    case 4: theaterChase_step(); break;
-    default: break;
-  }
-  encoderOverlayStep();
+  if (millis() - lastFrame < 40) return;
+  lastFrame = millis();
+  ringPhase1++;
+  ringPhase2 += 2;
+  renderRingsAndShow();
 }

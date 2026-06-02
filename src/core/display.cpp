@@ -14,11 +14,83 @@
 #include "../displays/widgets/widgets.h"
 #include "../displays/widgets/pages.h"
 #include "../displays/tools/l10n.h"
+#include <Fonts/FreeSans9pt7b.h>
+
+#ifndef SD_FFT_TOP_OFFSET
+    #define SD_FFT_TOP_OFFSET 11
+#endif
+#ifndef SD_FFT_BOTTOM_MARGIN
+    #define SD_FFT_BOTTOM_MARGIN 20
+#endif
+#ifndef SD_FFT_INFO_ROW_EXTRA
+    #define SD_FFT_INFO_ROW_EXTRA 10
+#endif
+#ifndef SD_FFT_UPDATE_MS
+    #define SD_FFT_UPDATE_MS 50
+#endif
+#ifndef SD_FFT_BANDS
+    #define SD_FFT_BANDS 16
+#endif
 
 Display display;
 #ifdef USE_NEXTION
     #include "../displays/nextion.h"
 Nextion nextion;
+#endif
+
+static constexpr bool kTouchEnabled = (TS_MODEL != TS_MODEL_UNDEFINED);
+
+#ifdef DEBUG_MODE_SWITCH
+static const char* dbgModeName(displayMode_e m) {
+    switch (m) {
+        case PLAYER: return "PLAYER";
+        case STATIONS: return "STATIONS";
+        case VOL: return "VOL";
+        case LOST: return "LOST";
+        case UPDATING: return "UPDATING";
+        case SLEEPING: return "SLEEPING";
+        case SCREENSAVER: return "SCREENSAVER";
+        case SCREENBLANK: return "SCREENBLANK";
+        case SD_PLAYER: return "SD_PLAYER";
+        case SDCHANGE: return "SDCHANGE";
+        case INFO: return "INFO";
+        case SETTINGS: return "SETTINGS";
+        case TIMEZONE: return "TIMEZONE";
+        case WIFI: return "WIFI";
+        case NUMBERS: return "NUMBERS";
+        case PRESETS: return "PRESETS";
+        default: return "UNKNOWN";
+    }
+}
+#endif
+
+#ifndef DEBUG_VOLUME_SCREEN
+    #define DEBUG_VOLUME_SCREEN true
+#endif
+
+#if DEBUG_VOLUME_SCREEN
+static const char* volDbgModeName(displayMode_e m) {
+    switch (m) {
+        case PLAYER: return "PLAYER";
+        case VOL: return "VOL";
+        case STATIONS: return "STATIONS";
+        case PRESETS: return "PRESETS";
+        case NUMBERS: return "NUMBERS";
+        case LOST: return "LOST";
+        case UPDATING: return "UPDATING";
+        case INFO: return "INFO";
+        case SETTINGS: return "SETTINGS";
+        case TIMEZONE: return "TIMEZONE";
+        case WIFI: return "WIFI";
+        case CLEAR: return "CLEAR";
+        case SLEEPING: return "SLEEPING";
+        case SDCHANGE: return "SDCHANGE";
+        case SCREENSAVER: return "SCREENSAVER";
+        case SCREENBLANK: return "SCREENBLANK";
+        case SD_PLAYER: return "SD_PLAYER";
+        default: return "?";
+    }
+}
 #endif
 
 #ifndef CORE_STACK_SIZE
@@ -71,8 +143,9 @@ void Display::_createDspTask() {
 #ifndef DUMMYDISPLAY
 //============================================================================================================================
 DspCore dsp;
+U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 
-Page* pages[] = {new Page(), new Page(), new Page(), new Page(), new Page()}; // "presets" +1 page
+Page* pages[] = {new Page(), new Page(), new Page(), new Page(), new Page(), new Page()}; // "presets" +1 page; PG_SD_PLAYER=5
 
     #if !((DSP_MODEL == DSP_ST7735 && DTYPE == INITR_BLACKTAB) || DSP_MODEL == DSP_ST7789 || DSP_MODEL == DSP_ST7796 || DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9486 || \
           DSP_MODEL == DSP_ILI9341 || DSP_MODEL == DSP_ILI9225 || DSP_MODEL == DSP_ST7789_170 || DSP_MODEL == DSP_SSD1322)
@@ -94,6 +167,11 @@ Display::~Display() {
     delete _title1;
     delete _title2;
     delete _plcurrent;
+    delete _sdtitle;
+    delete _sdartist;
+    delete _sdalbum;
+    delete _sdprogress;
+    delete _sdfft;
 }
 
 void Display::init() {
@@ -110,6 +188,7 @@ void Display::init() {
     #endif
     _bootStep = 0;
     dsp.initDisplay();
+    u8g2Fonts.begin(dsp);
     displayQueue = NULL;
     displayQueue = xQueueCreate(5, sizeof(requestParams_t));
     while (displayQueue == NULL) { ; }
@@ -259,6 +338,34 @@ void Display::_buildPager() {
     #endif
     pages[PG_PLAYLIST]->addWidget(_plcurrent);
     pages[PG_PLAYLIST]->addWidget(_plwidget);
+
+    // SD_PLAYER page: shared clock + vumeter, plus SD-specific widgets
+    _sdtitle = new ScrollWidget("*", sdTitleConf, config.theme.title1, config.theme.background);
+    _sdtitle->setFbLabel("SDTITLE");
+    _sdartist = new ScrollWidget("*", sdArtistConf, config.theme.title2, config.theme.background);
+    _sdartist->setFbLabel("SDARTIST");
+    _sdalbum = new ScrollWidget("*", sdAlbumConf, config.theme.title2, config.theme.background);
+    _sdalbum->setFbLabel("SDALBUM");
+    pages[PG_SD_PLAYER]->addWidget(_sdtitle);
+    pages[PG_SD_PLAYER]->addWidget(_sdartist);
+    pages[PG_SD_PLAYER]->addWidget(_sdalbum);
+    _sdprogress = new SliderWidget(sdProgressConf, config.theme.volbarin, config.theme.background, 1000, config.theme.title1);
+    pages[PG_SD_PLAYER]->addWidget(_sdprogress);
+    if (!kTouchEnabled) {
+        const uint8_t sdInfoTextSize = sdFileFormatConf.textsize;
+        const uint16_t infoBottom = (uint16_t)(sdFileFormatConf.top + (sdInfoTextSize * CHARHEIGHT + SD_FFT_INFO_ROW_EXTRA));
+        const uint16_t controlsBottom = (uint16_t)(SD_BTN_Y + SD_BTN_H + SD_BTN_GAP);
+        const uint16_t fftTop = (uint16_t)(max(infoBottom, controlsBottom) > SD_FFT_TOP_OFFSET ? (max(infoBottom, controlsBottom) - SD_FFT_TOP_OFFSET) : 0);
+        const uint16_t fftBottom = (uint16_t)(sdCurrentTimeConf.top > SD_FFT_BOTTOM_MARGIN ? sdCurrentTimeConf.top - SD_FFT_BOTTOM_MARGIN : 0);
+        const uint16_t fftHeight = (fftBottom > fftTop) ? (uint16_t)(fftBottom - fftTop + 1) : 0;
+        _sdfft = new SdFftWidget();
+        _sdfft->init({sdProgressConf.widget.left, fftTop, 0, WA_LEFT}, sdProgressConf.width, fftHeight, SD_FFT_BANDS, config.theme.title2, config.theme.background, SD_FFT_UPDATE_MS);
+        pages[PG_SD_PLAYER]->addWidget(_sdfft);
+    }
+    #ifdef SD_COVER_ART
+    _sdcover.init(config.theme.background);
+    #endif
+
     for (const auto& p : pages) { _pager->addPage(p); }
 }
 
@@ -310,8 +417,10 @@ void Display::_start() {
     nextion.start();
     #endif
     _buildPager();
-    _mode = PLAYER;
-    config.setTitle(LANG::const_PlReady);
+    _mode = (config.getMode() == PM_SDCARD) ? SD_PLAYER : PLAYER;
+    if (_mode == PLAYER) {
+        config.setTitle(LANG::const_PlReady);
+    }
 
     if (_heapbar) { _heapbar->lock(!config.store.audioinfo); }
 
@@ -320,18 +429,23 @@ void Display::_start() {
 
     if (_vuwidget) { _vuwidget->lock(); }
     if (_rssi) { _setRSSI(WiFi.RSSI()); }
-    if (_chtxt) {                                       // Ha létezik a widget
-        _chtxt->setText(config.lastStation(), "CH:%d"); // Beállítja a csatorna számát a widgetnek.
+    if (_chtxt) {
+        _chtxt->setText(config.lastStation(), "CH:%d");
     }
     #ifndef HIDE_IP
     if (_volip) { _volip->setText(config.ipToStr(WiFi.localIP()), iptxtFmt); }
     #endif
-    _pager->setPage(pages[PG_PLAYER]);
-    _volume();
-    _station();
-    _time(false);
+    if (_mode == SD_PLAYER) {
+        _pager->setPage(pages[PG_SD_PLAYER]);
+        _sdPlayerScreen();
+    } else {
+        _pager->setPage(pages[PG_PLAYER]);
+        _volume();
+        _station();
+        _time(false);
+        pm.on_display_player();
+    }
     _bootStep = 2;
-    pm.on_display_player();
 }
 
 void Display::_showDialog(const char* title) {
@@ -349,8 +463,23 @@ void Display::_swichMode(displayMode_e newmode) {
     // nextion.swichMode(newmode);
     nextion.putRequest({NEWMODE, newmode});
     #endif
+#ifdef DEBUG_MODE_SWITCH
+    Serial.printf("[MODEDBG][Display] request=%s current=%s net=%d playMode=%d isSdPlayer=%d\n",
+                  dbgModeName(newmode), dbgModeName(_mode), network.status, config.getMode(), config.isSdPlayer ? 1 : 0);
+#endif
+#if DEBUG_VOLUME_SCREEN
+    if (newmode == VOL || _mode == VOL) {
+        Serial.printf("[VOLDBG][%lu][Display::_swichMode] request=%s current=%s net=%d playMode=%d isSdPlayer=%d\n",
+                      millis(), volDbgModeName(newmode), volDbgModeName(_mode),
+                      network.status, config.getMode(), config.isSdPlayer ? 1 : 0);
+    }
+#endif
     if (newmode == _mode || (network.status != CONNECTED && network.status != SDREADY)) { return; }
     _mode = newmode;
+#ifdef DEBUG_MODE_SWITCH
+    Serial.printf("[MODEDBG][Display] switched=%s isSdPlayer=%d lastStation=%u currentPlItem=%u\n",
+                  dbgModeName(_mode), config.isSdPlayer ? 1 : 0, config.lastStation(), currentPlItem);
+#endif
     dsp.setScrollId(NULL);
     if (newmode == PLAYER) {
         if (player.isRunning()) {
@@ -374,13 +503,25 @@ void Display::_swichMode(displayMode_e newmode) {
         // _nums->setText("");
         config.isScreensaver = false;
         _pager->setPage(pages[PG_PLAYER]);
+        // Returning from SD_PLAYER can leave stale pixels in the audio buffer bar area.
+        // Force full widget reset so next draw starts from a clean baseline.
+        if (_heapbar) {
+            _heapbar->lock(true);
+            _heapbar->unlock();
+            _heapbar->lock(!config.store.audioinfo);
+            _heapbar->setValue((config.store.audioinfo && player.isRunning()) ? player.inBufferFilled() : 0);
+        }
         // _station() po setPage() – inaczej setPage() nadpisuje logo stacji tłem strony
         _station();
+        if (_chtxt) {
+            _chtxt->setText(config.lastStation(), "CH:%d");
+        }
         config.setDspOn(config.store.dspon, false);
         pm.on_display_player();
     }
     if (newmode == SCREENSAVER || newmode == SCREENBLANK) {
         config.isScreensaver = true;
+        config.isSdPlayer = false;
         _pager->setPage(pages[PG_SCREENSAVER]);
         if (newmode == SCREENBLANK) {
             // dsp.clearClock();
@@ -391,6 +532,7 @@ void Display::_swichMode(displayMode_e newmode) {
         config.screensaverTicks = SCREENSAVERSTARTUPDELAY;
         config.screensaverPlayingTicks = SCREENSAVERSTARTUPDELAY;
         config.isScreensaver = false;
+        if (newmode == PLAYER || newmode == SD_PLAYER) config.isSdPlayer = (newmode == SD_PLAYER);
     #if PWR_AMP != 255 // "PWR_AMP"
         digitalWrite(PWR_AMP, HIGH);
     #endif
@@ -401,6 +543,9 @@ void Display::_swichMode(displayMode_e newmode) {
     #else
         _showDialog(config.ipToStr(WiFi.localIP()));
     #endif
+        if (_chtxt) {
+            _chtxt->setText("v8.8");
+        }
         _nums->setText(config.store.volume, numtxtFmt);
     }
     if (newmode == LOST) { _showDialog(LANG::const_DlgLost); }
@@ -416,10 +561,26 @@ void Display::_swichMode(displayMode_e newmode) {
     }
     #endif
     if (newmode == STATIONS) {
+        // Force reload of playlist items on every entry.
+        // Without this, cached SD rows can remain visible after switching to WEB mode.
+        if (_plwidget) { _plwidget->resetCache(); }
         _pager->setPage(pages[PG_PLAYLIST]);
         _plcurrent->setText("");
         currentPlItem = config.lastStation();
         _drawPlaylist();
+    }
+    if (newmode == SD_PLAYER) {
+        Serial.println("[SD_PLAYER] switching to SD_PLAYER screen");
+        #ifdef STATION_LOGO_WIDGET
+        _stationLogo.clear();
+        #endif
+        _sdCurTimeBuf[0] = 0;
+        _sdTotTimeBuf[0] = 0;
+        _sdFmtBuf[0] = 0; _sdSrBuf[0] = 0; _sdBpsBuf[0] = 0;
+        _sdPlaying = !player.isRunning();
+        _pager->setPage(pages[PG_SD_PLAYER]);
+        _sdPlayerScreen();
+        _drawSdControls(true);
     }
 }
 
@@ -467,7 +628,10 @@ void Display::_applyTheme() {
   if (_vuwidget) _vuwidget->setVuColors(config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background, true);
   #endif
   #ifndef HIDE_VOLBAR
-  if (_volbar)  _volbar->setColors(config.theme.volbarin, config.theme.background, true);
+  if (_volbar) {
+    _volbar->setOutlineColor(config.theme.volbarout, false);
+    _volbar->setColors(config.theme.volbarin, config.theme.background, true);
+  }
   #endif
   #ifndef HIDE_HEAPBAR
   if (_heapbar) _heapbar->setColors(config.theme.buffer, config.theme.background, true);
@@ -481,6 +645,7 @@ void Display::_applyTheme() {
   #ifndef HIDE_RSSI
   if (_rssi)   _rssi->setColors(config.theme.rssi, config.theme.background, true);
   #endif
+  if (_chtxt)  _chtxt->setColors(config.theme.ch, config.theme.background, true);
   if (_nums)   _nums->setColors(config.theme.digit, config.theme.background, true);
   if (_bitrate) _bitrate->setColors(config.theme.bitrate, config.theme.background, true);
   if (_fullbitrate) _fullbitrate->setColors(config.theme.bitrate, config.theme.background, true);
@@ -488,17 +653,35 @@ void Display::_applyTheme() {
   // Poinformuj widget logo o nowym kolorze tła – używany przy clear() i przy PNG mniejszym niż obszar
   _stationLogo.setBgColor(config.theme.background);
   #endif
+  #ifdef SD_COVER_ART
+  _sdcover.setBgColor(config.theme.background);
+  #endif
 
   // Redraw current page using the new theme background
+  if (_sdtitle)    _sdtitle->setColors(config.theme.title1, config.theme.background, true);
+  if (_sdartist)   _sdartist->setColors(config.theme.title2, config.theme.background, true);
+  if (_sdalbum)       _sdalbum->setColors(config.theme.title2, config.theme.background, true);
+  if (_sdprogress)    _sdprogress->setColors(config.theme.volbarin, config.theme.background, true);
+  if (_sdfft)         _sdfft->setColors(config.theme.title2, config.theme.background, true);
+
   Page *pg = pages[PG_DIALOG];
   if (_mode == PLAYER) pg = pages[PG_PLAYER];
+  else if (_mode == SD_PLAYER) pg = pages[PG_SD_PLAYER];
   else if (_mode == STATIONS) pg = pages[PG_PLAYLIST];
   else if (_mode == PRESETS) pg = pages[PG_PRESETS];
   else if (_mode == SCREENSAVER || _mode == SCREENBLANK) pg = pages[PG_SCREENSAVER];
 
   _pager->setPage(pg, false);
+  #ifndef HIDE_VU
+  // setPage() clears player area; force one-shot redraw of L/R labels over VU.
+  VuWidget::setLabelsDrawn(false);
+  #endif
   // setPage() clears the screen – redraw station logo if on player page
   if (pg == pages[PG_PLAYER]) _station();
+  #ifdef SD_COVER_ART
+  if (pg == pages[PG_SD_PLAYER]) { _sdcover.redraw(); }
+  #endif
+  if (pg == pages[PG_SD_PLAYER]) { _sdCurTimeBuf[0] = 0; _sdTotTimeBuf[0] = 0; _sdFmtBuf[0] = 0; _sdSrBuf[0] = 0; _sdBpsBuf[0] = 0; _sdPlaying = !player.isRunning(); _drawSdTimers(true); _drawSdFileInfo(true); _drawSdControls(true); }
 
   // Force clock redraw (it uses config.theme directly)
   if (_clock && (pg == pages[PG_PLAYER] || pg == pages[PG_SCREENSAVER])) {
@@ -508,8 +691,396 @@ void Display::_applyTheme() {
 }
 
 
+void Display::loadSdCover() {
+    #ifdef SD_COVER_ART
+    if (config.getMode() != PM_SDCARD) return;
+    _sdcover.reset();
+    _sdcover.setTrack(config.station.url);
+    #endif
+}
+
 void Display::resetPlaylistCache() {
     if (_plwidget) _plwidget->resetCache();
+}
+
+bool Display::isClockMMTap(uint16_t x, uint16_t y) {
+    if (!_clock) return false;
+    if (config.store.flipscreen) {
+        x = (uint16_t)((int)dsp.width() - 1 - (int)x);
+        y = (uint16_t)((int)dsp.height() - 1 - (int)y);
+    }
+    return _clock->isMMTap(x, y);
+}
+
+bool Display::isClockSecondsTap(uint16_t x, uint16_t y) {
+    if (!_clock) return false;
+    if (config.store.flipscreen) {
+        x = (uint16_t)((int)dsp.width() - 1 - (int)x);
+        y = (uint16_t)((int)dsp.height() - 1 - (int)y);
+    }
+    return _clock->isSecondsTap(x, y);
+}
+
+int8_t Display::isSdTransportTap(uint16_t x, uint16_t y) {
+    if (!kTouchEnabled) return -1;
+    if (config.store.flipscreen) {
+        x = (uint16_t)((int)dsp.width() - 1 - (int)x);
+        y = (uint16_t)((int)dsp.height() - 1 - (int)y);
+    }
+    const uint16_t bx   = sdProgressConf.widget.left;
+    const uint16_t bw   = (sdProgressConf.width - 2 * SD_BTN_GAP) / 3;
+    const uint16_t step = bw + SD_BTN_GAP;
+    const uint16_t nextX = bx + 2 * step;
+    const uint16_t backY = SD_BTN_Y - SD_BTN_H - SD_BTN_GAP;
+    const uint16_t folderY = SD_BTN_Y + SD_BTN_H + SD_BTN_GAP;
+
+    if (y >= SD_BTN_Y && y < (uint16_t)(SD_BTN_Y + SD_BTN_H)) {
+        if (x >= bx            && x < bx + bw)            return 0;  // Prev
+        if (x >= bx + step     && x < bx + step + bw)     return 1;  // Play/Pause
+        if (x >= nextX         && x < nextX + bw)         return 2;  // Next
+    }
+    if (y >= backY && y < (uint16_t)(backY + SD_BTN_H)) {
+        if (x >= nextX && x < nextX + bw) return 3;  // Back to radio
+    }
+    if (y >= folderY && y < (uint16_t)(folderY + SD_BTN_H)) {
+        if (x >= bx            && x < bx + bw)        return 4;  // Previous folder
+        if (x >= bx + step     && x < bx + step + bw) return 6;  // Shuffle
+        if (x >= nextX         && x < nextX + bw)     return 5;  // Next folder
+    }
+    return -1;
+}
+
+void Display::flashSdButton(uint8_t btn) {
+    if (!kTouchEnabled) return;
+    if (_mode != SD_PLAYER || btn > 6) return;
+    _drawSdButton(btn, true);
+    delay(120);
+    _drawSdButton(btn, false);
+}
+
+void Display::_sdPlayerScreen() {
+    if (_sdtitle) {
+        const char* txt = (strlen(config.station.title) > 0) ? config.station.title : config.station.name;
+        _sdtitle->setText(txt);
+    }
+    if (_sdartist) {
+        _sdartist->setText(config.station.sdArtist);
+    }
+    if (_sdalbum) {
+        _sdalbum->setText(config.station.sdAlbum);
+    }
+    #ifdef SD_COVER_ART
+    _sdcover.redraw();
+    #endif
+    if (_sdprogress) {
+        uint32_t dur = player.getAudioFileDuration();
+        uint32_t pos = player.getAudioCurrentTime();
+        _sdprogress->setValue(dur > 0 ? (uint32_t)((uint64_t)pos * 1000 / dur) : 0);
+    }
+    _drawSdTimers();
+    _drawSdFileInfo();
+    _drawSdControls();
+}
+
+void Display::_drawSdTimers(bool force) {
+    uint32_t dur = player.getAudioFileDuration();
+    uint32_t pos = player.getAudioCurrentTime();
+    char buf[8];
+
+    // currentTime
+    snprintf(buf, sizeof(buf), "%u:%02u", pos / 60, pos % 60);
+    if (force || strcmp(buf, _sdCurTimeBuf) != 0) {
+        uint8_t  tsz    = sdCurrentTimeConf.textsize;
+        uint16_t cw     = tsz * CHARWIDTH;
+        uint16_t ch     = tsz * CHARHEIGHT;
+        uint16_t clearW = max((uint16_t)(strlen(_sdCurTimeBuf) * cw), (uint16_t)(strlen(buf) * cw));
+        if (clearW == 0) clearW = strlen(buf) * cw;
+        dsp.fillRect(sdCurrentTimeConf.left, sdCurrentTimeConf.top, clearW, ch, config.theme.background);
+        dsp.setTextColor(config.theme.title2, config.theme.background);
+        dsp.setFont();
+        dsp.setTextSize(tsz);
+        dsp.setCursor(sdCurrentTimeConf.left, sdCurrentTimeConf.top);
+        dsp.print(buf);
+        strlcpy(_sdCurTimeBuf, buf, sizeof(_sdCurTimeBuf));
+    }
+
+    // totalTime
+    if (dur == 0) return;
+    snprintf(buf, sizeof(buf), "%u:%02u", dur / 60, dur % 60);
+    if (force || strcmp(buf, _sdTotTimeBuf) != 0) {
+        uint8_t  tsz    = sdTotalTimeConf.textsize;
+        uint16_t cw     = tsz * CHARWIDTH;
+        uint16_t ch     = tsz * CHARHEIGHT;
+        uint16_t newW   = strlen(buf) * cw;
+        uint16_t oldW   = strlen(_sdTotTimeBuf) * cw;
+        uint16_t clearW = max(oldW, newW);
+        if (clearW == 0) clearW = newW;
+        uint16_t clearX = dsp.width() - clearW - sdTotalTimeConf.left;
+        uint16_t drawX  = dsp.width() - newW  - sdTotalTimeConf.left;
+        dsp.fillRect(clearX, sdTotalTimeConf.top, clearW, ch, config.theme.background);
+        dsp.setTextColor(config.theme.title2, config.theme.background);
+        dsp.setFont();
+        dsp.setTextSize(tsz);
+        dsp.setCursor(drawX, sdTotalTimeConf.top);
+        dsp.print(buf);
+        strlcpy(_sdTotTimeBuf, buf, sizeof(_sdTotTimeBuf));
+    }
+}
+
+void Display::_drawSdFileInfo(bool force) {
+    static const char* const fmtNames[] = {"", "MP3", "AAC", "FLAC", "OGG", "WAV", "OGG", "OPUS"};
+    const char* fmtStr = (config.configFmt <= BF_OPU) ? fmtNames[config.configFmt] : "";
+
+    uint32_t sr = player.getSampleRate();
+    char srBuf[12];
+    if (sr == 0) {
+        srBuf[0] = 0;
+    } else if (sr % 1000 == 0) {
+        snprintf(srBuf, sizeof(srBuf), "%ukHz", sr / 1000);
+    } else {
+        snprintf(srBuf, sizeof(srBuf), "%u.%ukHz", sr / 1000, (sr % 1000) / 100);
+    }
+
+    uint8_t bps = player.getBitsPerSample();
+    char bpsBuf[8];
+    if (bps == 0) {
+        bpsBuf[0] = 0;
+    } else {
+        snprintf(bpsBuf, sizeof(bpsBuf), "%ubit", bps);
+    }
+
+    uint8_t tsz = sdFileFormatConf.textsize;
+    bool dirty = force ||
+                 strcmp(fmtStr, _sdFmtBuf) != 0 ||
+                 strcmp(srBuf, _sdSrBuf) != 0 ||
+                 strcmp(bpsBuf, _sdBpsBuf) != 0;
+    if (!dirty) return;
+
+    const uint16_t rowX = sdProgressConf.widget.left;
+    const uint16_t rowW = sdProgressConf.width;
+    const uint16_t rowY = sdFileFormatConf.top;
+    const uint16_t vPad = 3;
+    const uint16_t gap  = 4;
+    const uint16_t boxW = (uint16_t)((rowW - 2 * gap) / 3);
+    const uint8_t  rad  = 5;
+    const uint16_t fg   = 0xFFFF; // white border/text
+
+    dsp.setFont(&FreeSans9pt7b);
+    dsp.setTextSize(tsz);
+
+    const char* labels[3] = {fmtStr[0] ? fmtStr : "-", srBuf[0] ? srBuf : "-", bpsBuf[0] ? bpsBuf : "-"};
+    uint16_t maxTxtH = 0;
+    for (uint8_t i = 0; i < 3; i++) {
+        int16_t x1, y1;
+        uint16_t txtW, txtH;
+        dsp.getTextBounds((char*)labels[i], 0, 0, &x1, &y1, &txtW, &txtH);
+        if (txtH > maxTxtH) maxTxtH = txtH;
+    }
+    if (maxTxtH == 0) maxTxtH = (uint16_t)(tsz * CHARHEIGHT);
+    const uint16_t rowH = (uint16_t)(maxTxtH + vPad * 2);
+
+    // Clear only the new one-line badges area (do not overwrite SD control buttons).
+    dsp.fillRect(rowX, rowY, rowW, rowH, config.theme.background);
+    for (uint8_t i = 0; i < 3; i++) {
+        const uint16_t x = (uint16_t)(rowX + i * (boxW + gap));
+        dsp.drawRoundRect(x, rowY, boxW, rowH, rad, fg);
+
+        int16_t x1, y1;
+        uint16_t txtW, txtH;
+        dsp.getTextBounds((char*)labels[i], 0, 0, &x1, &y1, &txtW, &txtH);
+        const uint16_t tx = (txtW < boxW) ? (uint16_t)(x + (boxW - txtW) / 2) : (uint16_t)(x + 2);
+        const uint16_t ty = (uint16_t)(rowY + vPad - y1);
+        dsp.setTextColor(fg, config.theme.background);
+        dsp.setCursor(tx, ty);
+        dsp.print(labels[i]);
+    }
+
+    dsp.setFont();
+
+    strlcpy(_sdFmtBuf, fmtStr, sizeof(_sdFmtBuf));
+    strlcpy(_sdSrBuf,  srBuf,  sizeof(_sdSrBuf));
+    strlcpy(_sdBpsBuf, bpsBuf, sizeof(_sdBpsBuf));
+}
+
+void Display::_drawSdControls(bool force) {
+    if (!kTouchEnabled) return;
+    bool playing = player.isRunning();
+    bool snuffle = config.store.sdsnuffle;
+    if (!force && playing == _sdPlaying && snuffle == _sdSnuffle) return;
+
+    if (force) {
+        _drawSdButton(0);
+        _drawSdButton(2);
+        _drawSdButton(3);
+        _drawSdButton(4);
+        _drawSdButton(5);
+        _drawSdButton(6);
+    } else if (snuffle != _sdSnuffle) {
+        _drawSdButton(6);
+    }
+    _drawSdButton(1);
+
+    _sdPlaying = playing;
+    _sdSnuffle = snuffle;
+    return;
+
+    const uint16_t btnX   = sdProgressConf.widget.left;
+    const uint16_t btnW   = (sdProgressConf.width - 2 * SD_BTN_GAP) / 3;
+    const uint16_t btnY   = SD_BTN_Y;
+    const uint16_t btnH   = SD_BTN_H;
+    const uint8_t  btnR   = SD_BTN_R;
+    const uint16_t fg     = config.theme.title2;
+    const uint16_t bg     = config.theme.background;
+
+    // 0=prev  1=play  2=pause  3=next  4=back to radio
+    auto drawBtn = [&](uint16_t bx, uint16_t by, uint16_t bw, uint8_t iconType) {
+        const int cx = bx + bw / 2;
+        const int cy = by + btnH / 2;
+        dsp.fillRoundRect(bx, by, bw, btnH, btnR, bg);
+        dsp.drawRoundRect(bx, by, bw, btnH, btnR, fg);
+        switch (iconType) {
+            case 0: // Prev  |◀
+                dsp.fillRect(cx - 12, cy - 11, 5, 22, fg);
+                dsp.fillTriangle(cx - 5, cy, cx + 11, cy - 11, cx + 11, cy + 11, fg);
+                break;
+            case 1: // Play  ▶
+                dsp.fillTriangle(cx - 12, cy - 12, cx - 12, cy + 12, cx + 12, cy, fg);
+                break;
+            case 2: // Pause ⏸
+                dsp.fillRect(cx - 11, cy - 11, 8, 22, fg);
+                dsp.fillRect(cx +  3, cy - 11, 8, 22, fg);
+                break;
+            case 3: // Next  ▶|
+                dsp.fillTriangle(cx - 11, cy - 11, cx - 11, cy + 11, cx + 5, cy, fg);
+                dsp.fillRect(cx +  7, cy - 11, 5, 22, fg);
+                break;
+            case 4: // Return
+                dsp.drawFastHLine(cx - 10, cy, 20, fg);
+                dsp.drawFastHLine(cx - 10, cy + 1, 20, fg);
+                dsp.drawFastHLine(cx - 10, cy + 2, 20, fg);
+                dsp.drawFastVLine(cx + 8, cy - 10, 11, fg);
+                dsp.drawFastVLine(cx + 9, cy - 10, 11, fg);
+                dsp.drawFastVLine(cx + 10, cy - 10, 11, fg);
+                dsp.fillTriangle(cx - 10, cy + 1, cx - 1, cy - 8, cx - 1, cy + 10, fg);
+                break;
+        }
+    };
+
+    if (force) {
+        drawBtn(btnX,                            btnY, btnW, 0);  // Prev
+        drawBtn(btnX + 2 * (btnW + SD_BTN_GAP), btnY, btnW, 3);  // Next
+        drawBtn(btnX + 2 * (btnW + SD_BTN_GAP), btnY - btnH - SD_BTN_GAP, btnW, 4);  // Back to radio
+    }
+    drawBtn(btnX + btnW + SD_BTN_GAP, btnY, btnW, playing ? 2 : 1);  // Play/Pause
+
+    _sdPlaying = playing;
+}
+
+void Display::_drawSdButton(uint8_t btn, bool pressed) {
+    if (!kTouchEnabled) return;
+    const uint16_t btnX   = sdProgressConf.widget.left;
+    const uint16_t btnW   = (sdProgressConf.width - 2 * SD_BTN_GAP) / 3;
+    const uint16_t step   = btnW + SD_BTN_GAP;
+    const uint16_t btnY   = SD_BTN_Y;
+    const uint16_t btnH   = SD_BTN_H;
+    const uint8_t  btnR   = SD_BTN_R;
+    const uint16_t normal = config.theme.title2;
+    const uint16_t bg     = config.theme.background;
+
+    uint16_t x = btnX;
+    uint16_t y = btnY;
+    uint8_t iconType = 0;
+    switch (btn) {
+        case 0:
+            iconType = 0;
+            break;
+        case 1:
+            x += step;
+            iconType = player.isRunning() ? 2 : 1;
+            break;
+        case 2:
+            x += 2 * step;
+            iconType = 3;
+            break;
+        case 3:
+            x += 2 * step;
+            y -= btnH + SD_BTN_GAP;
+            iconType = 4;
+            break;
+        case 4:
+            y += btnH + SD_BTN_GAP;
+            iconType = 5;
+            break;
+        case 5:
+            x += 2 * step;
+            y += btnH + SD_BTN_GAP;
+            iconType = 6;
+            break;
+        case 6:
+            x += step;
+            y += btnH + SD_BTN_GAP;
+            iconType = 7;
+            break;
+        default:
+            return;
+    }
+
+    if (btn == 6 && config.store.sdsnuffle) {
+        pressed = !pressed;
+    }
+
+    const int cx = x + btnW / 2;
+    const int cy = y + btnH / 2;
+    const uint16_t activeFill = pressed ? normal : bg;
+    const uint16_t activeIcon = pressed ? bg : normal;
+    dsp.fillRoundRect(x, y, btnW, btnH, btnR, activeFill);
+    dsp.drawRoundRect(x, y, btnW, btnH, btnR, normal);
+    switch (iconType) {
+        case 0:
+            dsp.fillRect(cx - 12, cy - 11, 5, 22, activeIcon);
+            dsp.fillTriangle(cx - 5, cy, cx + 11, cy - 11, cx + 11, cy + 11, activeIcon);
+            break;
+        case 1:
+            dsp.fillTriangle(cx - 12, cy - 12, cx - 12, cy + 12, cx + 12, cy, activeIcon);
+            break;
+        case 2:
+            dsp.fillRect(cx - 11, cy - 11, 8, 22, activeIcon);
+            dsp.fillRect(cx +  3, cy - 11, 8, 22, activeIcon);
+            break;
+        case 3:
+            dsp.fillTriangle(cx - 11, cy - 11, cx - 11, cy + 11, cx + 5, cy, activeIcon);
+            dsp.fillRect(cx +  7, cy - 11, 5, 22, activeIcon);
+            break;
+        case 4:
+            dsp.drawFastHLine(cx - 10, cy, 20, activeIcon);
+            dsp.drawFastHLine(cx - 10, cy + 1, 20, activeIcon);
+            dsp.drawFastHLine(cx - 10, cy + 2, 20, activeIcon);
+            dsp.drawFastVLine(cx + 8, cy - 10, 11, activeIcon);
+            dsp.drawFastVLine(cx + 9, cy - 10, 11, activeIcon);
+            dsp.drawFastVLine(cx + 10, cy - 10, 11, activeIcon);
+            dsp.fillTriangle(cx - 10, cy + 1, cx - 1, cy - 8, cx - 1, cy + 10, activeIcon);
+            break;
+        case 5:
+            dsp.drawRect(cx - 14, cy - 7, 28, 18, activeIcon);
+            dsp.fillRect(cx - 11, cy - 11, 12, 5, activeIcon);
+            dsp.fillTriangle(cx - 9, cy + 1, cx, cy - 8, cx, cy + 10, activeIcon);
+            break;
+        case 6:
+            dsp.drawRect(cx - 14, cy - 7, 28, 18, activeIcon);
+            dsp.fillRect(cx - 11, cy - 11, 12, 5, activeIcon);
+            dsp.fillTriangle(cx + 9, cy + 1, cx, cy - 8, cx, cy + 10, activeIcon);
+            break;
+        case 7:
+            dsp.drawLine(cx - 15, cy - 8, cx - 6, cy - 8, activeIcon);
+            dsp.drawLine(cx - 6, cy - 8, cx + 7, cy + 7, activeIcon);
+            dsp.drawLine(cx - 15, cy + 8, cx - 6, cy + 8, activeIcon);
+            dsp.drawLine(cx - 6, cy + 8, cx + 7, cy - 7, activeIcon);
+            dsp.drawLine(cx + 7, cy - 7, cx + 14, cy - 7, activeIcon);
+            dsp.drawLine(cx + 7, cy + 7, cx + 14, cy + 7, activeIcon);
+            dsp.fillTriangle(cx + 14, cy - 7, cx + 8, cy - 12, cx + 8, cy - 2, activeIcon);
+            dsp.fillTriangle(cx + 14, cy + 7, cx + 8, cy + 2, cx + 8, cy + 12, activeIcon);
+            break;
+    }
 }
 
 void Display::_drawPlaylist() {
@@ -529,6 +1100,12 @@ void Display::_drawNextStationNum(uint16_t num) {
 
 void Display::putRequest(displayRequestType_e type, int payload) {
     if (displayQueue == NULL) { return; }
+#if DEBUG_VOLUME_SCREEN
+    if (type == NEWMODE && payload == VOL) {
+        Serial.printf("[VOLDBG][%lu][Display::putRequest] queued NEWMODE VOL current=%s net=%d\n",
+                      millis(), volDbgModeName(_mode), network.status);
+    }
+#endif
     requestParams_t request;
     request.type = type;
     request.payload = payload;
@@ -580,9 +1157,7 @@ void Display::loop() {
     }
     if (displayQueue == NULL || _locked) { return; }
     _pager->loop();
-    #ifdef FLIP_CLOCK
     if (_clock && (_mode == PLAYER || _mode == SCREENSAVER)) { _clock->tick(); }
-    #endif
     #ifdef USE_NEXTION
     nextion.loop();
     #endif
@@ -593,9 +1168,16 @@ void Display::loop() {
         if (pm_result) {
             switch (request.type) {
                 case NEWMODE: _swichMode((displayMode_e)request.payload); break;
-                case CLOSEPLAYLIST: player.sendCommand({PR_PLAY, request.payload}); break;
+                case CLOSEPLAYLIST:
+                    if (!(config.getMode() == PM_SDCARD &&
+                          player.isRunning() &&
+                          request.payload == config.lastStation())) {
+                        player.sendCommand({PR_PLAY, request.payload});
+                    }
+                    break;
                 case CLOCK:
                     if (_mode == PLAYER || _mode == SCREENSAVER) { _time(request.payload == 1); }
+                    if (_mode == SD_PLAYER) { _sdPlayerScreen(); }
                     /*#ifdef USE_NEXTION
                       if(_mode==TIMEZONE) nextion.localTime(network.timeinfo);
                       if(_mode==INFO)     nextion.rssi();
@@ -615,8 +1197,12 @@ void Display::loop() {
                             _fullbitrate->setBitrate(config.station.bitrate);
                             _fullbitrate->setFormat(config.configFmt);
                         }
-                        if (_chtxt) {                                       // Ha létezik a widget
-                            _chtxt->setText(config.lastStation(), "CH:%d"); // Beállítja a csatorna számát a widgetnek.
+                        if (_chtxt) {
+                            if (_mode == VOL) {
+                                _chtxt->setText("v8.8");
+                            } else {
+                                _chtxt->setText(config.lastStation(), "CH:%d");
+                            }
                         }
                     }
                 } break;
@@ -674,8 +1260,12 @@ void Display::loop() {
                     if (_rssi) { _setRSSI(request.payload); }
                     if (_heapbar && config.store.audioinfo) { _heapbar->setValue(player.isRunning() ? player.inBufferFilled() : 0); }
                     break;
-                case PSTART: _layoutChange(true); break;
-                case PSTOP: _layoutChange(false); break;
+                case PSTART:
+                    _layoutChange(true);
+                    break;
+                case PSTOP:
+                    _layoutChange(false);
+                    break;
                 case DSP_START: _start(); break;
                 case NEWIP: {
     #ifndef HIDE_IP
@@ -726,8 +1316,9 @@ void Display::_station() {
         _meta->setText(config.station.name);
     }
     #ifdef STATION_LOGO_WIDGET
-    // Wyświetl logo odpowiadające nazwie stacji (szuka /NazwaStacji.png na SPIFFS)
-    _stationLogo.setStation(config.station.name);
+    if (config.getMode() != PM_SDCARD) {
+        _stationLogo.setStation(config.station.name);
+    }
     #endif
 
     /*#ifdef USE_NEXTION
@@ -747,7 +1338,14 @@ char* split(char* str, const char* delim) {
 void Display::_title() {
     // Ha üres a title, használja a playlistben tárolt nevet.
     if (strlen(config.station.title) == 0) { strlcpy(config.station.title, config.station.name, sizeof(config.station.title)); }
-    if (strlen(config.station.title) > 0) {
+    if (_mode == SD_PLAYER) {
+        if (_sdtitle)  { _sdtitle->setText(config.station.title); }
+        if (_sdartist) { _sdartist->setText(config.station.sdArtist); }
+        if (_sdalbum)  { _sdalbum->setText(config.station.sdAlbum); }
+        #ifdef SD_COVER_ART
+        if (config.getMode() == PM_SDCARD) { _sdcover.setTrack(config.station.url); }
+        #endif
+    } else if (strlen(config.station.title) > 0) {
         char tmpbuf[strlen(config.station.title) + 1];
         strlcpy(tmpbuf, config.station.title, sizeof(tmpbuf));
         char* stitle = split(tmpbuf, " - ");
@@ -838,6 +1436,10 @@ void Display::wakeup() {
     #if defined(LCD_I2C) || defined(DSP_OLED) || BRIGHTNESS_PIN != 255
     dsp.wake();
     #endif
+}
+
+void Display::clear(bool black) {
+    dsp.clearDsp(black);
 }
 
 void Display::setBrightnessPercent(uint8_t percent) {

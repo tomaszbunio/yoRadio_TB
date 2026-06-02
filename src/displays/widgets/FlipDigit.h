@@ -219,13 +219,18 @@ private:
     // Pomiar szerokości tekstu przez getTextBounds (zwraca rzeczywiste piksele)
     int16_t bx, by;
     uint16_t bw, bh;
-    buf->getTextBounds(str, 0, H, &bx, &by, &bw, &bh);
+    buf->getTextBounds(str, 0, 0, &bx, &by, &bw, &bh);
 
     // Wyśrodkowanie poziome: cx przesuwa kursor tak, by środek wizualny tekstu
     // pokrył się ze środkiem karteczki (W - sOff)
     int16_t cx = ((W - sOff) - (int16_t)bw) / 2 - bx;
     // Baseline: FLIP_CARD_MARGIN px od dolnej krawędzi karteczki
     int16_t baseline = H - sOff - FLIP_CARD_MARGIN;
+    if (bh > 0) {
+      const int16_t cardH = H - sOff;
+      const int16_t top   = (cardH - (int16_t)bh) / 2;
+      baseline = top - by;
+    }
 
     buf->setCursor(cx, baseline);
     buf->print(str);

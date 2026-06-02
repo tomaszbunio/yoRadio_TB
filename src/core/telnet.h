@@ -27,7 +27,15 @@ class Telnet {
     void on_input(const char* str, uint8_t clientId);
   private:
     char cmBuf[220];
+    char lastMetaLine[220] = {};
+    int  lastVolValue = -1;
+    uint32_t lastMetaMs = 0;
+    uint32_t lastVolMs = 0;
+    char lastInfoSig[220] = {};
+    uint32_t lastInfoMs = 0;
     bool _isIPSet(IPAddress ip);
+    bool _shouldSuppressCliLine(const char *line);
+    bool _shouldSuppressInfoSnapshot();
     void handleSerial();
     void printHeapFragmentationInfo(uint8_t id);
 };

@@ -10,9 +10,10 @@
 #ifndef displayILI9488conf_h
 #define displayILI9488conf_h
 
-// FLIP_CLOCK automatically implies HIDE_TITLE2 (single combined scrolling title line).
-// To keep two separate title lines despite FLIP_CLOCK, define FLIP_CLOCK_NO_COMBINE.
-#if defined(FLIP_CLOCK) && !defined(FLIP_CLOCK_NO_COMBINE)
+
+// Runtime flip clock keeps the previous combined title layout by default.
+// To keep two separate title lines, define FLIP_CLOCK_NO_COMBINE.
+#if !defined(FLIP_CLOCK_NO_COMBINE)
   #ifndef HIDE_TITLE2
     #define HIDE_TITLE2
   #endif
@@ -21,7 +22,7 @@
 #define DSP_WIDTH       480
 #define DSP_HEIGHT      320
 #define TFT_FRAMEWDT     10
-#define MAX_WIDTH       DSP_WIDTH-TFT_FRAMEWDT*2
+#define MAX_WIDTH       (DSP_WIDTH-TFT_FRAMEWDT*2)
 
 #if BITRATE_FULL
   #define TITLE_FIX  44
@@ -83,9 +84,9 @@ const WidgetConfig apNameConf     PROGMEM = {TFT_FRAMEWDT, 88, 3, WA_CENTER};
 const WidgetConfig apName2Conf    PROGMEM = {TFT_FRAMEWDT, 120, 3, WA_CENTER};
 const WidgetConfig apPassConf     PROGMEM = {TFT_FRAMEWDT, 173, 3, WA_CENTER};
 const WidgetConfig apPass2Conf    PROGMEM = {TFT_FRAMEWDT, 205, 3, WA_CENTER};
-const WidgetConfig clockConf      PROGMEM = {1, 185, 2, WA_RIGHT}; // używany tylko bez FLIP_CLOCK
+const WidgetConfig clockConf      PROGMEM = {1, 185, 2, WA_RIGHT};
 
-/* ── Flip Clock position (tylko gdy #define FLIP_CLOCK w myoptions.h) ──
+/* ── Flip Clock position ──
    Nadpisuje clockConf dla zegara flip; clockConf zostaje dla trybu bez flip.
    FLIP_CLOCK_BASELINE – Y bazowa czcionki (dół glifów), px od góry ekranu
    FLIP_CLOCK_ALIGN    – WA_LEFT / WA_CENTER / WA_RIGHT
@@ -93,11 +94,9 @@ const WidgetConfig clockConf      PROGMEM = {1, 185, 2, WA_RIGHT}; // używany t
                                   dla WA_LEFT  = margines od lewej  krawędzi (px)
                                   dla WA_CENTER= przesunięcie od centrum (px)
    Ekran 480×320, logo stacji: x=1..120 px po lewej. Zegar wyrównany do prawej. */
-#ifdef FLIP_CLOCK
-  #define FLIP_CLOCK_BASELINE  185   // Y baseline (dół cyfr HH:MM)
-  #define FLIP_CLOCK_ALIGN     WA_RIGHT
-  #define FLIP_CLOCK_LEFT      1     // 1 px od prawej krawędzi ekranu
-#endif
+#define FLIP_CLOCK_BASELINE  185   // Y baseline (dół cyfr HH:MM)
+#define FLIP_CLOCK_ALIGN     WA_RIGHT
+#define FLIP_CLOCK_LEFT      1     // 1 px od prawej krawędzi ekranu
 const WidgetConfig vuConf         PROGMEM = {35, 258, 1, WA_CENTER}; // center fektetett, "align" nincs használva
 const WidgetConfig bootWdtConf    PROGMEM = {0, 216, 1, WA_CENTER};
 const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 226, 2, WA_LEFT };  // Módosítás új sor "nameday"
@@ -119,13 +118,37 @@ const char numtxtFmt[]  PROGMEM = "%d";
 const char rssiFmt[]    PROGMEM = "WiFi %ddBm";
 // const char           rssiFmt[]    PROGMEM = "WiFi %d"; // Original
 const char iptxtFmt[]   PROGMEM = "%s";
-const char voltxtFmt[]  PROGMEM = "\023\025%d%%"; //Original "\023\025%d" Módosítás "vol_step"
+const char voltxtFmt[]  PROGMEM = "%d%%";
 const char bitrateFmt[] PROGMEM = "%d kBs";
 
 /* MOVES  */ /* { left, top, width } */
 const MoveConfig clockMove     PROGMEM = {0, 176, -1};
 const MoveConfig weatherMove   PROGMEM = {10, 116, MAX_WIDTH}; // Ha a VU ki van kapcsolva (szélesített pozíció)
 const MoveConfig weatherMoveVU PROGMEM = {10, 116, MAX_WIDTH}; // Az időjárás widget pozíciója.
+
+/* SD_PLAYER screen */
+const ScrollConfig sdTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 1, WA_LEFT, nullptr, u8g2_font_helvB24_te }, 140, false, MAX_WIDTH, 3000, 7, 40 };
+const ScrollConfig sdArtistConf   PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT + 40, 1, WA_LEFT, nullptr, u8g2_font_helvB14_te }, 140, false, MAX_WIDTH, 3000, 7, 40 };
+const ScrollConfig sdAlbumConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT + 64, 1, WA_LEFT, nullptr, u8g2_font_helvB14_te }, 140, false, MAX_WIDTH, 3000, 7, 40 };
+const WidgetConfig sdCurrentTimeConf PROGMEM = {DSP_WIDTH - TFT_FRAMEWDT - MAX_WIDTH/2, DSP_HEIGHT - TFT_FRAMEWDT - 28, 2, WA_LEFT};
+const WidgetConfig sdTotalTimeConf   PROGMEM = {TFT_FRAMEWDT, DSP_HEIGHT - TFT_FRAMEWDT - 28, 2, WA_RIGHT};
+const FillConfig   sdProgressConf    PROGMEM = {{ DSP_WIDTH - TFT_FRAMEWDT - MAX_WIDTH/2, DSP_HEIGHT - TFT_FRAMEWDT - 10, 0, WA_LEFT }, MAX_WIDTH/2, 10, 1 };
+/* SD_PLAYER file info: format / sample rate / bit depth – x aligned to progress bar start */
+const WidgetConfig sdFileFormatConf PROGMEM = {DSP_WIDTH - TFT_FRAMEWDT - MAX_WIDTH/2, 95, 1, WA_LEFT};
+const WidgetConfig sdFileSrateConf  PROGMEM = {DSP_WIDTH - TFT_FRAMEWDT - MAX_WIDTH/2, 125, 1, WA_LEFT};
+const WidgetConfig sdFileBitsConf   PROGMEM = {DSP_WIDTH - TFT_FRAMEWDT - MAX_WIDTH/2, 155, 1, WA_LEFT};
+/* SD_PLAYER transport controls: same x/width as progress bar, just below file info */
+#define SD_BTN_Y        171
+#define SD_BTN_H         44
+#define SD_BTN_R          6
+#define SD_BTN_GAP        4
+
+/* SD_PLAYER FFT widget geometry */
+#define SD_FFT_TOP_OFFSET         11   // shift up from max(infoBottom)
+#define SD_FFT_BOTTOM_MARGIN      20   // distance from current time row
+#define SD_FFT_INFO_ROW_EXTRA     10   // matches file-info row height calc
+#define SD_FFT_UPDATE_MS          50   // widget redraw period
+#define SD_FFT_BANDS              16
 
 #endif
 // clang-format on

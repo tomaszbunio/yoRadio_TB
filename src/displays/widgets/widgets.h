@@ -1,4 +1,4 @@
-//Módosítva! v0.9.710
+﻿//MĂłdosĂ­tva! v0.9.710
 #ifndef widgets_h
 #define widgets_h
 #if DSP_MODEL != DSP_DUMMY
@@ -11,13 +11,13 @@ class Adafruit_GFX;
   #include "../dspcore.h"  // To daje typedef Canvas
 
 #else
-  // Jeśli nie wiemy jaki wyświetlacz, użyj forward declaration
+  // JeĹ›li nie wiemy jaki wyĹ›wietlacz, uĹĽyj forward declaration
   // ale jako klasa, nie typedef
   class GFXcanvas16;  // Forward declaration oryginalnej klasy
   typedef GFXcanvas16 Canvas;  // Teraz to jest poprawne
 #endif
 
-/** Ustawia czcionkę zegara runtime (1..7) */
+/** Ustawia czcionkÄ™ zegara runtime (1..7) */
 void widgetsSetClockFont(uint8_t fontId);
 
   #ifndef DSP_LCD
@@ -28,9 +28,7 @@ void widgetsSetClockFont(uint8_t fontId);
     #define CHARHEIGHT 1
   #endif
 
-#ifdef FLIP_CLOCK
-  #include "FlipDigit.h"
-#endif
+#include "FlipDigit.h"
 class psFrameBuffer;
 
 class Widget {
@@ -192,6 +190,7 @@ private:
   uint32_t _scrolldelay;
   uint16_t _sepwidth, _startscrolldelay;
   uint8_t _charWidth;
+  int16_t _fontBaselineY = 0;
   psFrameBuffer *_fb = nullptr;
 
 private:
@@ -214,29 +213,56 @@ public:
   using Widget::init;
   void init(FillConfig conf, uint16_t fgcolor, uint16_t bgcolor, uint32_t maxval, uint16_t oucolor = 0);
   void setValue(uint32_t val);
+  void setOutlineColor(uint16_t color, bool redraw = true) {
+    _oucolor = color;
+    if (redraw && _active && !_locked) {
+      _clear();
+      _draw();
+    }
+  }
 
 protected:
   uint16_t _height, _oucolor, _oldvalwidth;
   uint32_t _max, _value;
-  bool _outlined;
+  uint8_t _outlined;
   void _draw();
   void _drawslider();
+  void _clear();
+  void _reset();
+};
+
+class SdFftWidget : public Widget {
+public:
+  SdFftWidget() {}
+  ~SdFftWidget();
+  void init(WidgetConfig wconf, uint16_t width, uint16_t height, uint8_t bands, uint16_t fgcolor, uint16_t bgcolor, uint16_t intervalMs = 50);
+  void loop();
+
+protected:
+  uint16_t _height = 0;
+  uint16_t _intervalMs = 50;
+  uint8_t _bands = 16;
+  uint8_t _prev[16] = {0};
+  bool _inited = false;
+  uint32_t _lastMs = 0;
+  Canvas *_canvas = nullptr;
+  void _draw();
   void _clear();
   void _reset();
 };
 /************************************************************ VU WIDGET **********************************************/
 class VuWidget : public Widget {
 public:
-  VuWidget() {}  // Módosítás: vumidcolor plussz paraméter.
+  VuWidget() {}  // MĂłdosĂ­tĂˇs: vumidcolor plussz paramĂ©ter.
   VuWidget(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t bgcolor) {
     init(wconf, bands, vumaxcolor, vumidcolor, vumincolor, bgcolor);
   }
-  ~VuWidget();  // Módosítás: vumidcolor plussz paraméter.
+  ~VuWidget();  // MĂłdosĂ­tĂˇs: vumidcolor plussz paramĂ©ter.
   using Widget::init;
   void init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t bgcolor);
   void loop();
-  static void setLabelsDrawn(bool value);  // Módosítás
-  static bool isLabelsDrawn();             // Módosítás
+  static void setLabelsDrawn(bool value);  // MĂłdosĂ­tĂˇs
+  static bool isLabelsDrawn();             // MĂłdosĂ­tĂˇs
   
   void setVuColors(uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t bgcolor, bool redraw = true) {
     _vumaxcolor = vumaxcolor;
@@ -254,17 +280,17 @@ protected:
   uint16_t _maxDimension = 216;  // VU teljes hossza pixelben
   uint16_t _peakL = 0;
   uint16_t _peakR = 0;
-  uint8_t _peakFallDelay = 6;  // peak késleltetés
-  uint8_t _peakFallRate = 1;   // peak esés sebessége
+  uint8_t _peakFallDelay = 6;  // peak kĂ©sleltetĂ©s
+  uint8_t _peakFallRate = 1;   // peak esĂ©s sebessĂ©ge
   uint8_t _peakFallDelayCounter = 0;
   #endif
 
   #if !defined(DSP_LCD) && !defined(DSP_OLED)
   Canvas *_canvas;
   #endif
-  static bool _labelsDrawn;  // Módosítás új változó.
+  static bool _labelsDrawn;  // MĂłdosĂ­tĂˇs Ăşj vĂˇltozĂł.
   VUBandsConfig _bands;
-  uint16_t _vumaxcolor, _vumidcolor, _vumincolor;  // Módosítás: plussz _vumidcolor
+  uint16_t _vumaxcolor, _vumidcolor, _vumincolor;  // MĂłdosĂ­tĂˇs: plussz _vumidcolor
   void _draw();
   void _clear();
 };
@@ -325,9 +351,9 @@ public:
   inline uint16_t clockWidth() {
     return _clockwidth;
   }
-  #ifdef FLIP_CLOCK
+  bool isMMTap(uint16_t x, uint16_t y) const;
+  bool isSecondsTap(uint16_t x, uint16_t y) const;
   void tick();
-  #endif
 
 private:
   #ifndef DSP_LCD
@@ -339,18 +365,19 @@ private:
 
 protected:
   char _timebuffer[20] = "00:00";
-  char _tmp[38], _datebuf[38];  // Módosítva 38-ra v7.4
-  uint8_t _superfont;
-  uint16_t _clockleft, _clockwidth, _timewidth, _dotsleft, _linesleft;
-  uint8_t _clockheight, _timeheight, _dateheight, _space;
-  char _namedayBuf[30], _oldNamedayBuf[30];                   // Módosítás "nameday"
-  uint16_t _namedaywidth, _oldnamedayleft, _oldnamedaywidth;  //Módosítás "nameday"
+  char _lastTimebuffer[6] = "";
+  char _tmp[38], _datebuf[38];  // MĂłdosĂ­tva 38-ra v7.4
+  uint8_t _superfont = 0;
+  uint16_t _clockleft = 0, _clockwidth = 0, _timewidth = 0, _dotsleft = 0, _linesleft = 0;
+  uint8_t _clockheight = 0, _timeheight = 0, _dateheight = 0, _space = 0;
+  char _namedayBuf[30], _oldNamedayBuf[30];                   // MĂłdosĂ­tĂˇs "nameday"
+  uint16_t _namedaywidth, _oldnamedayleft, _oldnamedaywidth;  //MĂłdosĂ­tĂˇs "nameday"
   uint16_t _forceflag = 0;
   bool dots = true;
   bool _fullclock;
   psFrameBuffer *_fb = nullptr;
   WidgetConfig _namedayConf;  //"nameday"
-  WidgetConfig _dateConf;     // Módosítás új sor.
+  WidgetConfig _dateConf;     // MĂłdosĂ­tĂˇs Ăşj sor.
   void _draw();
   void _clear();
   void _reset();
@@ -360,21 +387,22 @@ protected:
   void _formatDate();
 
   #ifdef NAMEDAYS_FILE
-  void _printNameday();                          // Módosítás új sor. "nameday"
-  void getNamedayUpper(char *dest, size_t len);  // Módosítás "nameday"
+  void _printNameday();                          // MĂłdosĂ­tĂˇs Ăşj sor. "nameday"
+  void getNamedayUpper(char *dest, size_t len);  // MĂłdosĂ­tĂˇs "nameday"
   #endif
   bool _getTime();
+  bool _flipEnabled() const;
+  bool _secondsEnabled() const;
   uint16_t _left();
   uint16_t _top();
   void _begin();
 
-  #ifdef FLIP_CLOCK
-  // ── Stan flip clock ──────────────────────────────────────────────────────
+  // â”€â”€ Stan flip clock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   char     _prevTimebuffer[6]  = "00:00"; // poprzedni czas HH:MM (do wykrywania zmian)
-  uint16_t _flipDigitW         = 0;       // max szerokość cyfry '0'..'9' w aktywnym foncie
-  uint16_t _flipPanelH         = 0;       // wysokość karteczki = _timeheight + 2*VPAD
-  int8_t   _lastSec            = -1;      // ostatnia sekunda – do wykrycia zmiany dla blinku
-  int16_t  _secGap             = 0;       // stały odstęp [px] od prawej krawędzi MM do sekund (obliczany raz na pozycji PLAYER)
+  uint16_t _flipDigitW         = 0;       // max szerokoĹ›Ä‡ cyfry '0'..'9' w aktywnym foncie
+  uint16_t _flipPanelH         = 0;       // wysokoĹ›Ä‡ karteczki = _timeheight + 2*VPAD
+  int8_t   _lastSec            = -1;      // ostatnia sekunda â€“ do wykrycia zmiany dla blinku
+  int16_t  _secGap             = 0;       // staĹ‚y odstÄ™p [px] od prawej krawÄ™dzi MM do sekund (obliczany raz na pozycji PLAYER)
 
   FlipDigit _flipHH;  // karteczka godzin (HH)
   FlipDigit _flipMM;  // karteczka minut (MM)
@@ -382,7 +410,6 @@ protected:
   void _initFlipDigits();    // inicjalizacja FlipDigit po (re)kalkulacji pozycji
   void _drawFlipSeconds();   // rysowanie sekund przez psFrameBuffer (szybki burst SPI)
   void _beginFlipSecBuf();   // inicjalizacja _fb jako bufor sekund
-  #endif
 };
 
 class BitrateWidget : public Widget {
@@ -431,3 +458,4 @@ private:
 
 #endif
 #endif
+

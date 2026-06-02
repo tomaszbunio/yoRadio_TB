@@ -53,6 +53,7 @@ void BacklightPlugin::setBacklight(uint8_t backLight) {
 }
 
 void BacklightPlugin::wake() {
+    if (network.softStandby) return;
     Serial.println("##BACKLIGHT -> wake");
     if (!brightnessCaptured) return;       // ha nincs mentett állapot, kilép
     setBacklight(config.store.brightness); // visszaállítja a WEB UI -on mentett fényerőt

@@ -9,6 +9,9 @@
 #include "netserver.h"
 #include "../pluginsManager/pluginsManager.h"
 #include "deepsleep.h"
+#ifdef NEOPIXEL_ON
+  #include "../NeoPixel/NeoPixel.h"
+#endif
 
 long encOldPosition  = 0;
 long enc2OldPosition  = 0;
@@ -57,6 +60,7 @@ constexpr uint8_t nrOfButtons = sizeof(button) / sizeof(button[0]);
 
 #if IR_PIN!=255
 #include <assert.h>
+#include <esp_sleep.h>
 
 #include "../IRremoteESP8266/IRrecv.h"
 #include "../IRremoteESP8266/IRremoteESP8266.h"
@@ -70,6 +74,75 @@ const uint16_t kMinUnknownSize = 12;
 
 IRrecv irrecv(IR_PIN, IR_BUFSIZE, IR_TIMEOUT, true);
 decode_results irResults;
+
+static uint32_t g_ignoreIrPowerUntilMs = 0;
+static bool g_softStandby = false;
+
+static void enterSoftStandby() {
+  Serial.println("[SOFT_STANDBY] Enter");
+
+  g_softStandby = true;
+  network.softStandby = true;
+  if (BRIGHTNESS_PIN != 255) {
+    analogWrite(BRIGHTNESS_PIN, 0);
+  }
+
+  player.sendCommand({PR_STOP, 0});
+  player.loop();
+
+  display.putRequest(NEWMODE, SLEEPING);
+  delay(150);
+
+  if (BRIGHTNESS_PIN != 255) {
+    analogWrite(BRIGHTNESS_PIN, 0);
+  }
+#ifdef NEOPIXEL_ON
+  config.store.neopixel_enabled = 0;
+  NeoPixel_off();
+#endif
+
+  network.lostPlaying = false;
+  network.beginReconnect = true;
+  network.status = FAILED;
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+}
+#endif
+
+#ifndef DEBUG_VOLUME_SCREEN
+  #define DEBUG_VOLUME_SCREEN true
+#endif
+
+#if DEBUG_VOLUME_SCREEN
+static const char* volDbgModeName(displayMode_e m) {
+  switch (m) {
+    case PLAYER: return "PLAYER";
+    case VOL: return "VOL";
+    case STATIONS: return "STATIONS";
+    case PRESETS: return "PRESETS";
+    case NUMBERS: return "NUMBERS";
+    case LOST: return "LOST";
+    case UPDATING: return "UPDATING";
+    case INFO: return "INFO";
+    case SETTINGS: return "SETTINGS";
+    case TIMEZONE: return "TIMEZONE";
+    case WIFI: return "WIFI";
+    case CLEAR: return "CLEAR";
+    case SLEEPING: return "SLEEPING";
+    case SDCHANGE: return "SDCHANGE";
+    case SCREENSAVER: return "SCREENSAVER";
+    case SCREENBLANK: return "SCREENBLANK";
+    case SD_PLAYER: return "SD_PLAYER";
+    default: return "?";
+  }
+}
+
+static void volDbg(const char* src, const char* detail, int v1 = 0, int v2 = 0) {
+  Serial.printf("[VOLDBG][%lu][%s] mode=%s net=%d detail=%s v1=%d v2=%d\n",
+                millis(), src, volDbgModeName(display.mode()), network.status, detail, v1, v2);
+}
+#else
+static void volDbg(const char*, const char*, int = 0, int = 0) {}
 #endif
 
 #if ENC_BTNL!=255
@@ -133,10 +206,28 @@ void initControls() {
 #endif  // DECODE_HASH
   irrecv.setTolerance(config.store.irtlp);
   irrecv.enableIRIn();
+
+  // If device has just woken up from deep sleep by EXT0/EXT1, ignore first POWER press
+  // for a short window so the wake signal isn't interpreted as immediate sleep.
+  esp_sleep_wakeup_cause_t wakeCause = esp_sleep_get_wakeup_cause();
+  if (wakeCause == ESP_SLEEP_WAKEUP_EXT0 || wakeCause == ESP_SLEEP_WAKEUP_EXT1) {
+    g_ignoreIrPowerUntilMs = millis() + 1500;
+  } else {
+    g_ignoreIrPowerUntilMs = 0;
+  }
 #endif // IR_PIN!=255
 }
 
 void loopControls() {
+#if IR_PIN!=255
+  if (g_softStandby) {
+    irLoop();
+#if ISPUSHBUTTONS && ENC_BTNB != 255
+    button[3].tick();
+#endif
+    return;
+  }
+#endif
   if(display.mode()==UPDATING || display.mode()==SDCHANGE) return;
   if(SDC_CS==255 && display.mode()==LOST) return;
   if(ctrls_on_loop) ctrls_on_loop();
@@ -171,6 +262,7 @@ void encodersLoop(yoEncoder *enc, bool first) {
 
   int8_t delta = enc->encoderChanged();
   if (delta == 0) return;
+  volDbg(first ? "encoder1" : "encoder2", "delta", delta, first ? 1 : 2);
 
 #if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
   // ===== Tryb bez wyświetlacza =====
@@ -210,6 +302,7 @@ void encodersLoop(yoEncoder *enc, bool first) {
   } else {
     // ----- Enkoder 2 → Głośność -----
     if (display.mode() != VOL) {
+      volDbg("encoder2", "request NEWMODE VOL", delta, config.store.volume);
       display.putRequest(NEWMODE, VOL);
     }
     int nv = config.store.volume + delta * config.store.volsteps;
@@ -385,9 +478,17 @@ void irLoop() {
           break;
         }
     }
-    for(int target=0; target<17; target++){
+    for(int target=0; target<19; target++){
       for(int j=0; j<3; j++){
         if(config.ircodes.irVals[target][j]==irResults.value){
+          if (g_softStandby) {
+            if (target == IR_POWER) {
+              Serial.println("[SOFT_STANDBY] POWER wake, restart");
+              Serial.flush();
+              ESP.restart();
+            }
+            return;
+          }
           if (network.status != CONNECTED && network.status!=SDREADY && target!=IR_AST) return;
           if(target!=IR_AST && display.mode()==LOST) return;
           if (display.mode() == SCREENSAVER || display.mode() == SCREENBLANK) {
@@ -415,22 +516,35 @@ void irLoop() {
                 break;
               }
             case IR_UP: {
+                volDbg("IR_UP", "controlsEvent", irResults.value & 0x7fffffff, irResults.repeat ? 1 : 0);
                 controlsEvent(display.mode() == STATIONS ? false : true);
                 irVolRepeat = 1;
                 break;
               }
             case IR_DOWN: {
+                volDbg("IR_DOWN", "controlsEvent", irResults.value & 0x7fffffff, irResults.repeat ? 1 : 0);
                 controlsEvent(display.mode() == STATIONS ? true : false);
                 irVolRepeat = 2;
                 break;
               }
             case IR_HASH: {
+                break;
+              }
+            case IR_MENU: {
+#ifdef DEBUG_MODE_SWITCH
+                Serial.printf("[MODEDBG][IR_MENU] mode=%d playMode=%d isSdPlayer=%d currentPlItem=%u lastStation=%u\n",
+                              (int)display.mode(), (int)config.getMode(), config.isSdPlayer ? 1 : 0, display.currentPlItem, config.lastStation());
+#endif
                 if (display.mode() == NUMBERS) {
                   display.putRequest(NEWMODE, PLAYER);
                   display.numOfNextStation = 0;
                   break;
                 }
-                display.putRequest(NEWMODE, display.mode() == PLAYER ? STATIONS : PLAYER);
+                if (display.mode() == STATIONS) {
+                  display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
+                } else if (display.mode() == PLAYER || display.mode() == SD_PLAYER) {
+                  display.putRequest(NEWMODE, STATIONS);
+                }
                 break;
               }
             case IR_0: {
@@ -478,8 +592,21 @@ void irLoop() {
                 onBtnClick(EVT_BTNMODE);
                 break;
               }
+            case IR_POWER: {
+                if (g_ignoreIrPowerUntilMs != 0 && (int32_t)(millis() - g_ignoreIrPowerUntilMs) < 0) {
+                  break;
+                }
+                g_ignoreIrPowerUntilMs = 0;
+                if (display.mode() == SLEEPING || display.mode() == SCREENBLANK || display.mode() == SCREENSAVER) {
+                  config.setDspOn(true);
+                  display.putRequest(NEWMODE, PLAYER);
+                } else {
+                  enterSoftStandby();
+                }
+                break;
+              }
           } /* switch (target) */
-          target=17;
+          target=19;
           break;
         } /* if(config.ircodes.irVals[target][j]==irResults.value) */
       }   /* for(int j=0; j<3; j++) */
@@ -563,7 +690,7 @@ void onBtnDuringLongPress(int id) {
         }
       case EVT_BTNUP:
       case EVT_BTNDOWN: {
-    Serial.printf("onBtnDuringLongPress: mode=%d EVT=%d\n", display.mode(), id);
+    volDbg("longPress", "BTN_UP_DOWN", id, lpId);
     if (display.mode() == PLAYER) {
         Serial.println("przełączam na VOL");
         display.putRequest(NEWMODE, VOL);
@@ -581,6 +708,7 @@ void onBtnDuringLongPress(int id) {
 }
 
 void controlsEvent(bool toRight, int8_t volDelta) {
+  volDbg("controlsEvent", "entry", toRight ? 1 : 0, volDelta);
   if (display.mode() == NUMBERS) {
     display.numOfNextStation = 0;
     display.putRequest(NEWMODE, PLAYER);
@@ -588,6 +716,7 @@ void controlsEvent(bool toRight, int8_t volDelta) {
   if (display.mode() != STATIONS) {
     #if !defined(DUMMYDISPLAY) || defined(USE_NEXTION)
       if (display.mode() != VOL) {
+        volDbg("controlsEvent", "request NEWMODE VOL", toRight ? 1 : 0, volDelta);
         display.putRequest(NEWMODE, VOL);
       }
     #endif
@@ -612,8 +741,19 @@ void controlsEvent(bool toRight, int8_t volDelta) {
 }
 
 void onBtnClick(int id) {
+  if (g_softStandby) {
+    if ((controlEvt_e)id == EVT_ENCBTNB) {
+      Serial.println("[SOFT_STANDBY] ENC1 wake, restart");
+      Serial.flush();
+      ESP.restart();
+    }
+    return;
+  }
   bool passBnCenter = (controlEvt_e)id==EVT_BTNCENTER || (controlEvt_e)id==EVT_ENCBTNB || (controlEvt_e)id==EVT_ENC2BTNB;
   controlEvt_e btnid = static_cast<controlEvt_e>(id);
+  if (btnid == EVT_BTNLEFT || btnid == EVT_BTNRIGHT || btnid == EVT_BTNUP || btnid == EVT_BTNDOWN) {
+    volDbg("onBtnClick", "direction button", id, display.mode());
+  }
   pm.on_btn_click(btnid);
   if (network.status != CONNECTED && network.status!=SDREADY && (controlEvt_e)id!=EVT_BTNMODE && !passBnCenter) return;
   switch (btnid) {
@@ -628,7 +768,7 @@ void onBtnClick(int id) {
           display.numOfNextStation = 0;
           display.putRequest(NEWMODE, PLAYER);
         }
-        if (display.mode() == PLAYER) {
+        if (display.mode() == PLAYER || display.mode() == SD_PLAYER) {
           player.toggle();
         }
         if (display.mode() == SCREENSAVER || display.mode() == SCREENBLANK) {
@@ -638,7 +778,7 @@ void onBtnClick(int id) {
           #endif
         }
         if (display.mode() == STATIONS) {
-          display.putRequest(NEWMODE, PLAYER);
+          display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
           #ifdef DSP_LCD
             delay(200);
           #endif
@@ -706,9 +846,8 @@ void onBtnDoubleClick(int id) {
       }
     case EVT_BTNCENTER:
     case EVT_ENCBTNB:{
-		display.putRequest(NEWMODE, SLEEPING); // Tryb uśpienia
-      delay(150);
-      goToSleep(); // Ręczne wyłączenie
+      enterSoftStandby();
+      break;
 	}
     case EVT_ENC2BTNB: {
         onBtnClick(EVT_BTNMODE);

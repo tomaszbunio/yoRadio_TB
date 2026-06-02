@@ -140,6 +140,12 @@ void TouchScreen::loop() {
     static int           presetHoldSlot = -1;
     static int           favHold = -1;
     static bool          favLongTriggered = false;
+    static uint32_t      lastDbgTouchMs = 0;
+    static uint16_t      lastDbgTouchX = 0;
+    static uint16_t      lastDbgTouchY = 0;
+    #if TS_MODEL == TS_MODEL_XPT2046
+    static uint8_t       touchRawSamples = 0;
+    #endif
 
     static bool lastStTouched = false;
 
@@ -152,13 +158,17 @@ void TouchScreen::loop() {
     // ---- touch debounce ----
     bool            istouched = _istouched();
     static uint32_t lastTouchMs = 0;
-    if (istouched) { lastTouchMs = millis(); }
+    uint32_t        nowMs = millis();
+    if (istouched) { lastTouchMs = nowMs; }
     // tekintsük érintettnek még 120ms-ig a legutóbbi touch után
-    bool stTouched = istouched || ((uint32_t)(millis() - lastTouchMs) < 120);
+    bool stTouched = istouched || ((uint32_t)(nowMs - lastTouchMs) < 120);
 
     bool newTouch = (stTouched && !lastStTouched);
     bool endTouch = (!stTouched && lastStTouched);
-
+    #if TS_MODEL == TS_MODEL_XPT2046
+    if (newTouch) { touchRawSamples = 0; }
+    if (istouched && touchRawSamples < 255) { touchRawSamples++; }
+    #endif
     #if TS_MODEL == TS_MODEL_GT911
     ts.read();
     #endif
@@ -181,8 +191,12 @@ void TouchScreen::loop() {
     }
     #endif
     if (stTouched) {
+        uint16_t rawDbgX = 0;
+        uint16_t rawDbgY = 0;
     #if TS_MODEL == TS_MODEL_XPT2046
         TSPoint p = ts.getPoint();
+        rawDbgX = p.x;
+        rawDbgY = p.y;
         #ifndef X_TOUCH_MIRRORING
         touchX = map(p.x, TS_X_MIN, TS_X_MAX, 0, _width);
         #else
@@ -197,11 +211,15 @@ void TouchScreen::loop() {
             // Serial.printf("mapped x=%d y=%d\n", touchX, touchY);
     #elif TS_MODEL == TS_MODEL_GT911
         TSPoint p = ts.points[0];
+        rawDbgX = p.x;
+        rawDbgY = p.y;
         touchX = p.x;
         touchY = p.y;
     #elif TS_MODEL == TS_MODEL_FT6X36
         uint16_t rawX = g_ftX;
         uint16_t rawY = g_ftY;
+        rawDbgX = rawX;
+        rawDbgY = rawY;
         // Serial.printf("touchscreen.cpp--> nyers X: %d, nyers Y: %d, store.fliptouch: %d\n", rawX, rawY, config.store.fliptouch);
         if (config.store.fliptouch) { // 180 fokos tükrözés
             touchX = (_width - 1) - rawY;
@@ -218,6 +236,19 @@ void TouchScreen::loop() {
         #endif
             // Serial.printf("touchscreen.cpp--> touch X: %d, touch Y: %d\n", touchX, touchY);
     #endif
+
+        if (config.store.dbgtouch &&
+            (newTouch || (uint32_t)(millis() - lastDbgTouchMs) >= 120 ||
+             abs((int)touchX - (int)lastDbgTouchX) > 3 ||
+             abs((int)touchY - (int)lastDbgTouchY) > 3)) {
+            lastDbgTouchMs = millis();
+            lastDbgTouchX = touchX;
+            lastDbgTouchY = touchY;
+            Serial.printf("[TOUCH] raw=(%u,%u) mapped=(%u,%u) flip=%d mode=%d\n",
+                          rawDbgX, rawDbgY, touchX, touchY,
+                          config.store.fliptouch ? 1 : 0,
+                          (int)display.mode());
+        }
 
         if (newTouch) { /************************** START TOUCH *************************************/
             _oldTouchX = touchX;
@@ -246,7 +277,9 @@ void TouchScreen::loop() {
                     case TSD_LEFT:
                     case TSD_RIGHT: {
                         touchLongPress = millis();
-                        if (display.mode() == PLAYER || display.mode() == VOL) {
+                        if ((display.mode() == PLAYER || display.mode() == VOL) &&
+                            !display.isClockMMTap(_oldTouchX, _oldTouchY) &&
+                            !display.isClockSecondsTap(_oldTouchX, _oldTouchY)) {
                             int16_t xDelta = map(abs(touchVol - touchX), 0, _width, 0, TS_STEPS);
                             display.putRequest(NEWMODE, VOL);
                             if (xDelta > 1) {
@@ -312,10 +345,17 @@ void TouchScreen::loop() {
     #endif
     } else {
         if (endTouch) { /**************************** END TOUCH *********************************/
+    #if TS_MODEL == TS_MODEL_XPT2046
+            if (touchRawSamples < 2) {
+                touchRawSamples = 0;
+                direct = TSD_STAY;
+                lastStTouched = stTouched;
+                return;
+            }
+    #endif
             if (direct == TDS_REQUEST) {
     #if (DSP_WIDTH == 480) && (DSP_HEIGHT == 320)
                 uint32_t pressTicks = millis() - touchLongPress;
-                // Serial.printf("END TOUCH: x=%u y=%u press=%lu holdSlot=%d action=%d display.mode=%d\n", _oldTouchX, _oldTouchY, pressTicks, presetHoldSlot, presetActionDone, display.mode());
                 presets_clearPressed();
                 presets_setPressedSlot(-1);
 
@@ -401,6 +441,39 @@ void TouchScreen::loop() {
                             }
                         }
                         // Serial.println("touchscreen.cpp--> NORMAL CLICK");
+                        if (display.mode() == PLAYER && display.isClockSecondsTap(_oldTouchX, _oldTouchY)) {
+                            if (config.getMode() == PM_SDCARD) {
+                                display.putRequest(NEWMODE, SD_PLAYER);
+                            } else {
+                                config.changeMode();
+                            }
+                            direct = TSD_STAY;
+                            return;
+                        }
+                        if (display.mode() == PLAYER && display.isClockMMTap(_oldTouchX, _oldTouchY)) {
+                            uint8_t nextFont = (config.store.clockfont % SQUAREFONT_48) + VT_DIGI;
+                            config.saveValue(&config.store.clockfont, nextFont);
+                            config.scheduleUiApply(Config::UI_APPLY_CLOCKFONT);
+                            direct = TSD_STAY;
+                            return;
+                        }
+                        if (display.mode() == SD_PLAYER) {
+                            int8_t btn = display.isSdTransportTap(_oldTouchX, _oldTouchY);
+                            if (btn == 3) { player.setOutputPins(false); player.setVolume(0); }
+                            if (btn == 6) {
+                                config.setSnuffle(!config.store.sdsnuffle);
+                                display.flashSdButton(btn);
+                                direct = TSD_STAY;
+                                return;
+                            }
+                            if (btn >= 0) { display.flashSdButton(btn); }
+                            if (btn == 0) { player.prev();   direct = TSD_STAY; return; }
+                            if (btn == 1) { player.toggle(); direct = TSD_STAY; return; }
+                            if (btn == 2) { player.next();   direct = TSD_STAY; return; }
+                            if (btn == 3) { config.changeMode(PM_WEB); direct = TSD_STAY; return; }
+                            if (btn == 4) { player.folderPrev(); direct = TSD_STAY; return; }
+                            if (btn == 5) { player.folderNext(); direct = TSD_STAY; return; }
+                        }
                         onBtnClick(EVT_BTNCENTER);
                     }
                 } else {

@@ -8,11 +8,13 @@
 
 #ifndef DUMMYDISPLAY
 #include "../displays/widgets/StationLogoWidget.h"
+#include "../displays/widgets/SdCoverWidget.h"
 class ScrollWidget;
 class PlayListWidget;
 class BitrateWidget;
 class FillWidget;
 class SliderWidget;
+class SdFftWidget;
 class Pager;
 class Page;
 class VuWidget;
@@ -40,6 +42,7 @@ class Display {
     void invert();
     bool deepsleep();
     void wakeup();
+    void clear(bool black = true);
     void setContrast();
     void lock()   { _locked=true; }
     void unlock() { _locked=false; }
@@ -48,6 +51,11 @@ class Display {
     void setBrightnessPercent(uint8_t percent);
     void setContrast(uint8_t value);
     void resetPlaylistCache();
+    bool isClockMMTap(uint16_t x, uint16_t y);
+    bool isClockSecondsTap(uint16_t x, uint16_t y);
+    int8_t isSdTransportTap(uint16_t x, uint16_t y);
+    void flashSdButton(uint8_t btn);
+    void loadSdCover();
    static uint8_t gamma100to255(uint8_t percent);
 
   private:
@@ -62,9 +70,24 @@ class Display {
     NumWidget *_nums;
     ClockWidget *_clock;
     Page *_boot;
-    TextWidget *_bootstring, *_volip, *_voltxt, *_rssi, *_bitrate, *_chtxt;
+    TextWidget *_bootstring, *_volip, *_voltxt, *_rssi, *_bitrate, *_chtxt = nullptr;
+    ScrollWidget *_sdtitle = nullptr;
+    ScrollWidget *_sdartist = nullptr;
+    ScrollWidget *_sdalbum = nullptr;
+    SliderWidget *_sdprogress = nullptr;
+    SdFftWidget *_sdfft = nullptr;
+    char _sdCurTimeBuf[8]  = {0};
+    char _sdTotTimeBuf[8]  = {0};
+    char _sdFmtBuf[8]      = {0};
+    char _sdSrBuf[12]      = {0};
+    char _sdBpsBuf[8]      = {0};
+    bool _sdPlaying        = false;
+    bool _sdSnuffle        = false;
     #ifdef STATION_LOGO_WIDGET
     StationLogoWidget _stationLogo;
+    #endif
+    #ifdef SD_COVER_ART
+    SdCoverWidget _sdcover;
     #endif
     bool _locked = false;
     uint8_t _bootStep;
@@ -83,6 +106,11 @@ class Display {
     void _layoutChange(bool played);
     void _setRSSI(int rssi);
 	void _applyTheme();
+    void _sdPlayerScreen();
+    void _drawSdTimers(bool force = false);
+    void _drawSdFileInfo(bool force = false);
+    void _drawSdControls(bool force = false);
+    void _drawSdButton(uint8_t btn, bool pressed = false);
 };
 
 #else
@@ -109,6 +137,7 @@ class Display {
     void setContrast(){}
     bool deepsleep(){return true;}
     void wakeup(){}
+    void clear(bool black = true) {}
     void printPLitem(uint8_t pos, const char* item){}
     void lock()   {}
     void unlock() {}

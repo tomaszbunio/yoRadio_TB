@@ -74,7 +74,7 @@ const char* const wind[]    PROGMEM = { wn_N, wn_NNE, wn_NE, wn_ENE, wn_E, wn_ES
 
 const char    const_PlReady[]    PROGMEM = "START";
 const char  const_PlStopped[]    PROGMEM = "PAUZA";
-const char  const_PlConnect[]    PROGMEM = "yoRadio";
+const char  const_PlConnect[]    PROGMEM = "";
 const char  const_DlgVolume[]    PROGMEM = "SIŁA GŁOSU";
 const char    const_DlgLost[]    PROGMEM = "* ROZŁĄCZONY *";
 const char  const_DlgUpdate[]    PROGMEM = "* AKTUALIZACJA *";

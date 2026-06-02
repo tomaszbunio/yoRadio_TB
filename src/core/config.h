@@ -41,7 +41,7 @@
     #define ESP_ARDUINO_3 1
 #endif
 
-#define CONFIG_VERSION 11
+#define CONFIG_VERSION 17
 
 enum playMode_e : uint8_t { // DLNA mod
     PM_WEB = 0,
@@ -177,10 +177,19 @@ struct config_t {
 	
 	 // Selected clock font id (options.html)
   uint8_t clockfont;
+  uint8_t clockmode;     // 0 = classic, 1 = flip
+  uint8_t clockseconds;  // 0 = hidden, 1 = visible
 
   // Google clock TTS (options.html)
   bool ttsgoogle;
   uint16_t ttsclock;  // minutes
+
+  // NeoPixel (options.html)
+  uint8_t neopixel_brightness;
+  uint16_t neopixel_enc1_color;
+  uint16_t neopixel_enc2_color;
+  uint8_t neopixel_effect;
+  uint8_t neopixel_effect2;
 
   // Custom display theme (options.html)
   bool thememode;
@@ -202,11 +211,15 @@ uint16_t theap;
 uint16_t tbuffer;
 uint16_t tip;
 uint16_t tvol;
+uint16_t tvolbar;
 uint16_t trssi;
 uint16_t tbitrate;
 uint16_t tseconds;
 uint16_t tfliptext;
 uint16_t tflipcard;
+uint8_t neopixel_enabled;
+char lastSdTrackName[32]; // filename at lastSdStation; empty = unknown
+uint16_t tch;
 
 };
 
@@ -221,6 +234,8 @@ struct station_t {
     char     name[BUFLEN];
     char     url[BUFLEN];
     char     title[BUFLEN];
+    char     sdArtist[BUFLEN];
+    char     sdAlbum[BUFLEN];
     uint16_t bitrate;
     int      ovol;
 };
@@ -268,6 +283,7 @@ class Config {
     uint16_t      screensaverTicks;
     uint16_t      screensaverPlayingTicks;
     bool          isScreensaver;
+    bool          isSdPlayer;
     int           newConfigMode;
     char          tmpBuf[BUFLEN];
     char          tmpBuf2[BUFLEN];
@@ -294,6 +310,7 @@ class Config {
     UI_APPLY_NONE      = 0,
     UI_APPLY_CLOCKFONT = 1 << 0,
     UI_APPLY_THEME     = 1 << 1,
+    UI_APPLY_CLOCK     = 1 << 2,
   };
   
   void scheduleUiApply(uint8_t mask);

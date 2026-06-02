@@ -28,7 +28,7 @@ except ImportError:
 TARGET_W = 120
 TARGET_H = 90
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(__file__).parent / "logos_src"
 OUT_DIR  = Path(__file__).parent / "data" / "www"
 
 def png_to_rgb565(png_path: Path, bin_path: Path):
@@ -65,7 +65,7 @@ def main():
     print(f"Zapisuję .raw: {OUT_DIR.resolve()}\n")
     OUT_DIR.mkdir(exist_ok=True)
 
-    png_files = sorted(DATA_DIR.glob("*.png"))
+    png_files = sorted(DATA_DIR.glob("*.[pP][nN][gG]"))
     if not png_files:
         print(f"Brak plików .png w {DATA_DIR}")
         return
@@ -74,7 +74,8 @@ def main():
 
     ok = 0
     for png in png_files:
-        bin_path = OUT_DIR / png.with_suffix(".raw").name
+        # Wymuś lowercase nazwy pliku wyjściowego (np. Radio_ZET.png -> radio_zet.raw)
+        bin_path = OUT_DIR / f"{png.stem.lower()}.raw"
         print(f"{png.name}")
         try:
             png_to_rgb565(png, bin_path)

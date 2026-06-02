@@ -1,4 +1,4 @@
-#include "Arduino.h"
+﻿#include "Arduino.h"
 #include "clock_tts/clock_tts.h" // "clock_tts"
 #include "core/options.h"
 #include "core/config.h"
@@ -40,6 +40,9 @@ void widgetsSetClockFont(uint8_t fontId);
 #if DSP_HSPI || TS_HSPI || VS_HSPI
 SPIClass SPI2(HSPI);
 #endif
+
+static bool bootAutoplayPending = false;
+static uint32_t bootAutoplayNext = 0;
 
 extern __attribute__((weak)) void yoradio_on_setup();
 
@@ -90,7 +93,14 @@ void setup() {
     pm.on_setup(); // pluginsManager
 	
     config.init();
+    // Ustaw font zegara z EEPROM zanim Display zbuduje widgety (DSP_START),
+    // aby pierwsze wyliczenie pozycji HH/MM było od razu na właściwej czcionce.
+    widgetsSetClockFont(config.store.clockfont);
     display.init();
+#if BRIGHTNESS_PIN != 255
+    display.clear(true);
+    config.setBrightness(false);
+#endif
     player.init();
     network.begin();
     if (network.status != CONNECTED && network.status != SDREADY) {
@@ -101,7 +111,7 @@ void setup() {
         return;
     }
     if (SDC_CS != 255) {
-        display.putRequest(WAITFORSD, 0);
+        // Skip SD "wait/index" banner on boot when full reindex is disabled.
         Serial.print("##[BOOT]#\tSD search\t");
     }
     config.initPlaylistMode();
@@ -110,20 +120,22 @@ void setup() {
     initControls();
     display.putRequest(DSP_START);
     while (!display.ready()) delay(10);
-	widgetsSetClockFont(config.store.clockfont);  // przywróć font z EEPROM
 #if USE_OTA
     setupOTA();
 #endif
     if (config.getMode() == PM_SDCARD) player.initHeaders(config.station.url);
     player.lockOutput = false;
-    if (config.store.smartstart == 1) { player.sendCommand({PR_PLAY, config.lastStation()}); }
+    if (config.store.smartstart != 2) {
+        bootAutoplayPending = true;
+        bootAutoplayNext = millis() + 1500;
+    }
 #if CLOCK_TTS_ENABLED
-    clock_tts_setup(); // Módosítás: plussz sor. "clock_tts"
+    clock_tts_setup(); // MĂłdosĂ­tĂˇs: plussz sor. "clock_tts"
 #endif
     if (psramFound()) {
-        Serial.println("✅ PSRAM elérhető!");
+        Serial.println("… PSRAM initialized‘!");
     } else {
-        Serial.println("❌ PSRAM nem található!");
+        Serial.println(" PSRAM not initialized!");
     }
     Audio::audio_info_callback = my_audio_info; // "audio_change" audiohandlers.h ban kezelve.
     Serial.printf("Total heap : %lu\n", ESP.getHeapSize());
@@ -143,7 +155,7 @@ void loop() {
     timekeeper.loop1();
     telnet.loop();
 	
-	 // Debounced EEPROM commits for fast-changing web UI options (theme/colo
+	 // Debounced EEPROM commits for fast-changing web UI options (theme/color)
 	 // Apply UI changes (clock font/theme) in the main loop to avoid AsyncWebSocket 	crashes
   uint8_t ui = config.consumeUiApply();
   if (ui) {
@@ -169,18 +181,31 @@ void loop() {
 	
     if (network.status == CONNECTED || network.status == SDREADY) {
         player.loop();
+        if (bootAutoplayPending) {
+            if (config.store.smartstart == 2 || player.isRunning()) {
+                bootAutoplayPending = false;
+            } else if (millis() >= bootAutoplayNext && config.playlistLength() > 0) {
+                uint16_t station = config.lastStation();
+                if (station < 1 || station > config.playlistLength()) { station = 1; }
+                player.sendCommand({PR_PLAY, station});
+                bootAutoplayPending = false;
+            }
+        }
 #if USE_OTA
         ArduinoOTA.handle();
 #endif
     }
+
     loopControls();
 #ifdef NETSERVER_LOOP1
     netserver.loop();
 #endif
 #if CLOCK_TTS_ENABLED
-    clock_tts_loop(); // Módosítás: plussz sor.  "clock_tts"
+    clock_tts_loop(); // MĂłdosĂ­tĂˇs: plussz sor.  "clock_tts"
 #endif
 #ifdef NEOPIXEL_ON
 	NeoPixel_loop();
 #endif
 }
+
+

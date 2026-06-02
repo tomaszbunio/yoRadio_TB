@@ -550,7 +550,7 @@ void NetServer::processQueue() {
 
   case GETSYSTEM:
   {
-    char tbg[8], tpr[8], tac[8], tt1[8], tt2[8], tw[8], tvmax[8], tvmid[8], tvmin[8], tdig[8], tdiv[8], tnameday[8], tdate[8], theap[8], tbuffer[8], tip[8], tvol[8], trssi[8], tbitrate[8], tseconds[8], tfliptext[8], tflipcard[8];
+    char tbg[8], tpr[8], tac[8], tt1[8], tt2[8], tw[8], tvmax[8], tvmid[8], tvmin[8], tdig[8], tdiv[8], tnameday[8], tdate[8], theap[8], tbuffer[8], tip[8], tvol[8], tvolbar[8], tch[8], trssi[8], tbitrate[8], tseconds[8], tfliptext[8], tflipcard[8];
     Config::rgb565ToHtml(config.store.tbg, tbg);
     Config::rgb565ToHtml(config.store.tpr, tpr);
     Config::rgb565ToHtml(config.store.tac, tac);
@@ -568,6 +568,8 @@ void NetServer::processQueue() {
     Config::rgb565ToHtml(config.store.tbuffer, tbuffer);
     Config::rgb565ToHtml(config.store.tip, tip);
     Config::rgb565ToHtml(config.store.tvol, tvol);
+    Config::rgb565ToHtml(config.store.tvolbar, tvolbar);
+    Config::rgb565ToHtml(config.store.tch, tch);
     Config::rgb565ToHtml(config.store.trssi, trssi);
     Config::rgb565ToHtml(config.store.tbitrate, tbitrate);
     Config::rgb565ToHtml(config.store.tseconds,  tseconds);
@@ -577,19 +579,20 @@ void NetServer::processQueue() {
       wsBuf, sizeof(wsBuf),
       "{\"sst\":%d,\"aif\":%d,\"vu\":%d,\"softr\":%d,\"vut\":%d,\"mdns\":\"%s\",\"ipaddr\":\"%s\","
       "\"abuff\":%d,\"telnet\":%d,\"watchdog\":%d,\"nameday\":%d,"
-      "\"ttsgoogle\":%d,\"ttsclock\":%d,\"clockfont\":%d,\"thememode\":%d,"
+      "\"ttsgoogle\":%d,\"ttsclock\":%d,\"clockfont\":%d,\"clockmode\":%d,\"clockseconds\":%d,\"thememode\":%d,"
       "\"tbg\":\"%s\",\"tpr\":\"%s\",\"tac\":\"%s\",\"tt1\":\"%s\",\"tt2\":\"%s\",\"tw\":\"%s\","
       "\"tvmax\":\"%s\",\"tvmid\":\"%s\",\"tvmin\":\"%s\","
       "\"tdig\":\"%s\",\"tdiv\":\"%s\",\"tnameday\":\"%s\",\"tdate\":\"%s\","
-      "\"theap\":\"%s\",\"tbuffer\":\"%s\",\"tip\":\"%s\",\"tvol\":\"%s\","
+      "\"theap\":\"%s\",\"tbuffer\":\"%s\",\"tip\":\"%s\",\"tvol\":\"%s\",\"tvolbar\":\"%s\",\"tch\":\"%s\","
       "\"trssi\":\"%s\",\"tbitrate\":\"%s\","
       "\"tseconds\":\"%s\",\"tfliptext\":\"%s\",\"tflipcard\":\"%s\"}",
       config.store.smartstart != 2, config.store.audioinfo, config.store.vumeter, config.store.softapdelay, config.vuRefLevel,
       config.store.mdnsname, config.ipToStr(WiFi.localIP()),
       config.store.abuff, config.store.telnet, config.store.watchdog, config.store.nameday,
-      (int)config.store.ttsgoogle, (int)config.store.ttsclock, (int)config.store.clockfont, (int)config.store.thememode,
+      (int)config.store.ttsgoogle, (int)config.store.ttsclock, (int)config.store.clockfont,
+      (int)config.store.clockmode, (int)config.store.clockseconds, (int)config.store.thememode,
       tbg, tpr, tac, tt1, tt2, tw, tvmax, tvmid, tvmin,
-      tdig, tdiv, tnameday, tdate, theap, tbuffer, tip, tvol, trssi, tbitrate,
+      tdig, tdiv, tnameday, tdate, theap, tbuffer, tip, tvol, tvolbar, tch, trssi, tbitrate,
       tseconds, tfliptext, tflipcard
     );
     Serial.printf("netserver-> config.store.nameday %d \n", config.store.nameday);
@@ -637,11 +640,19 @@ void NetServer::processQueue() {
         );
         break;
       case GETCONTROLS:
+      {
+        char neopixel_enc1_color[8], neopixel_enc2_color[8];
+        Config::rgb565ToHtml(config.store.neopixel_enc1_color, neopixel_enc1_color);
+        Config::rgb565ToHtml(config.store.neopixel_enc2_color, neopixel_enc2_color);
         sprintf(
-          wsBuf, "{\"vols\":%d,\"enca\":%d,\"irtl\":%d,\"skipup\":%d}", config.store.volsteps, config.store.encacc, config.store.irtlp,
-          config.store.skipPlaylistUpDown
+          wsBuf,
+          "{\"vols\":%d,\"enca\":%d,\"irtl\":%d,\"skipup\":%d,"
+          "\"neopixel_enabled\":%d,\"neopixel_brightness\":%d,\"neopixel_enc1_color\":\"%s\",\"neopixel_enc2_color\":\"%s\",\"neopixel_effect\":%d,\"neopixel_effect2\":%d}",
+          config.store.volsteps, config.store.encacc, config.store.irtlp, config.store.skipPlaylistUpDown,
+          config.store.neopixel_enabled, config.store.neopixel_brightness, neopixel_enc1_color, neopixel_enc2_color, config.store.neopixel_effect, config.store.neopixel_effect2
         );
         break;
+      }
       case DSPON: sprintf(wsBuf, "{\"dspontrue\":%d}", 1); break;
       case STATION:
         requestOnChange(STATIONNAME, clientId);
@@ -650,13 +661,25 @@ void NetServer::processQueue() {
       case STATIONNAME: sprintf(wsBuf, "{\"payload\":[{\"id\":\"nameset\", \"value\": \"%s\"}]}", config.station.name); break;
       case ITEM:        sprintf(wsBuf, "{\"current\": %d}", config.lastStation()); break;
       case TITLE:
+      {
+        static char lastCliMeta[BUFLEN] = "";
         sprintf(wsBuf, "{\"payload\":[{\"id\":\"meta\", \"value\": \"%s\"}]}", config.station.title);
-        telnet.printf("##CLI.META#: %s\r\n> ", config.station.title);
+        if (strncmp(lastCliMeta, config.station.title, sizeof(lastCliMeta)) != 0) {
+          strlcpy(lastCliMeta, config.station.title, sizeof(lastCliMeta));
+          telnet.printf("##CLI.META#: %s\r\n> ", config.station.title);
+        }
         break;
+      }
       case VOLUME:
+      {
+        static int lastCliVol = -1;
         sprintf(wsBuf, "{\"payload\":[{\"id\":\"volume\", \"value\": %d}]}", config.store.volume);
-        telnet.printf("##CLI.VOL#: %d\r\n", config.store.volume);
+        if (lastCliVol != config.store.volume) {
+          lastCliVol = config.store.volume;
+          telnet.printf("##CLI.VOL#: %d\r\n", config.store.volume);
+        }
         break;
+      }
       case NRSSI:
         sprintf(
           wsBuf, "{\"payload\":[{\"id\":\"rssi\", \"value\": %d}, {\"id\":\"heap\", \"value\": %d}]}", rssi,
@@ -787,31 +810,90 @@ void NetServer::irValsToWs() {
   );
   websocket.textAll(wsBuf);
 }
+
+static bool handleIrPowerJson(const char *payload) {
+  if (strstr(payload, "\"ircode\"") == nullptr || strstr(payload, "\"protocol\"") == nullptr) {
+    return false;
+  }
+
+  const char *codePos = strstr(payload, "\"ircode\"");
+  codePos = strchr(codePos, ':');
+  if (codePos == nullptr) return false;
+  codePos++;
+  while (*codePos == ' ' || *codePos == '\t') codePos++;
+  uint64_t ircode = strtoull(codePos, nullptr, 10);
+
+  const char *protoPos = strstr(payload, "\"protocol\"");
+  protoPos = strchr(protoPos, ':');
+  if (protoPos == nullptr) return false;
+  protoPos++;
+  while (*protoPos == ' ' || *protoPos == '\t') protoPos++;
+  if (*protoPos != '\"') return false;
+  protoPos++;
+  const char *protoEnd = strchr(protoPos, '\"');
+  if (protoEnd == nullptr) return false;
+
+  char protocol[16] = {0};
+  size_t protoLen = (size_t)(protoEnd - protoPos);
+  if (protoLen >= sizeof(protocol)) protoLen = sizeof(protocol) - 1;
+  memcpy(protocol, protoPos, protoLen);
+  protocol[protoLen] = '\0';
+
+  // New pilot POWER button: {ircode: 33731149, protocol: "NEC"}
+  if (strcmp(protocol, "NEC") == 0 && ircode == 33731149ULL) {
+    if (display.mode() == SLEEPING || display.mode() == SCREENBLANK || display.mode() == SCREENSAVER) {
+      config.setDspOn(true);
+      display.putRequest(NEWMODE, PLAYER);
+    } else {
+      display.putRequest(NEWMODE, SLEEPING);
+      delay(150);
+      goToSleep();
+    }
+    return true;
+  }
+
+  return false;
+}
 #endif
 
 void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t clientId) {
   AwsFrameInfo *info = (AwsFrameInfo *)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-    data[len] = 0;
-    if (config.parseWsCommand((const char *)data, _wscmd, _wsval, 65)) {
+    char *msg = (char*)malloc(len + 1);
+    if (!msg) {
+      return;
+    }
+    memcpy(msg, data, len);
+    msg[len] = '\0';
+#if IR_PIN != 255
+    if (handleIrPowerJson(msg)) {
+      free(msg);
+      return;
+    }
+#endif
+    if (config.parseWsCommand(msg, _wscmd, _wsval, 65)) {
       if (strcmp(_wscmd, "ping") == 0) {
         websocket.text(clientId, "{\"pong\": 1}");
+        free(msg);
         return;
       }
       // Tone settings (trebble/middle/bass)
       if (strcmp(_wscmd, "trebble") == 0) {
         int8_t valb = atoi(_wsval);
         config.setTone(config.store.bass, config.store.middle, valb);
+        free(msg);
         return;
       }
       if (strcmp(_wscmd, "middle") == 0) {
         int8_t valb = atoi(_wsval);
         config.setTone(config.store.bass, valb, config.store.trebble);
+        free(msg);
         return;
       }
       if (strcmp(_wscmd, "bass") == 0) {
         int8_t valb = atoi(_wsval);
         config.setTone(valb, config.store.middle, config.store.trebble);
+        free(msg);
         return;
       }
       if (strcmp(_wscmd, "submitplaylistdone") == 0) {
@@ -822,6 +904,7 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
         if (player.isRunning()) {
           player.sendCommand({PR_PLAY, -config.lastStation()});
         }
+        free(msg);
         return;
       }
 	  
@@ -830,6 +913,7 @@ if (strcmp(_wscmd, "sched_get") == 0) {
   char buf[2048];
   scheduler.buildJson(buf, sizeof(buf));
   websocket.text(clientId, buf);
+  free(msg);
   return;
 }
 if (strcmp(_wscmd, "sched_save") == 0) {
@@ -841,6 +925,7 @@ if (strcmp(_wscmd, "sched_save") == 0) {
   char buf2[2048];
   scheduler.buildJson(buf2, sizeof(buf2));
   websocket.text(clientId, buf2);
+  free(msg);
   return;
 }
 if (strcmp(_wscmd, "sched_del") == 0) {
@@ -851,6 +936,7 @@ if (strcmp(_wscmd, "sched_del") == 0) {
   char buf2[2048];
   scheduler.buildJson(buf2, sizeof(buf2));
   websocket.text(clientId, buf2);
+  free(msg);
   return;
 }
 if (strcmp(_wscmd, "sched_enable") == 0) {
@@ -858,6 +944,7 @@ if (strcmp(_wscmd, "sched_enable") == 0) {
   char buf[64];
   Scheduler::buildOkJson(buf, sizeof(buf));
   websocket.text(clientId, buf);
+  free(msg);
   return;
 }
 // ── EOF SCHEDULER ───────────────────────────────
@@ -877,6 +964,7 @@ if (strcmp(_wscmd, "sched_enable") == 0) {
         netserver.requestOnChange(GETINDEX, 0);
         netserver.requestOnChange(GETPLAYERMODE, 0);
 
+        free(msg);
         return;
       }
       // ===== DLNA playlist aktiválás =====
@@ -893,14 +981,17 @@ if (strcmp(_wscmd, "sched_enable") == 0) {
         netserver.requestOnChange(GETINDEX, 0);
         netserver.requestOnChange(GETPLAYERMODE, 0);
 
+        free(msg);
         return;
       }
 #endif
 
       if (cmd.exec(_wscmd, _wsval, clientId)) {
+        free(msg);
         return;
       }
     }
+    free(msg);
   }
 }
 

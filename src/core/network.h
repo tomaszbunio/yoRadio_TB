@@ -9,6 +9,7 @@ class MyNetwork {
     n_Status_e status;
     struct tm timeinfo;
     bool lostPlaying = false, beginReconnect = false;
+    bool softStandby = false;
   public:
     MyNetwork() {};
     void begin();

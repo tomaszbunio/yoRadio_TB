@@ -23,8 +23,15 @@
 MyNetwork network;
 
 void MyNetwork::WiFiReconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
+    if (network.softStandby) {
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+        return;
+    }
     network.beginReconnect = false;
     player.lockOutput = false;
+    config.setTimeConf();
+    timekeeper.forceTimeSync = true;
     delay(100);
     display.putRequest(NEWMODE, PLAYER);
     if (config.getMode() == PM_SDCARD) {
@@ -40,6 +47,9 @@ void MyNetwork::WiFiReconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
 }
 
 void MyNetwork::WiFiLostConnection(WiFiEvent_t event, WiFiEventInfo_t info) {
+    if (network.softStandby) {
+        return;
+    }
     if (!network.beginReconnect) {
         Serial.printf("Lost connection, reconnecting to %s...\n", config.ssids[config.store.lastSSID - 1].ssid);
         if (config.getMode() == PM_SDCARD) {
@@ -130,6 +140,8 @@ void searchWiFi(void* pvParameters) {
         xTaskCreatePinnedToCore(searchWiFi, "searchWiFi", 1024 * 4, NULL, 3, NULL, SEARCH_WIFI_CORE_ID); // "task_prioritas" 0 eredeti, új 3
     } else {
         network.status = CONNECTED;
+        config.setTimeConf();
+        timekeeper.forceTimeSync = true;
         netserver.begin(true);
         telnet.begin(true);
         network.setWifiParams();

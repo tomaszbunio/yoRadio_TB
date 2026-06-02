@@ -75,6 +75,8 @@ public:
   }
   void prev();
   void next();
+  void folderPrev();
+  void folderNext();
   void toggle();
   void stepVol(bool up);
   void setVol(uint8_t volume);

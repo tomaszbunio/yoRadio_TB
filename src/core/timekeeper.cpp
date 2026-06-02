@@ -130,7 +130,6 @@ if (strlen(schedAction) > 0) {
         _last5s = currentTime;
         // HEAP_INFO();
     }
-
     return true; // just in case
 }
 
@@ -226,13 +225,24 @@ void TimeKeeper::waitAndReturnPlayer(uint8_t time_s) {
 void TimeKeeper::_returnPlayer() {
     if (_returnPlayerTime > 0 && millis() >= _returnPlayerTime) {
         _returnPlayerTime = 0;
+#ifdef DEBUG_MODE_SWITCH
+        Serial.printf("[MODEDBG][Return] mode=%d playMode=%d isSdPlayer=%d currentPlItem=%u lastStation=%u\n",
+                      (int)display.mode(), (int)config.getMode(), config.isSdPlayer ? 1 : 0, display.currentPlItem, config.lastStation());
+#endif
 #ifdef DIRECT_CHANNEL_CHANGE                                     // "direct_channel_change"
         if (display.mode() == STATIONS) {                        // zsb
-            config.lastStation(display.currentPlItem);           // zsb
-            player.sendCommand({PR_PLAY, config.lastStation()}); // zsb
+            // Keep playlist auto-select scoped to the active player context.
+            // This avoids crossing SD/radio contexts when mode flags are temporarily mixed.
+            if (!config.isSdPlayer || config.getMode() == PM_SDCARD) {
+#ifdef DEBUG_MODE_SWITCH
+                Serial.printf("[MODEDBG][Return] directSelect item=%u\n", display.currentPlItem);
+#endif
+                config.lastStation(display.currentPlItem);           // zsb
+                player.sendCommand({PR_PLAY, config.lastStation()}); // zsb
+            }
         } // zsb
 #endif
-        display.putRequest(NEWMODE, PLAYER);
+        display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
     }
 }
 

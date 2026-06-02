@@ -119,6 +119,7 @@ void Config::init() {
     } else {
         while (store.version != CONFIG_VERSION) { _setupVersion(); }
     }
+
     BOOTLOG("CONFIG_VERSION\t%d", store.version);
 
     store.play_mode = store.play_mode & 0b11;
@@ -224,6 +225,7 @@ void Config::_setupVersion() {
   if (store.tbuffer == 0xFFFF)  saveValue(&store.tbuffer,  color565(COLOR_BUFFER));
   if (store.tip == 0xFFFF)      saveValue(&store.tip,      color565(COLOR_IP));
   if (store.tvol == 0xFFFF)     saveValue(&store.tvol,     color565(COLOR_VOLUME_VALUE));
+  if (store.tch == 0xFFFF)      saveValue(&store.tch,      color565(COLOR_CH));
   if (store.trssi == 0xFFFF)    saveValue(&store.trssi,    color565(COLOR_RSSI));
   if (store.tbitrate == 0xFFFF) saveValue(&store.tbitrate, color565(COLOR_BITRATE));
   break;	
@@ -259,6 +261,7 @@ void Config::_setupVersion() {
   if (store.tbuffer     == 0xFFFF) saveValue(&store.tbuffer,     color565(COLOR_BUFFER));
   if (store.tip         == 0xFFFF) saveValue(&store.tip,         color565(COLOR_IP));
   if (store.tvol        == 0xFFFF) saveValue(&store.tvol,        color565(COLOR_VOLUME_VALUE));
+  if (store.tch         == 0xFFFF) saveValue(&store.tch,         color565(COLOR_CH));
   if (store.trssi       == 0xFFFF) saveValue(&store.trssi,       color565(COLOR_RSSI));
   if (store.tbitrate    == 0xFFFF) saveValue(&store.tbitrate,    color565(COLOR_BITRATE));
   saveValue(&store.tseconds,  color565(COLOR_SECONDS));
@@ -266,6 +269,28 @@ void Config::_setupVersion() {
   break;
   case 10:
   saveValue(&store.tflipcard, (uint16_t)0xFFFF);
+  break;
+  case 11:
+  if (store.neopixel_brightness == 0xFF) saveValue(&store.neopixel_brightness, (uint8_t)100);
+  if (store.neopixel_enc1_color == 0xFFFF) saveValue(&store.neopixel_enc1_color, color565(COLOR_STATION_NAME));
+  if (store.neopixel_enc2_color == 0xFFFF) saveValue(&store.neopixel_enc2_color, color565(COLOR_CLOCK));
+  if (store.neopixel_effect == 0xFF) saveValue(&store.neopixel_effect, (uint8_t)1);
+  break;
+  case 12:
+  if (store.neopixel_enabled == 0xFF) saveValue(&store.neopixel_enabled, (uint8_t)1);
+  break;
+  case 13:
+  if (store.neopixel_effect2 == 0xFF) saveValue(&store.neopixel_effect2, (uint8_t)1);
+  break;
+  case 14:
+  saveValue(&store.tch, color565(COLOR_CH));
+  break;
+  case 15:
+  saveValue(&store.clockmode, (uint8_t)1);
+  saveValue(&store.clockseconds, (uint8_t)1);
+  break;
+  case 16:
+  if (store.tvolbar == 0xFFFF) saveValue(&store.tvolbar, color565(COLOR_VOLBAR_IN));
   break;
         default: break;
     }
@@ -289,6 +314,17 @@ void Config::changeMode(int newmode) { // DLNA mod
     }
 
     bool pir = player.isRunning();
+    bool switchingSdToWeb = (getMode() == PM_SDCARD && newmode == PM_WEB);
+
+    if (switchingSdToWeb && pir) {
+    #ifdef SD_RESUME_ENABLED
+        sdResumePos = player.getAudioFilePosition();
+        stopedSdStationId = lastStation();
+    #endif
+        player.setOutputPins(false);
+        player.setVolume(0);
+        player.stopSong();
+    }
 
     if (SDC_CS == 255 && newmode == PM_SDCARD) { return; }
 
@@ -322,7 +358,9 @@ void Config::changeMode(int newmode) { // DLNA mod
 
     /* === SD specific actions === */
     if (getMode() == PM_SDCARD) {
-        if (pir) { player.sendCommand({PR_STOP, 0}); }
+        if (pir) {
+            player.sendCommand({PR_STOP, 0});
+        }
         display.putRequest(NEWMODE, SDCHANGE);
         delay(50);
     } else {
@@ -332,6 +370,8 @@ void Config::changeMode(int newmode) { // DLNA mod
     if (!_bootDone) { return; }
 
     initPlaylistMode();
+    bool switchingToWeb = (getMode() != PM_SDCARD);
+    if (switchingToWeb) { station.title[0] = '\0'; }
 
     if (pir) {
     #ifdef USE_DLNA
@@ -346,8 +386,12 @@ void Config::changeMode(int newmode) { // DLNA mod
     netserver.requestOnChange(GETINDEX, 0);
 
     display.resetQueue();
-    display.putRequest(NEWMODE, PLAYER);
+    uint16_t sdLen = (getMode() == PM_SDCARD) ? playlistLength() : 0;
+    displayMode_e targetMode = (getMode() == PM_SDCARD && sdLen > 0) ? SD_PLAYER : PLAYER;
+    Serial.printf("[changeMode] getMode=%d PM_SDCARD=%d sdLen=%d targetMode=%d\n", getMode(), PM_SDCARD, sdLen, (int)targetMode);
+    display.putRequest(NEWMODE, targetMode);
     display.putRequest(NEWSTATION);
+    if (switchingToWeb) { display.putRequest(NEWTITLE); }
 #endif
 }
 
@@ -359,10 +403,7 @@ void Config::initSDPlaylist() {
     sdman.indexSDPlaylist();
     if (SDPLFS()->exists(INDEX_SD_PATH)) {
         File index = SDPLFS()->open(INDEX_SD_PATH, "r");
-        // if(doIndex){
-        lastStation(_randomStation());
         sdResumePos = 0;
-        // }
         index.close();
     }
 #endif // #ifdef USE_SD
@@ -401,18 +442,18 @@ bool Config::prepareForPlaying(uint16_t stationId) {
     setBitrateFormat(BF_UNKNOWN);
     display.putRequest(DBITRATE);
     display.putRequest(NEWSTATION);
-    display.putRequest(NEWMODE, PLAYER);
+    display.putRequest(NEWMODE, getMode() == PM_SDCARD ? SD_PLAYER : PLAYER);
     netserver.requestOnChange(STATION, 0);
     netserver.requestOnChange(MODE, 0);
     netserver.loop();
     netserver.loop();
-    if (store.smartstart != 2) { setSmartStart(0); }
     return true;
 }
 
 void Config::configPostPlaying(uint16_t stationId) { // DLNA mod
     if (getMode() == PM_SDCARD) {
-        saveValue(&store.lastSdStation, stationId);
+        saveValue(&store.lastSdStation, stationId, false);
+        saveValue(store.lastSdTrackName, station.name, sizeof(store.lastSdTrackName));
     }
 #ifdef USE_DLNA
     else if (store.playlistSource == PL_SRC_DLNA) {
@@ -423,16 +464,17 @@ void Config::configPostPlaying(uint16_t stationId) { // DLNA mod
         saveValue(&store.lastStation, stationId);
     }
 
-    if (store.smartstart != 2) { setSmartStart(1); }
     netserver.requestOnChange(MODE, 0);
     display.putRequest(PSTART);
 }
 
 void Config::setSDpos(uint32_t val) {
     if (getMode() == PM_SDCARD) {
-        sdResumePos = 0; // ha kézzel állítasz pozíciót, ne legyen régi resume
         if (!player.isRunning()) {
+        #ifdef SD_RESUME_ENABLED
+            sdResumePos = 0; // clear stale resume before storing a new one
             config.sdResumePos = val - player.sd_min;
+        #endif
         } else {
             player.setAudioFilePosition(val - player.sd_min); // futó lejátszásnál seek webről
         }
@@ -448,10 +490,27 @@ void Config::initPlaylistMode() {
             changeMode(PM_WEB);
             return;
         }
-        initSDPlaylist();
+        // Skip full SD reindex during boot to shorten startup time.
+        // Keep reindex available later (e.g. on mode switch/manual trigger).
+        if (_bootDone) {
+            initSDPlaylist();
+        }
         uint16_t cs = playlistLength();
+#ifndef SD_ALWAYS_START_FROM_FIRST
+        if (store.lastSdStation > 0 && store.lastSdStation <= cs
+            && store.lastSdTrackName[0] != '\0') {
+            const char* currentName = stationByNum(store.lastSdStation);
+            if (strncmp(currentName, store.lastSdTrackName,
+                        sizeof(store.lastSdTrackName) - 1) != 0) {
+                store.lastSdStation = 0;
+                saveValue(&store.lastSdStation, (uint16_t)0);
+            }
+        }
         _lastStation = store.lastSdStation;
-        if (_lastStation == 0 && cs > 0) { _lastStation = _randomStation(); }
+        if (_lastStation == 0 && cs > 0) { _lastStation = 1; }
+#else
+        _lastStation = (cs > 0) ? 1 : 0;
+#endif
     } else
 #endif
     {
@@ -487,15 +546,43 @@ void Config::initPlaylistMode() {
 void Config::_initHW() {
     loadTheme();
 #if IR_PIN != 255
+    auto applyDefaultIrMap = [this]() {
+#if defined(IR_DEFAULT_MAP_ENABLED) && IR_DEFAULT_MAP_ENABLED
+        memset(ircodes.irVals, 0, sizeof(ircodes.irVals));
+        ircodes.irVals[IR_UP][0] = IR_DEFAULT_UP;
+        ircodes.irVals[IR_PREV][0] = IR_DEFAULT_PREV;
+        ircodes.irVals[IR_PLAY][0] = IR_DEFAULT_PLAY;
+        ircodes.irVals[IR_NEXT][0] = IR_DEFAULT_NEXT;
+        ircodes.irVals[IR_DOWN][0] = IR_DEFAULT_DOWN;
+        ircodes.irVals[IR_1][0] = IR_DEFAULT_1;
+        ircodes.irVals[IR_2][0] = IR_DEFAULT_2;
+        ircodes.irVals[IR_3][0] = IR_DEFAULT_3;
+        ircodes.irVals[IR_4][0] = IR_DEFAULT_4;
+        ircodes.irVals[IR_5][0] = IR_DEFAULT_5;
+        ircodes.irVals[IR_6][0] = IR_DEFAULT_6;
+        ircodes.irVals[IR_7][0] = IR_DEFAULT_7;
+        ircodes.irVals[IR_8][0] = IR_DEFAULT_8;
+        ircodes.irVals[IR_9][0] = IR_DEFAULT_9;
+        ircodes.irVals[IR_AST][0] = IR_DEFAULT_AST;
+        ircodes.irVals[IR_0][0] = IR_DEFAULT_0;
+        ircodes.irVals[IR_HASH][0] = IR_DEFAULT_HASH;
+        ircodes.irVals[IR_POWER][0] = IR_DEFAULT_POWER;
+        ircodes.irVals[IR_MENU][0] = IR_DEFAULT_MENU;
+#else
+        memset(ircodes.irVals, 0, sizeof(ircodes.irVals));
+#endif
+    };
+
     eepromRead(EEPROM_START_IR, ircodes);
     if (ircodes.ir_set != 4224) {
         ircodes.ir_set = 4224;
-        memset(ircodes.irVals, 0, sizeof(ircodes.irVals));
+        applyDefaultIrMap();
+        saveIR();
     }
 #endif
 #if BRIGHTNESS_PIN != 255
     pinMode(BRIGHTNESS_PIN, OUTPUT);
-    setBrightness(false);
+    analogWrite(BRIGHTNESS_PIN, 0);
 #endif
 }
 
@@ -600,6 +687,7 @@ theme.heap      = store.theap;
 theme.buffer    = store.tbuffer;
 theme.ip        = store.tip;
 theme.vol       = store.tvol;
+theme.ch        = store.tch;
 theme.rssi      = store.trssi;
 theme.bitrate   = store.tbitrate;
 
@@ -622,6 +710,10 @@ theme.bitrate   = store.tbitrate;
 	
     theme.volbarout = color565(COLOR_VOLBAR_OUT);
     theme.volbarin = color565(COLOR_VOLBAR_IN);
+    if (store.thememode) {
+      theme.volbarin = store.tvolbar;
+    }
+    theme.volbarout = theme.volbarin;
     theme.plcurrent = color565(COLOR_PL_CURRENT);
     theme.plcurrentbg = color565(COLOR_PL_CURRENT_BG);
     theme.plcurrentfill = color565(COLOR_PL_CURRENT_FILL);
@@ -803,6 +895,12 @@ void Config::resetSystem(const char* val, uint8_t clientId) {
         saveValue(&store.fliptouch, false, false);
         saveValue(&store.dbgtouch, false, false);
         saveValue(&store.skipPlaylistUpDown, false);
+        saveValue(&store.neopixel_enabled, (uint8_t)1);
+        saveValue(&store.neopixel_brightness, (uint8_t)100);
+        saveValue(&store.neopixel_enc1_color, color565(COLOR_STATION_NAME));
+        saveValue(&store.neopixel_enc2_color, color565(COLOR_CLOCK));
+        saveValue(&store.neopixel_effect, (uint8_t)1);
+        saveValue(&store.neopixel_effect2, (uint8_t)1);
         setEncAcceleration(200);
         setIRTolerance(40);
         netserver.requestOnChange(GETCONTROLS, clientId);
@@ -818,7 +916,7 @@ void Config::setDefaults() {
     BOOTLOG("***************** SET DEFAULT *****************");
     store.config_set = 4263;
     store.version = CONFIG_VERSION;
-    store.volume = 12;
+    store.volume = 30;
     store.balance = 0;
     store.trebble = 6;
     store.middle = 0;
@@ -833,10 +931,10 @@ void Config::setDefaults() {
     store.timezoneOffset = 0;
     store.vumeter = true;
     store.softapdelay = 0;
-    store.flipscreen = true;	//false 4"
+    store.flipscreen = true;	//false for 4"
     store.invertdisplay = false;
     store.numplaylist = false;
-    store.fliptouch = false;
+    store.fliptouch = false; //true for 4"
     store.dbgtouch = false;
     store.dspon = true;
     store.brightness = 100;
@@ -889,8 +987,16 @@ void Config::setDefaults() {
 	// --- Web options defaults ---
   
   store.clockfont = (uint8_t)CLOCKFONT;
+  store.clockmode = 1;
+  store.clockseconds = 1;
   store.ttsgoogle = false;
   store.ttsclock = (uint16_t)CLOCK_TTS_INTERVAL_MINUTES;
+  store.neopixel_enabled = 1;
+  store.neopixel_brightness = 100;
+  store.neopixel_enc1_color = color565(COLOR_STATION_NAME);
+  store.neopixel_enc2_color = color565(COLOR_STATION_NAME);
+  store.neopixel_effect = 1;
+  store.neopixel_effect2 = 1;
   store.thememode = false;
   store.tbg = color565(COLOR_BACKGROUND);
   store.tpr = color565(COLOR_STATION_NAME);
@@ -909,6 +1015,8 @@ void Config::setDefaults() {
   store.tbuffer = color565(COLOR_BUFFER);
   store.tip = color565(COLOR_IP);
   store.tvol = color565(COLOR_VOLUME_VALUE);
+  store.tvolbar = color565(COLOR_VOLBAR_IN);
+  store.tch = color565(COLOR_CH);
   store.trssi = color565(COLOR_RSSI);
   store.tbitrate = color565(COLOR_BITRATE);
   store.tseconds  = color565(COLOR_SECONDS);
@@ -1000,12 +1108,16 @@ uint8_t Config::setLastSSID(uint8_t val) {
 }
 
 void Config::setTitle(const char* title) {
+    if (title == nullptr) {
+        title = "";
+    }
     vuRefLevel = 0;
     memset(config.station.title, 0, BUFLEN);
     strlcpy(config.station.title, title, BUFLEN);
     u8fix(config.station.title);
     netserver.requestOnChange(TITLE, 0);
-    netserver.loop();
+    // `setTitle()` may be called from audio callbacks/tasks.
+    // Avoid running netserver loop work cross-task here; just queue change.
     display.putRequest(NEWTITLE);
 }
 
@@ -1314,19 +1426,32 @@ void Config::setTimeConf() {
 
 bool Config::initNetwork() {
     File file = SPIFFS.open(SSIDS_PATH, "r");
-    if (!file || file.isDirectory()) { return false; }
-    char    ssidval[30], passval[40];
-    uint8_t c = 0;
-    while (file.available()) {
-        if (parseSsid(file.readStringUntil('\n').c_str(), ssidval, passval)) {
-            strlcpy(ssids[c].ssid, ssidval, 30);
-            strlcpy(ssids[c].password, passval, 40);
-            ssidsCount++;
-            c++;
+    if (file && !file.isDirectory()) {
+        char    ssidval[30], passval[40];
+        uint8_t c = 0;
+        while (file.available()) {
+            if (parseSsid(file.readStringUntil('\n').c_str(), ssidval, passval)) {
+                strlcpy(ssids[c].ssid, ssidval, 30);
+                strlcpy(ssids[c].password, passval, 40);
+                ssidsCount++;
+                c++;
+            }
         }
+        file.close();
     }
-    file.close();
-    return true;
+    #if defined(DEV_WIFI_SSID) && defined(DEV_WIFI_PASS)
+    if (ssidsCount == 0) {
+        strlcpy(ssids[0].ssid, DEV_WIFI_SSID, 30);
+        strlcpy(ssids[0].password, DEV_WIFI_PASS, 40);
+        ssidsCount = 1;
+        #if defined(DEV_WIFI_SSID2) && defined(DEV_WIFI_PASS2)
+        strlcpy(ssids[1].ssid, DEV_WIFI_SSID2, 30);
+        strlcpy(ssids[1].password, DEV_WIFI_PASS2, 40);
+        ssidsCount = 2;
+        #endif
+    }
+    #endif
+    return ssidsCount > 0;
 }
 
 void Config::setBrightness(bool dosave) {

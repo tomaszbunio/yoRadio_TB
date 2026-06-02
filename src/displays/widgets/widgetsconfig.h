@@ -2,14 +2,18 @@
 #ifndef widgetsconfig_h
 #define widgetsconfig_h
 
+#include <gfxfont.h>
+
 enum WidgetAlign { WA_LEFT, WA_CENTER, WA_RIGHT };
 enum BitrateFormat { BF_UNKNOWN, BF_MP3, BF_AAC, BF_FLAC, BF_OGG, BF_WAV, BF_VOR, BF_OPU };  // Módisítás "bitrate" BF_VOR, BF_OPU
 
 struct WidgetConfig {
-  uint16_t left; 
-  uint16_t top; 
+  uint16_t left;
+  uint16_t top;
   uint16_t textsize;
   WidgetAlign align;
+  const GFXfont *font = nullptr;
+  const uint8_t *u8g2font = nullptr;
 };
 
 struct ScrollConfig {
@@ -26,7 +30,7 @@ struct FillConfig {
   WidgetConfig widget;
   uint16_t width;
   uint16_t height;
-  bool outlined;
+  uint8_t outlined;
 };
 
 struct ProgressConfig {

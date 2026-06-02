@@ -6,7 +6,9 @@
 #include "display.h"
 #include "sdmanager.h"
 #include "netserver.h"
+#include "network.h"
 #include "timekeeper.h"
+#include "rtcsupport.h"
 #include "../displays/tools/l10n.h"
 #include "../pluginsManager/pluginsManager.h"
 #ifdef USE_NEXTION
@@ -14,6 +16,21 @@
 #endif
 Player player;
 QueueHandle_t playerQueue;
+
+static void syncClockOnPlaybackStart() {
+  if (network.status != CONNECTED) return;
+  config.setTimeConf();
+  if (getLocalTime(&network.timeinfo, 1500)) {
+    mktime(&network.timeinfo);
+    timekeeper.forceTimeSync = false;
+#if RTCSUPPORTED
+    if (config.isRTCFound()) { rtc.setTime(&network.timeinfo); }
+#endif
+  } else {
+    timekeeper.forceTimeSync = true;
+  }
+  display.putRequest(CLOCK, 1);
+}
 
 #if VS1053_CS != 255 && !I2S_INTERNAL
   #if VS_HSPI
@@ -78,9 +95,7 @@ void Player::init() {
 }
 
 void Player::sendCommand(playerRequestParams_t request) {
-  if (playerQueue == NULL) {
-    return;
-  }
+  if (playerQueue == NULL) { return; }
   xQueueSend(playerQueue, &request, PLQ_SEND_DELAY);
 }
 
@@ -91,7 +106,6 @@ void Player::resetQueue() {
 }
 
 void Player::stopInfo() {
-  config.setSmartStart(0);
   netserver.requestOnChange(MODE, 0);
 }
 
@@ -109,10 +123,12 @@ void Player::setError(const char *e) {
 /* Ha az alreadyStopped true akkor a STOP művelet már le lett kezelve.*/
 void Player::_stop(bool alreadyStopped) {
   log_i("%s called", __func__);
+#ifdef SD_RESUME_ENABLED
   if (config.getMode() == PM_SDCARD && !alreadyStopped) {
     config.sdResumePos = player.getAudioFilePosition();
     config.stopedSdStationId = config.lastStation();
   }
+#endif
   _status = STOPPED;
   setOutputPins(false);
   if (!_hasError) {
@@ -269,6 +285,7 @@ void Player::loop() {
 
         if (connecttohost(config.station.url)) {
           _status = PLAYING;
+          syncClockOnPlaybackStart();
           config.setTitle("");
           netserver.requestOnChange(MODE, 0);
           setOutputPins(true);
@@ -348,13 +365,20 @@ void Player::_play(uint16_t stationId) {
   setOutputPins(false);
   remoteStationName = false;
   // Kijelző + metaadat alaphelyzet
-  if (!config.prepareForPlaying(stationId)) {
-    return;
-  }
+  if (!config.prepareForPlaying(stationId)) { return; }
+
   Audio::setVolume(0); // wycisz przed przełączeniem strumienia (zapobiega pyknięciu)
   bool isConnected = false;
   // ----- SD MODE -----
   if (config.getMode() == PM_SDCARD && SDC_CS != 255) {
+    // Clear SD metadata early so stale artist/album do not remain
+    // when the next file has no ID3/Vorbis tags.
+    config.station.sdArtist[0] = '\0';
+    config.station.sdAlbum[0] = '\0';
+    display.putRequest(NEWTITLE);
+    #ifdef SD_COVER_ART
+    display.loadSdCover();
+    #endif
     // A connecttoFS NEM támogat start offsetet SD-n → -1, indítás pozícionálás nélkül.
     isConnected = connecttoFS(sdman, config.station.url, -1);
   } else {
@@ -374,9 +398,11 @@ void Player::_play(uint16_t stationId) {
   // ----- START PLAYING -----
   if (isConnected) {
     _status = PLAYING;
+    syncClockOnPlaybackStart();
     config.configPostPlaying(stationId);
     _loadVol(config.store.volume); // przywróć głośność po podłączeniu strumienia
     setOutputPins(true);
+    if (config.getMode() == PM_SDCARD) { display.putRequest(NEWMODE, SD_PLAYER); }
     if (player_on_start_play) player_on_start_play();
     pm.on_start_play();
   } else {
@@ -398,6 +424,7 @@ void Player::browseUrl() {
   config.setTitle(LANG::const_PlConnect);
   if (connecttohost(burl)) {
     _status = PLAYING;
+    syncClockOnPlaybackStart();
     config.setTitle("");
     netserver.requestOnChange(MODE, 0);
     setOutputPins(true);
@@ -452,6 +479,113 @@ void Player::next() {
   }
   config.stopedSdStationId = -1;  // Reseteli a seek hez mentett SD fájl sorszámát.
   sendCommand({PR_PLAY, config.lastStation()});
+}
+
+static uint16_t _sdPrevIndex(uint16_t idx, uint16_t count) {
+  return idx <= 1 ? count : idx - 1;
+}
+
+static uint16_t _sdNextIndex(uint16_t idx, uint16_t count) {
+  return idx >= count ? 1 : idx + 1;
+}
+
+static const char* _sdBasename(const char* path) {
+  const char* slash = strrchr(path, '/');
+  return slash ? slash + 1 : path;
+}
+
+static bool _sdSameFolder(const char* a, const char* b) {
+  size_t alen = _sdBasename(a) - a;
+  size_t blen = _sdBasename(b) - b;
+  return alen == blen && strncmp(a, b, alen) == 0;
+}
+
+static bool _sdPlaylistUrl(uint16_t idx, char* url, size_t urlLen) {
+  if (idx < 1 || idx > config.playlistLength()) return false;
+  File playlist = config.SDPLFS()->open(REAL_PLAYL, "r");
+  File index = config.SDPLFS()->open(REAL_INDEX, "r");
+  if (!playlist || !index) {
+    if (playlist) playlist.close();
+    if (index) index.close();
+    return false;
+  }
+
+  index.seek((idx - 1) * 4, SeekSet);
+  uint32_t pos = 0;
+  index.readBytes((char*)&pos, 4);
+  index.close();
+
+  playlist.seek(pos, SeekSet);
+  String line = playlist.readStringUntil('\n');
+  playlist.close();
+
+  char name[BUFLEN];
+  int ovol = 0;
+  return config.parseCSV(line.c_str(), name, url, ovol);
+}
+
+void Player::folderNext() {
+  if (config.getMode() != PM_SDCARD) {
+    next();
+    return;
+  }
+
+  uint16_t count = config.playlistLength();
+  uint16_t current = config.lastStation();
+  if (count < 2 || current < 1) return;
+
+  char currentUrl[BUFLEN];
+  if (!_sdPlaylistUrl(current, currentUrl, sizeof(currentUrl))) return;
+
+  uint16_t idx = current;
+  for (uint16_t checked = 0; checked < count; checked++) {
+    idx = _sdNextIndex(idx, count);
+    char url[BUFLEN];
+    if (_sdPlaylistUrl(idx, url, sizeof(url)) && !_sdSameFolder(currentUrl, url)) {
+      config.lastStation(idx);
+      config.stopedSdStationId = -1;
+      sendCommand({PR_PLAY, idx});
+      return;
+    }
+  }
+}
+
+void Player::folderPrev() {
+  if (config.getMode() != PM_SDCARD) {
+    prev();
+    return;
+  }
+
+  uint16_t count = config.playlistLength();
+  uint16_t current = config.lastStation();
+  if (count < 2 || current < 1) return;
+
+  char currentUrl[BUFLEN];
+  if (!_sdPlaylistUrl(current, currentUrl, sizeof(currentUrl))) return;
+
+  uint16_t idx = current;
+  char targetUrl[BUFLEN];
+  bool found = false;
+  for (uint16_t checked = 0; checked < count; checked++) {
+    idx = _sdPrevIndex(idx, count);
+    if (_sdPlaylistUrl(idx, targetUrl, sizeof(targetUrl)) && !_sdSameFolder(currentUrl, targetUrl)) {
+      found = true;
+      break;
+    }
+  }
+  if (!found) return;
+
+  uint16_t target = idx;
+  while (true) {
+    uint16_t prevIdx = _sdPrevIndex(target, count);
+    char prevUrl[BUFLEN];
+    if (!_sdPlaylistUrl(prevIdx, prevUrl, sizeof(prevUrl)) || !_sdSameFolder(targetUrl, prevUrl)) break;
+    target = prevIdx;
+  }
+
+  config.lastStation(target);
+  config.stopedSdStationId = -1;
+  sendCommand({PR_PLAY, target});
 }
 
 void Player::toggle() {

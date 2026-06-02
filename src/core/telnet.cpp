@@ -9,6 +9,55 @@
 
 Telnet telnet;
 
+bool Telnet::_shouldSuppressCliLine(const char *line) {
+  if (!line) return false;
+  const uint32_t now = millis();
+
+  if (strncmp(line, "##CLI.META#:", 12) == 0) {
+    const uint32_t windowMs = 1500;
+    if (strncmp(lastMetaLine, line, sizeof(lastMetaLine)) == 0 &&
+        (uint32_t)(now - lastMetaMs) <= windowMs) {
+      return true;
+    }
+    strlcpy(lastMetaLine, line, sizeof(lastMetaLine));
+    lastMetaMs = now;
+    return false;
+  }
+
+  if (strncmp(line, "##CLI.VOL#:", 11) == 0) {
+    int vol = -1;
+    if (sscanf(line, "##CLI.VOL#: %d", &vol) == 1) {
+      const uint32_t windowMs = 800;
+      if (vol == lastVolValue && (uint32_t)(now - lastVolMs) <= windowMs) {
+        return true;
+      }
+      lastVolValue = vol;
+      lastVolMs = now;
+    }
+  }
+
+  return false;
+}
+
+bool Telnet::_shouldSuppressInfoSnapshot() {
+  char sig[220];
+  snprintf(sig, sizeof(sig), "%u|%s|%s|%d|%d",
+           (unsigned)config.lastStation(),
+           config.station.name,
+           config.station.title,
+           (int)config.store.volume,
+           (int)player.status());
+  const uint32_t now = millis();
+  const uint32_t windowMs = 1500;
+  if (strncmp(sig, lastInfoSig, sizeof(lastInfoSig)) == 0 &&
+      (uint32_t)(now - lastInfoMs) <= windowMs) {
+    return true;
+  }
+  strlcpy(lastInfoSig, sig, sizeof(lastInfoSig));
+  lastInfoMs = now;
+  return false;
+}
+
 bool Telnet::_isIPSet(IPAddress ip) {
   return strcmp(config.ipToStr(ip), "0.0.0.0") == 0;
 }
@@ -152,6 +201,7 @@ void Telnet::printf(const char *format, ...) {
   va_start (args, format );
   vsnprintf(cmBuf, sizeof(cmBuf), format, args);
   va_end (args);
+  if (_shouldSuppressCliLine(cmBuf)) return;
   for (int id = 0; id < MAX_TLN_CLIENTS; id++) {
     if (clients[id] && clients[id].connected()) {
       clients[id].print(cmBuf);
@@ -169,6 +219,7 @@ void Telnet::printf(uint8_t id, const char *format, ...) {
   va_start(argptr, format);
   vsnprintf(cmBuf, sizeof(cmBuf), format, argptr);
   va_end(argptr);
+  if (_shouldSuppressCliLine(cmBuf)) return;
   if(id>MAX_TLN_CLIENTS){
     Serial.print(cmBuf);
     return;
@@ -184,6 +235,7 @@ void Telnet::on_connect(const char* str, uint8_t clientId) {
 }
 
 void Telnet::info() {
+  if (_shouldSuppressInfoSnapshot()) return;
   telnet.printf("##CLI.INFO#\r\n");
   strftime(config.tmpBuf, sizeof(config.tmpBuf), "%Y-%m-%dT%H:%M:%S+03:00", &network.timeinfo);
   telnet.printf("##SYS.DATE#: %s\r\n", config.tmpBuf); //TODO timezone offset

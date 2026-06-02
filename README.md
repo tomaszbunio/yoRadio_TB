@@ -3,6 +3,17 @@
 Moje modyfikacje projektu yoRadio autorstwa [e2002](https://github.com/e2002/yoradio)
 i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
+## Moje zmiany: v8.8_TB
+
+- ekran `SD_PLAYER` z obsługą transportu dotykiem i dodatkowymi informacjami o pliku
+- okładki albumów na ekranie `SD_PLAYER`
+- ustawienia NeoPixel, motywów i zegara rozszerzone oraz zapisywane z WWW
+- poprawki przełączania trybów `PLAYER` / `STATIONS` / `SD_PLAYER`
+- poprawki resume i startu odtwarzania z SD
+- poprawienie błędów z `v8.7.1`
+
+---
+
 ## Moje zmiany: v8.7.1_TB
 
 - poprawienie błędów z v8.7

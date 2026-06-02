@@ -123,12 +123,39 @@ void ScrollWidget::init(const char* separator, ScrollConfig conf, uint16_t fgcol
     TextWidget::init(conf.widget, conf.buffsize, conf.uppercase, fgcolor, bgcolor);
     _sep = (char*)malloc(sizeof(char) * 4);
     memset(_sep, 0, 4);
-    snprintf(_sep, 4, " %.*s ", 1, separator);
+    // "*" is used as a default marker in configs; when scroll starts (after startscrolldelay)
+    // it can appear as a large ":"-like artifact on some TFT/font combinations.
+    // Keep spacing, but render no visible separator for this default marker.
+    const char sepch = (separator && separator[0]) ? separator[0] : ' ';
+    if (sepch == '*') {
+        snprintf(_sep, 4, "   ");
+    } else {
+        snprintf(_sep, 4, " %c ", sepch);
+    }
     _x = conf.widget.left;
     _startscrolldelay = conf.startscrolldelay;
     _scrolldelta = conf.scrolldelta;
     _scrolltime = conf.scrolltime;
     _charSize(_config.textsize, _charWidth, _textheight);
+    if (_config.font) {
+        _textheight = pgm_read_byte(&_config.font->yAdvance);
+        uint8_t first = pgm_read_byte(&_config.font->first);
+        uint8_t last  = pgm_read_byte(&_config.font->last);
+        if ('A' >= first && 'A' <= last) {
+            GFXglyph *g = (GFXglyph*)pgm_read_ptr(&_config.font->glyph) + ('A' - first);
+            _charWidth = pgm_read_byte(&g->xAdvance);
+            _fontBaselineY = (int16_t)(-(int8_t)pgm_read_byte(&g->yOffset));
+        } else {
+            _fontBaselineY = (int16_t)(_textheight - 4);
+        }
+    } else if (_config.u8g2font) {
+        u8g2Fonts.setFont(_config.u8g2font);
+        int8_t asc = u8g2Fonts.getFontAscent();
+        int8_t dsc = u8g2Fonts.getFontDescent();
+        _textheight    = asc - dsc;
+        _fontBaselineY = asc;
+        _charWidth     = 12;
+    }
     _sepwidth = strlen(_sep) * _charWidth;
     _width = conf.width;
     _backMove.width = _width;
@@ -143,14 +170,18 @@ void ScrollWidget::init(const char* separator, ScrollConfig conf, uint16_t fgcol
 }
 
 void ScrollWidget::_setTextParams() {
-    if (_config.textsize == 0) { return; }
+    if (_config.textsize == 0 && !_config.font && !_config.u8g2font) { return; }
+    if (_config.u8g2font) { return; }
+    uint8_t ts = _config.font ? 1 : _config.textsize;
     if (_fb->ready()) {
     #ifdef PSFBUFFER
-        _fb->setTextSize(_config.textsize);
+        _fb->setFont(_config.font);
+        _fb->setTextSize(ts);
         _fb->setTextColor(_fgcolor, _bgcolor);
     #endif
     } else {
-        dsp.setTextSize(_config.textsize);
+        dsp.setFont(_config.font);
+        dsp.setTextSize(ts);
         dsp.setTextColor(_fgcolor, _bgcolor);
     }
 }
@@ -160,9 +191,27 @@ bool ScrollWidget::_checkIsScrollNeeded() {
 }
 
 void ScrollWidget::setText(const char* txt) {
-    strlcpy(_text, utf8To(txt, _uppercase), _buffsize - 1);
+    if (_config.u8g2font) {
+        strlcpy(_text, txt, _buffsize - 1);
+    } else {
+        strlcpy(_text, utf8To(txt, _uppercase), _buffsize - 1);
+    }
     if (strcmp(_oldtext, _text) == 0) { return; }
-    _textwidth = strlen(_text) * _charWidth;
+    if (_config.u8g2font) {
+        u8g2Fonts.setFont(_config.u8g2font);
+        _textwidth = u8g2Fonts.getUTF8Width(_text);
+        _sepwidth  = u8g2Fonts.getUTF8Width(_sep);
+    } else if (_config.font) {
+        int16_t bx, by; uint16_t bw, bh;
+        dsp.setFont(_config.font);
+        dsp.setTextSize(1);
+        dsp.getTextBounds(_text, 0, 0, &bx, &by, &bw, &bh);
+        _textwidth = bw;
+        dsp.getTextBounds(_sep, 0, 0, &bx, &by, &bw, &bh);
+        _sepwidth = bw;
+    } else {
+        _textwidth = strlen(_text) * _charWidth;
+    }
     _x = _fb->ready() ? 0 : _config.left;
     _doscroll = _checkIsScrollNeeded();
     if (dsp.getScrollId() == this) { dsp.setScrollId(NULL); }
@@ -173,30 +222,48 @@ void ScrollWidget::setText(const char* txt) {
             if (_fb->ready()) {
     #ifdef PSFBUFFER
                 _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
-                _fb->setCursor(0, 0);
-                snprintf(_window, _width / _charWidth + 1, "%s", _text); // TODO
-                _fb->print(_window);
+                if (_config.u8g2font) {
+                    u8g2Fonts.begin(*_fb);
+                    u8g2Fonts.setFont(_config.u8g2font);
+                    u8g2Fonts.setForegroundColor(_fgcolor);
+                    u8g2Fonts.setBackgroundColor(_bgcolor);
+                    u8g2Fonts.setCursor(0, _fontBaselineY);
+                    u8g2Fonts.print(_text);
+                } else {
+                    _fb->setCursor(0, _fontBaselineY);
+                    if (!_config.font) { snprintf(_window, _width / _charWidth + 1, "%s", _text); _fb->print(_window); }
+                    else { _fb->print(_text); }
+                }
                 _fb->display();
     #endif
             } else {
                 dsp.fillRect(_config.left, _config.top, _width, _textheight, _bgcolor);
-                dsp.setCursor(_config.left, _config.top);
+                dsp.setCursor(_config.left, _config.font ? _config.top + _fontBaselineY : _config.top);
                 snprintf(_window, _width / _charWidth + 1, "%s", _text); // TODO
                 dsp.setClipping({_config.left, _config.top, _width, _textheight});
-                dsp.print(_window);
+                dsp.print(_config.font ? _text : _window);
                 dsp.clearClipping();
             }
         } else {
             if (_fb->ready()) {
     #ifdef PSFBUFFER
                 _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
-                _fb->setCursor(_realLeft(true), 0);
-                _fb->print(_text);
+                if (_config.u8g2font) {
+                    u8g2Fonts.begin(*_fb);
+                    u8g2Fonts.setFont(_config.u8g2font);
+                    u8g2Fonts.setForegroundColor(_fgcolor);
+                    u8g2Fonts.setBackgroundColor(_bgcolor);
+                    u8g2Fonts.setCursor(_realLeft(true), _fontBaselineY);
+                    u8g2Fonts.print(_text);
+                } else {
+                    _fb->setCursor(_realLeft(true), _fontBaselineY);
+                    _fb->print(_text);
+                }
                 _fb->display();
     #endif
             } else {
                 dsp.fillRect(_config.left, _config.top, _width, _textheight, _bgcolor);
-                dsp.setCursor(_realLeft(), _config.top);
+                dsp.setCursor(_realLeft(), _config.font ? _config.top + _fontBaselineY : _config.top);
                 dsp.print(_text);
             }
         }
@@ -212,7 +279,7 @@ void ScrollWidget::setText(const char* txt, const char* format) {
 
 void ScrollWidget::loop() {
     if (_locked) { return; }
-    if (!_doscroll || _config.textsize == 0 || (dsp.getScrollId() != NULL && dsp.getScrollId() != this)) { return; }
+    if (!_doscroll || (_config.textsize == 0 && !_config.u8g2font) || (dsp.getScrollId() != NULL && dsp.getScrollId() != this)) { return; }
     uint16_t fbl = _fb->ready() ? 0 : _config.left;
     if (_checkDelay(_x == fbl ? _startscrolldelay : _scrolltime, _scrolldelay)) {
         _calcX();
@@ -235,34 +302,62 @@ void ScrollWidget::_draw() {
     if (!_active || _locked) { return; }
     _setTextParams();
     if (_doscroll) {
-        uint16_t    fbl = _fb->ready() ? 0 : _config.left;
-        uint16_t    _newx = fbl - _x;
-        const char* _cursor = _text + _newx / _charWidth;
-        uint16_t    hiddenChars = _cursor - _text;
-        uint8_t     addChars = _fb->ready() ? 2 : 1;
-        if (hiddenChars < strlen(_text)) {
-    // TODO
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wformat-truncation="
-            snprintf(_window, _width / _charWidth + addChars, "%s%s%s", _cursor, _sep, _text);
-    #pragma GCC diagnostic pop
-        } else {
-            const char* _scursor = _sep + (_cursor - (_text + strlen(_text)));
-            snprintf(_window, _width / _charWidth + addChars, "%s%s", _scursor, _text);
-        }
+        uint16_t fbl = _fb->ready() ? 0 : _config.left;
         if (_fb->ready()) {
     #ifdef PSFBUFFER
             _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
-            _fb->setCursor(_x + hiddenChars * _charWidth, 0);
-            _fb->print(_window);
+            if (_config.u8g2font) {
+                char loopBuf[_buffsize * 2 + 6];
+                snprintf(loopBuf, sizeof(loopBuf), "%s%s%s", _text, _sep, _text);
+                u8g2Fonts.begin(*_fb);
+                u8g2Fonts.setFont(_config.u8g2font);
+                u8g2Fonts.setForegroundColor(_fgcolor);
+                u8g2Fonts.setBackgroundColor(_bgcolor);
+                u8g2Fonts.setCursor(_x, _fontBaselineY);
+                u8g2Fonts.print(loopBuf);
+            } else if (_config.font) {
+                // GFXfont: pixel-based scroll, psFrameBuffer clips naturally
+                char loopBuf[_buffsize * 2 + 6];
+                snprintf(loopBuf, sizeof(loopBuf), "%s%s%s", _text, _sep, _text);
+                _fb->setCursor(_x, _fontBaselineY);
+                _fb->print(loopBuf);
+            } else {
+                uint16_t    _newx = fbl - _x;
+                const char* _cursor = _text + _newx / _charWidth;
+                uint16_t    hiddenChars = _cursor - _text;
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wformat-truncation="
+                if (hiddenChars < strlen(_text))
+                    snprintf(_window, _width / _charWidth + 2, "%s%s%s", _cursor, _sep, _text);
+                else {
+                    const char* _scursor = _sep + (_cursor - (_text + strlen(_text)));
+                    snprintf(_window, _width / _charWidth + 2, "%s%s", _scursor, _text);
+                }
+    #pragma GCC diagnostic pop
+                _fb->setCursor(_x + hiddenChars * _charWidth, 0);
+                _fb->print(_window);
+            }
             _fb->display();
     #endif
         } else {
-            dsp.setCursor(_x + hiddenChars * _charWidth, _config.top);
+            uint16_t    _newx = fbl - _x;
+            const char* _cursor = _text + _newx / _charWidth;
+            uint16_t    hiddenChars = _cursor - _text;
+            uint8_t     addChars = 1;
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wformat-truncation="
+            if (hiddenChars < strlen(_text))
+                snprintf(_window, _width / _charWidth + addChars, "%s%s%s", _cursor, _sep, _text);
+            else {
+                const char* _scursor = _sep + (_cursor - (_text + strlen(_text)));
+                snprintf(_window, _width / _charWidth + addChars, "%s%s", _scursor, _text);
+            }
+    #pragma GCC diagnostic pop
+            dsp.setCursor(_x + hiddenChars * _charWidth, _config.font ? _config.top + _fontBaselineY : _config.top);
             dsp.setClipping({_config.left, _config.top, _width, _textheight});
-            dsp.print(_window);
+            dsp.print(_config.font ? _text : _window);
     #ifndef DSP_LCD
-            dsp.print(" ");
+            if (!_config.font) dsp.print(" ");
     #endif
             dsp.clearClipping();
         }
@@ -270,13 +365,22 @@ void ScrollWidget::_draw() {
         if (_fb->ready()) {
     #ifdef PSFBUFFER
             _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
-            _fb->setCursor(_realLeft(true), 0);
-            _fb->print(_text);
+            if (_config.u8g2font) {
+                u8g2Fonts.begin(*_fb);
+                u8g2Fonts.setFont(_config.u8g2font);
+                u8g2Fonts.setForegroundColor(_fgcolor);
+                u8g2Fonts.setBackgroundColor(_bgcolor);
+                u8g2Fonts.setCursor(_realLeft(true), _fontBaselineY);
+                u8g2Fonts.print(_text);
+            } else {
+                _fb->setCursor(_realLeft(true), _fontBaselineY);
+                _fb->print(_text);
+            }
             _fb->display();
     #endif
         } else {
             dsp.fillRect(_config.left, _config.top, _width, _textheight, _bgcolor);
-            dsp.setCursor(_realLeft(), _config.top);
+            dsp.setCursor(_realLeft(), _config.font ? _config.top + _fontBaselineY : _config.top);
             dsp.setClipping({_realLeft(), _config.top, _width, _textheight});
             dsp.print(_text);
             dsp.clearClipping();
@@ -285,7 +389,7 @@ void ScrollWidget::_draw() {
 }
 
 void ScrollWidget::_calcX() {
-    if (!_doscroll || _config.textsize == 0) { return; }
+    if (!_doscroll || (_config.textsize == 0 && !_config.font && !_config.u8g2font)) { return; }
     _x -= _scrolldelta;
     uint16_t fbl = _fb->ready() ? 0 : _config.left;
     if (-_x > _textwidth + _sepwidth - fbl) {
@@ -345,7 +449,7 @@ void SliderWidget::_draw() {
     if (_locked) { return; }
     _clear();
     if (!_active) { return; }
-    if (_outlined) { dsp.drawRect(_config.left, _config.top, _width, _height, _oucolor); }
+    for (uint8_t i = 0; i < _outlined; i++) { dsp.drawRect(_config.left + i, _config.top + i, _width - 2 * i, _height - 2 * i, _oucolor); }
     uint16_t valwidth = map(_value, 0, _max, 0, _width - _outlined * 2);
     dsp.fillRect(_config.left + _outlined, _config.top + _outlined, valwidth, _height - _outlined * 2, _fgcolor);
 }
@@ -355,6 +459,134 @@ void SliderWidget::_clear() {
 }
 void SliderWidget::_reset() {
     _oldvalwidth = 0;
+}
+
+SdFftWidget::~SdFftWidget() {
+    #ifndef DSP_OLED
+    if (_canvas) {
+        delete _canvas;
+        _canvas = nullptr;
+    }
+    #endif
+}
+
+void SdFftWidget::init(WidgetConfig wconf, uint16_t width, uint16_t height, uint8_t bands, uint16_t fgcolor, uint16_t bgcolor, uint16_t intervalMs) {
+    Widget::init(wconf, fgcolor, bgcolor);
+    _width = width;
+    _height = height;
+    _bands = bands > 16 ? 16 : bands;
+    _intervalMs = intervalMs == 0 ? 50 : intervalMs;
+    _inited = false;
+    _lastMs = 0;
+    memset(_prev, 255, sizeof(_prev));
+    #ifndef DSP_OLED
+    if (_canvas) {
+        delete _canvas;
+        _canvas = nullptr;
+    }
+    if (_width > 0 && _height > 0) {
+        _canvas = new Canvas(_width, _height);
+    }
+    #endif
+}
+
+void SdFftWidget::loop() {
+    if (!_active || _locked) return;
+    uint32_t now = millis();
+    if (now - _lastMs < _intervalMs) return;
+    _lastMs = now;
+    _draw();
+}
+
+void SdFftWidget::_draw() {
+    if (!_active || _locked || _width == 0 || _height == 0 || _bands == 0) return;
+
+    uint8_t spectrum[16] = {0};
+    player.getSpectrum(spectrum, _bands);
+
+    const uint16_t gap = 2;
+    const uint16_t totalGap = (_bands - 1) * gap;
+    if (_width <= totalGap + _bands) return;
+    const uint16_t barW = (uint16_t)((_width - totalGap) / _bands);
+    if (barW < 1) return;
+    const uint16_t usedW = (uint16_t)(_bands * barW + totalGap);
+    const uint16_t x0 = (uint16_t)((_width - usedW) / 2);
+    const uint16_t yBottom = (uint16_t)(_height - 1);
+
+    if (!_inited) {
+        #ifndef DSP_OLED
+        if (_canvas) {
+            _canvas->fillRect(0, 0, _width, _height, _bgcolor);
+            dsp.startWrite();
+            dsp.setAddrWindow(_config.left, _config.top, _width, _height);
+            dsp.writePixels((uint16_t*)_canvas->getBuffer(), _width * _height);
+            dsp.endWrite();
+        } else {
+            dsp.fillRect(_config.left, _config.top, _width, _height, _bgcolor);
+        }
+        #else
+        dsp.fillRect(_config.left, _config.top, _width, _height, _bgcolor);
+        #endif
+        memset(_prev, 255, sizeof(_prev));
+        _inited = true;
+    }
+
+    #ifndef DSP_OLED
+    if (_canvas) {
+        _canvas->fillRect(0, 0, _width, _height, _bgcolor);
+    }
+    #endif
+
+    for (uint8_t i = 0; i < _bands; i++) {
+        uint16_t boosted = (uint16_t)spectrum[i] * 3U / 2U;
+        uint8_t vis = (boosted > 255U) ? 255U : (uint8_t)boosted;
+        const uint16_t bx = (uint16_t)(x0 + i * (barW + gap));
+        const uint16_t newH = (uint16_t)(((uint32_t)vis * _height) / 255U);
+        if (newH > 0) {
+            #ifndef DSP_OLED
+            if (_canvas) {
+                _canvas->fillRect(bx, (uint16_t)(yBottom - newH + 1), barW, newH, _fgcolor);
+            } else {
+                dsp.fillRect((uint16_t)(_config.left + bx), (uint16_t)(_config.top + yBottom - newH + 1), barW, newH, _fgcolor);
+            }
+            #else
+            dsp.fillRect((uint16_t)(_config.left + bx), (uint16_t)(_config.top + yBottom - newH + 1), barW, newH, _fgcolor);
+            #endif
+        }
+        _prev[i] = vis;
+    }
+
+    #ifndef DSP_OLED
+    if (_canvas) {
+        dsp.startWrite();
+        dsp.setAddrWindow(_config.left, _config.top, _width, _height);
+        dsp.writePixels((uint16_t*)_canvas->getBuffer(), _width * _height);
+        dsp.endWrite();
+    }
+    #endif
+}
+
+void SdFftWidget::_clear() {
+    if (_width == 0 || _height == 0) return;
+    #ifndef DSP_OLED
+    if (_canvas) {
+        _canvas->fillRect(0, 0, _width, _height, _bgcolor);
+        dsp.startWrite();
+        dsp.setAddrWindow(_config.left, _config.top, _width, _height);
+        dsp.writePixels((uint16_t*)_canvas->getBuffer(), _width * _height);
+        dsp.endWrite();
+    } else {
+        dsp.fillRect(_config.left, _config.top, _width, _height, _bgcolor);
+    }
+    #else
+    dsp.fillRect(_config.left, _config.top, _width, _height, _bgcolor);
+    #endif
+}
+
+void SdFftWidget::_reset() {
+    _inited = false;
+    _lastMs = 0;
+    memset(_prev, 255, sizeof(_prev));
 }
 
 /************************
@@ -649,23 +881,29 @@ void VuWidget::_draw() {
         #ifndef DSP_OLED
             int label_width = _bands.height + 15;
             int label_height = _bands.height + 4;
-            int label_offset = label_width + 4;
-            int label_left = _config.left - label_offset;
-            if (label_left >= 0) {
-                dsp.fillRect(label_left, _config.top - 4, label_width, label_height, 0x7BEF);
-                dsp.fillRect(label_left, _config.top + _bands.height + _bands.space, label_width, label_height - 1, 0x7BEF);
-                dsp.setTextColor(0xFFFF);
-                dsp.setTextSize(1);
-                dsp.setFont();
-                int text_x = label_left + (label_width - 6) / 2;
-                int text_y_L = (_config.top - 2) + (label_height - 10) / 2;
-                int text_y_R = _config.top + _bands.height + _bands.space + (label_height - 8) / 2;
-                dsp.setCursor(text_x, text_y_L);
-                dsp.print("L");
-                dsp.setCursor(text_x, text_y_R);
-                dsp.print("R");
-                _labelsDrawn = true;
-            }
+            int total_width = 2 * label_width + 6;
+            int label_left_L = _config.left + ((int)_bands.width - total_width) / 2;
+            if (label_left_L < 0) { label_left_L = 0; }
+            int label_left_R = label_left_L + label_width + 6;
+            int label_top = _config.top - label_height - 3;
+            if (label_top < 0) { label_top = 0; }
+            dsp.fillRect(label_left_L, label_top, label_width, label_height, 0x7BEF);
+            dsp.fillRect(label_left_R, label_top, label_width, label_height, 0x7BEF);
+            dsp.setTextColor(0xFFFF);
+            dsp.setTextSize(1);
+            dsp.setFont();
+            int text_x_L = label_left_L + (label_width - 6) / 2;
+            int text_x_R = label_left_R + (label_width - 6) / 2;
+            #if DSP_MODEL == DSP_ILI9341
+            int text_y = (label_top + (label_height - 8) / 2) - 1;
+            #else
+            int text_y = label_top + (label_height - 8) / 2;
+            #endif
+            dsp.setCursor(text_x_L, text_y);
+            dsp.print("L");
+            dsp.setCursor(text_x_R, text_y);
+            dsp.print("R");
+            _labelsDrawn = true;
         #else
             dsp.setTextColor(0xF);
             dsp.setTextSize(0);
@@ -686,12 +924,37 @@ void VuWidget::_draw() {
 }
 
 void VuWidget::loop() {
-    if (_active && !_locked) { _draw(); }
+    if (_active && !_locked && !config.isSdPlayer) { _draw(); }
 }
 
 void VuWidget::_clear() {
     #ifndef DSP_OLED
-    dsp.fillRect(0, _config.top - 4, 479, 24, _bgcolor);
+    int16_t clearLeft = _config.left;
+    int16_t clearTop = _config.top;
+    int16_t clearRight = _config.left + _bands.width;
+    int16_t clearBottom = _config.top + _bands.height * 2 + _bands.space;
+
+    #ifdef BOOMBOX_STYLE
+    // BOOMBOX: bars are drawn at (_config.left + 4, _config.top + 10)
+    // and L/R labels at (_config.top - 4). Clear only this local area.
+    clearLeft = _config.left + 4;
+    clearRight = clearLeft + (_bands.width * 2 + _bands.space);
+    clearTop = _config.top - 4;
+    clearBottom = _config.top + 10 + _bands.height;
+    #else
+    // Classic: bars are drawn in [_config.top .. _config.top + 2*height + space],
+    // labels are just above the bars.
+    clearTop = _config.top - ((int16_t)_bands.height + 7);
+    #endif
+
+    if (clearLeft < 0) { clearLeft = 0; }
+    if (clearTop < 0) { clearTop = 0; }
+    if (clearRight > (int16_t)dsp.width()) { clearRight = dsp.width(); }
+    if (clearBottom > (int16_t)dsp.height()) { clearBottom = dsp.height(); }
+
+    if (clearRight > clearLeft && clearBottom > clearTop) {
+        dsp.fillRect((uint16_t)clearLeft, (uint16_t)clearTop, (uint16_t)(clearRight - clearLeft), (uint16_t)(clearBottom - clearTop), _bgcolor);
+    }
     _labelsDrawn = false; // L és R meg keljen rajzolni. Módosítás.
     // Serial.println("widget.cpp -> VuWidget::_clear()");
     #else
@@ -913,13 +1176,33 @@ void ProgressWidget::loop() {
 /*************************************************************************************************************************
                                                                CLOCK WIDGET
  *************************************************************************************************************************/
+#ifndef FLIP_PANEL_VPAD
+  #define FLIP_PANEL_VPAD 5
+#endif
+#ifndef FLIP_DIGIT_PAD
+  #define FLIP_DIGIT_PAD 4
+#endif
+#ifndef FLIP_DIGIT_GAP
+  #define FLIP_DIGIT_GAP 4
+#endif
+
+bool ClockWidget::_flipEnabled() const {
+    return config.store.clockmode == 1;
+}
+
+bool ClockWidget::_secondsEnabled() const {
+    return config.store.clockseconds != 0;
+}
+
 void ClockWidget::init(WidgetConfig wconf, uint16_t fgcolor, uint16_t bgcolor) {
     Widget::init(wconf, fgcolor, bgcolor);
-#if defined(FLIP_CLOCK) && defined(FLIP_CLOCK_BASELINE)
+    if (_flipEnabled()) {
+#if defined(FLIP_CLOCK_BASELINE)
     _config.top   = FLIP_CLOCK_BASELINE;
     _config.left  = FLIP_CLOCK_LEFT;
     _config.align = FLIP_CLOCK_ALIGN;
 #endif
+    }
     _timeheight = _textHeight();
     _fullclock = TIME_SIZE > 35 || DSP_MODEL == DSP_ILI9225;
     if (_fullclock) {
@@ -944,15 +1227,11 @@ void ClockWidget::init(WidgetConfig wconf, uint16_t fgcolor, uint16_t bgcolor) {
     _getTimeBounds();
     #ifdef PSFBUFFER
     _fb = new psFrameBuffer(dsp.width(), dsp.height());
-    #ifndef FLIP_CLOCK
-    // Dla FLIP_CLOCK: _begin() woływane jest PONIŻEJ, po obliczeniu _flipPanelH.
-    // Gdyby _begin() zostało wywołane tutaj, _flipPanelH = 0 → _fb miałby wysokość 1px
-    // i przy _fb->display() kasowałby górny rząd karteczek (narożniki zaokrąglone).
-    _begin();
+    if (!_flipEnabled()) {
+        _begin();
+    }
     #endif
-    #endif
-
-    #ifdef FLIP_CLOCK
+    if (_flipEnabled()) {
     // Wyznacz maksymalną szerokość cyfry spośród '0'..'9' – wszystkie panele
     // muszą mieć tę samą szerokość niezależnie od aktualnie wyświetlanej cyfry.
     _flipDigitW = 0;
@@ -972,21 +1251,23 @@ void ClockWidget::init(WidgetConfig wconf, uint16_t fgcolor, uint16_t bgcolor) {
     // Teraz _flipPanelH jest poprawne → _fb uzyska właściwe wymiary.
     _begin();
     #endif
-    #endif
+    _lastTimebuffer[0] = '\0';
+    _forceflag = 0;
+    _lastSec = -1;
+    }
 }
 
 void ClockWidget::_begin() {
     #ifdef PSFBUFFER
-    #ifdef FLIP_CLOCK
-    _secGap = 0;  // wymusz ponowne obliczenie gap'u na pozycji PLAYER
-    _beginFlipSecBuf();
-    #else
-    _fb->begin(&dsp, _clockleft, _config.top - _timeheight, _clockwidth, _clockheight + 1, config.theme.background);
-    #endif
+    if (_flipEnabled()) {
+        _secGap = 0;
+        _beginFlipSecBuf();
+    } else {
+        _fb->begin(&dsp, _clockleft, _config.top - _timeheight, _clockwidth, _clockheight + 1, config.theme.background);
+    }
     #endif
 }
 
-#ifdef FLIP_CLOCK
 /**
  * @brief Inicjalizuje _fb jako mały bufor PSRAM dla wyświetlania sekund.
  *        Zamiast alokować ~_clockwidth × _flipPanelH (nieużywany dla FLIP_CLOCK),
@@ -1028,7 +1309,6 @@ void ClockWidget::_beginFlipSecBuf() {
     _fb->begin(&dsp, leftSec, topSec - secH, secW + 2, secH + 2, config.theme.background);
     _fb->setLabel("SEKUNDY");
 }
-#endif
 
 bool ClockWidget::_getTime() {
     #if defined AM_PM_STYLE
@@ -1039,12 +1319,17 @@ bool ClockWidget::_getTime() {
     #else
     strftime(_timebuffer, sizeof(_timebuffer), "%H:%M", &network.timeinfo);
     #endif
-    bool ret = network.timeinfo.tm_sec == 0 || _forceflag != network.timeinfo.tm_year;
+    bool minuteChanged = strncmp(_lastTimebuffer, _timebuffer, sizeof(_lastTimebuffer)) != 0;
+    if (minuteChanged) {
+        strlcpy(_lastTimebuffer, _timebuffer, sizeof(_lastTimebuffer));
+    }
+    bool ret = minuteChanged || network.timeinfo.tm_sec == 0 || _forceflag != network.timeinfo.tm_year;
     _forceflag = network.timeinfo.tm_year;
     return ret;
 }
 
 uint16_t ClockWidget::_left() {
+    if (_flipEnabled()) { return _clockleft; }
     #ifdef FLIP_CLOCK
     // FLIP_CLOCK: FlipDigit rysuje bezpośrednio na ekranie – zawsze zwracaj
     // rzeczywistą pozycję ekranową (nie lokalną 0 framebuffera).
@@ -1058,6 +1343,7 @@ uint16_t ClockWidget::_left() {
     #endif
 }
 uint16_t ClockWidget::_top() {
+    if (_flipEnabled()) { return _config.top; }
     #ifdef FLIP_CLOCK
     // FLIP_CLOCK: _config.top = baseline czcionki (dół tekstu) na ekranie.
     // FlipDigit sam oblicza górną krawędź bufora: y - _h - FLIP_CARD_MARGIN.
@@ -1072,6 +1358,30 @@ uint16_t ClockWidget::_top() {
 }
 
 void ClockWidget::_getTimeBounds() {
+    if (_flipEnabled() && Clock_GFXfontPtr && _flipDigitW > 0) {
+        const uint16_t padX  = FLIP_DIGIT_PAD;
+        const uint16_t gap   = FLIP_DIGIT_GAP;
+        uint16_t pw     = _flipDigitW * 2 + padX * 2;
+        uint16_t colonW = _charWidth(':', Clock_GFXfontPtr);
+        if (colonW == 0) colonW = pw / 4;
+        _timewidth = pw * 2 + gap * 2 + colonW;
+        _dotsleft = pw + gap;
+
+        uint8_t  fs        = _superfont > 0 ? _superfont : TIME_SIZE;
+        // Keep HH:MM panel position stable when toggling seconds on/off.
+        // Flip layout always reserves the seconds column, and we only hide its content.
+        uint16_t rightside = CHARWIDTH * fs * 2;
+        if (_fullclock) {
+            rightside += _space * 2 + 1;
+        }
+        _clockwidth = (_fullclock || _superfont > 0) ? (_timewidth + rightside) : _timewidth;
+        switch (_config.align) {
+            case WA_LEFT:  _clockleft = _config.left; break;
+            case WA_RIGHT: _clockleft = dsp.width() - _clockwidth - _config.left; break;
+            default:       _clockleft = (dsp.width() / 2 - _clockwidth / 2) + _config.left; break;
+        }
+        return;
+    }
 #ifdef FLIP_CLOCK
     if (Clock_GFXfontPtr && _flipDigitW > 0) {
         // Panel layout: [HH pw][gap][colon colonW][gap][MM pw]
@@ -1107,16 +1417,54 @@ void ClockWidget::_getTimeBounds() {
         return;
     }
 #endif
+    if (!_flipEnabled() && Clock_GFXfontPtr) {
+        char hhTxt[3] = { _timebuffer[0], _timebuffer[1], '\0' };
+        char mmTxt[3] = { _timebuffer[3], _timebuffer[4], '\0' };
+        const int16_t baseY = (int16_t)_config.top;
+        constexpr int16_t kColonGapPx = 10;
+
+        int16_t  hhBx = 0, mmBx = 0, cBx = 0;
+        uint16_t hhBw = 0, mmBw = 0, cBw = 0;
+        int16_t  dummyX = 0, dummyY = 0;
+        uint16_t dummyW = 0, dummyH = 0;
+        dsp.setTextSize(1);
+        dsp.setFont(Clock_GFXfontPtr);
+        dsp.getTextBounds(hhTxt, 0, baseY, &hhBx, &dummyX, &hhBw, &dummyW);
+        dsp.getTextBounds(mmTxt, 0, baseY, &mmBx, &dummyY, &mmBw, &dummyH);
+        dsp.getTextBounds(":", 0, baseY, &cBx, &dummyX, &cBw, &dummyW);
+
+        const int16_t hhRight = hhBx + (int16_t)hhBw;
+        const int16_t colonLeft = hhRight + kColonGapPx;
+        const int16_t colonRight = colonLeft + (int16_t)cBw;
+        const int16_t mmCursorX = (colonRight + kColonGapPx) - mmBx;
+
+        int16_t  mmPlacedBx = 0, mmPlacedBy = 0;
+        uint16_t mmPlacedBw = 0, mmPlacedBh = 0;
+        dsp.getTextBounds(mmTxt, mmCursorX, baseY, &mmPlacedBx, &mmPlacedBy, &mmPlacedBw, &mmPlacedBh);
+
+        int16_t totalLeft = hhBx;
+        if (colonLeft < totalLeft) totalLeft = colonLeft;
+        if (mmPlacedBx < totalLeft) totalLeft = mmPlacedBx;
+
+        int16_t totalRight = hhRight;
+        if (colonRight > totalRight) totalRight = colonRight;
+        const int16_t mmPlacedRight = mmPlacedBx + (int16_t)mmPlacedBw;
+        if (mmPlacedRight > totalRight) totalRight = mmPlacedRight;
+
+        _timewidth = (totalRight > totalLeft) ? (uint16_t)(totalRight - totalLeft) : _textWidth(_timebuffer);
+        _dotsleft = colonLeft - cBx; // cursor X for ':' relative to _left()
+    } else {
     _timewidth = _textWidth(_timebuffer);
+    }
     uint8_t  fs = _superfont > 0 ? _superfont : TIME_SIZE;
-    uint16_t rightside = CHARWIDTH * fs * 2; // seconds
-    if (_fullclock) {
+    uint16_t rightside = _secondsEnabled() ? CHARWIDTH * fs * 2 : 0; // seconds
+    if (_fullclock && _secondsEnabled()) {
         rightside += _space * 2 + 1; // 2space+vline
         _clockwidth = _timewidth + rightside;
     } else {
         if (_superfont == 0) {
             _clockwidth = _timewidth;
-        } else {
+        } else if (_secondsEnabled()) {
             _clockwidth = _timewidth + rightside;
         }
     }
@@ -1125,9 +1473,11 @@ void ClockWidget::_getTimeBounds() {
         case WA_RIGHT: _clockleft = dsp.width() - _clockwidth - _config.left; break;
         default: _clockleft = (dsp.width() / 2 - _clockwidth / 2) + _config.left; break;
     }
-    char buf[4];
-    strftime(buf, 4, "%H", &network.timeinfo);
-    _dotsleft = _textWidth(buf);
+    if (!(!_flipEnabled() && Clock_GFXfontPtr)) {
+        char buf[4];
+        strftime(buf, 4, "%H", &network.timeinfo);
+        _dotsleft = _textWidth(buf);
+    }
 }
 
     #ifndef DSP_LCD
@@ -1139,6 +1489,7 @@ void ClockWidget::_getTimeBounds() {
 #endif
 
 Adafruit_GFX& ClockWidget::getRealDsp() {
+    if (_flipEnabled()) { return dsp; }
     #ifdef FLIP_CLOCK
     // FLIP_CLOCK: karteczki HH/MM rysowane przez FlipDigit bezpośrednio na dsp.
     // Sekundy, data i dwukropek też trafiają na dsp (nie do _fb).
@@ -1185,6 +1536,90 @@ void ClockWidget::_printClock(bool force) {
     auto& gfx = getRealDsp();
     gfx.setTextSize(Clock_GFXfontPtr == nullptr ? TIME_SIZE : 1);
     gfx.setFont(Clock_GFXfontPtr);
+    if (_flipEnabled()) {
+        if (force) {
+            _getTimeBounds();
+            char hhNew[3] = { _timebuffer[0], _timebuffer[1], '\0' };
+            char mmNew[3] = { _timebuffer[3], _timebuffer[4], '\0' };
+            if (strcmp(hhNew, _flipHH.current()) != 0) _flipHH.flipTo(hhNew);
+            else _flipHH.setValue(hhNew);
+            if (strcmp(mmNew, _flipMM.current()) != 0) _flipMM.flipTo(mmNew);
+            else _flipMM.setValue(mmNew);
+            strncpy(_prevTimebuffer, _timebuffer, sizeof(_prevTimebuffer));
+            if (_secondsEnabled()) {
+                _drawFlipSeconds();
+            } else if (_fb->ready()) {
+                // Seconds hidden: actively clear the seconds buffer area to avoid ghosting.
+                _fb->clear();
+                _fb->display();
+            }
+#ifdef DEBUG_FLIP_CLOCK_UI
+            Serial.printf("[flip/ui] force=1 fullclock=%d screensaver=%d sd=%d\n",
+                          _fullclock ? 1 : 0, config.isScreensaver ? 1 : 0, config.isSdPlayer ? 1 : 0);
+#endif
+        }
+
+        if (force && _fullclock && !config.isScreensaver) {
+            _formatDate();
+#ifndef HIDE_DATE
+            memcpy_P(&_dateConf, &dateConf, sizeof(WidgetConfig));
+            int lineHeight = _dateheight * 8;
+            dsp.fillRect(0, _dateConf.top, dsp.width(), lineHeight, config.theme.background);
+            strlcpy(_datebuf, utf8To(_tmp, false), sizeof(_datebuf));
+            uint16_t _datewidth = strlen(_datebuf) * CHARWIDTH * _dateheight;
+            dsp.setFont();
+            dsp.setTextSize(_dateheight);
+            uint16_t _dateleft = dsp.width() - _datewidth - _dateConf.left;
+            dsp.setCursor(_dateleft, _dateConf.top);
+            dsp.setTextColor(config.theme.date, config.theme.background);
+            dsp.print(_datebuf);
+#ifdef DEBUG_FLIP_CLOCK_UI
+            if (force) {
+                Serial.printf("[flip/ui] date y=%u h=%d x=%u w=%u txt='%s'\n",
+                              _dateConf.top, lineHeight, _dateleft, _datewidth, _datebuf);
+            }
+#endif
+#endif
+        }
+
+#ifdef NAMEDAYS_FILE
+        if (config.store.nameday) {
+            static uint32_t lastRotationFlip = 0;
+            if (millis() - lastRotationFlip >= 4000) {
+                getNamedayUpper(_namedayBuf, sizeof(_namedayBuf));
+                if (!config.isScreensaver && !config.isSdPlayer && strcmp(_oldNamedayBuf, _namedayBuf) != 0) {
+                    strlcpy(_oldNamedayBuf, _namedayBuf, sizeof(_oldNamedayBuf));
+                    _namedaywidth = strlen(_namedayBuf) * CHARWIDTH * namedayConf.textsize;
+                    _printNameday();
+#ifdef DEBUG_FLIP_CLOCK_UI
+                    Serial.printf("[flip/ui] nameday y=%u txt='%s' w=%u\n",
+                                  namedayConf.top, _namedayBuf, _namedaywidth);
+#endif
+                }
+                lastRotationFlip = millis();
+            }
+        }
+#endif
+        gfx.setFont();
+        return;
+    }
+#ifdef FLIP_CLOCK
+    // Diagnostic: when FLIP_CLOCK macro is enabled, classic SS drawing block below
+    // (guarded by #ifndef FLIP_CLOCK) is compiled out.
+    static bool _dbgClassicSsCompiledOut = false;
+    if (!_dbgClassicSsCompiledOut) {
+        Serial.println("[clock/dbg] FLIP_CLOCK defined: classic SS draw block is compiled out by #ifndef FLIP_CLOCK");
+        _dbgClassicSsCompiledOut = true;
+    }
+    if (!_flipEnabled()) {
+        static int8_t _dbgClassicNoSsSec = -1;
+        if (network.timeinfo.tm_sec != _dbgClassicNoSsSec) {
+            _dbgClassicNoSsSec = (int8_t)network.timeinfo.tm_sec;
+            Serial.printf("[clock/dbg] runtime classic mode (clockmode=%d), but SS renderer is compiled out by FLIP_CLOCK\n",
+                          config.store.clockmode);
+        }
+    }
+#endif
     // bool clockInTitle = !config.isScreensaver && _config.top < _timeheight;  //DSP_SSD1306x32
     if (force) {
         #ifndef FLIP_CLOCK
@@ -1220,8 +1655,39 @@ void ClockWidget::_printClock(bool force) {
         //} else {
         gfx.setTextColor(config.theme.clock, config.theme.background);
         // }
-        gfx.setCursor(_left(), _top());
-        gfx.print(_timebuffer); // Az óra, perc kiírása.
+        if (Clock_GFXfontPtr) {
+            char hhTxt[3] = { _timebuffer[0], _timebuffer[1], '\0' };
+            char mmTxt[3] = { _timebuffer[3], _timebuffer[4], '\0' };
+            const int16_t baseY = (int16_t)_top();
+            const int16_t leftX = (int16_t)_left();
+            constexpr int16_t kColonGapPx = 10;
+
+            const int16_t hhCursorX = leftX;
+            int16_t  hhBx = 0, mmBx0 = 0, cBx0 = 0;
+            uint16_t hhBw = 0, cBw0 = 0;
+            int16_t  dummyX = 0, dummyY = 0;
+            uint16_t dummyW = 0, dummyH = 0;
+            gfx.getTextBounds(hhTxt, hhCursorX, baseY, &hhBx, &dummyX, &hhBw, &dummyW);
+            gfx.getTextBounds(mmTxt, 0, baseY, &mmBx0, &dummyY, &dummyW, &dummyH);
+            gfx.getTextBounds(":", 0, baseY, &cBx0, &dummyX, &cBw0, &dummyW);
+
+            const int16_t hhRight = hhBx + (int16_t)hhBw;
+            const int16_t colonLeft = hhRight + kColonGapPx;
+            const int16_t colonCursorX = colonLeft - cBx0;
+            const int16_t colonRight = colonLeft + (int16_t)cBw0;
+            const int16_t mmLeft = colonRight + kColonGapPx;
+            const int16_t mmCursorX = mmLeft - mmBx0;
+
+            gfx.setCursor(hhCursorX, baseY);
+            gfx.print(hhTxt);
+            gfx.setCursor(colonCursorX, baseY);
+            gfx.print(":");
+            gfx.setCursor(mmCursorX, baseY);
+            gfx.print(mmTxt);
+        } else {
+            gfx.setCursor(_left(), _top());
+            gfx.print(_timebuffer); // Az óra, perc kiírása.
+        }
         #endif // FLIP_CLOCK
 
         #if DSP_MODEL == DSP_SSD1322
@@ -1299,30 +1765,125 @@ void ClockWidget::_printClock(bool force) {
     // Tutaj nie rysujemy sekund, żeby nie było podwójnego rysowania w innej pozycji.
     gfx.setTextSize(Clock_GFXfontPtr == nullptr ? TIME_SIZE : 1);
     gfx.setFont(Clock_GFXfontPtr);
-    #ifndef FLIP_CLOCK
-        #ifndef DSP_OLED
-            #ifdef CLOCKFONT_MONO
-    gfx.setTextColor(dots ? config.theme.clock : config.theme.clockbg, config.theme.background);
-            #else
-    gfx.setTextColor(dots ? config.theme.clock : config.theme.background, config.theme.background);
-            #endif
-
-        #else
-    // if (clockInTitle) {
-    // gfx.setTextColor(dots ? config.theme.meta : config.theme.metabg, config.theme.metabg);
-    // } else {
-    gfx.setTextColor(dots ? config.theme.clock : config.theme.background, config.theme.background);
-            // }
-        #endif
-    dots = !dots;
-    gfx.setCursor(_left() + _dotsleft, _top());
-    gfx.print(":");
-    #endif // FLIP_CLOCK
+#ifndef FLIP_CLOCK
+#ifndef AM_PM_STYLE
+    if (_fullclock && _secondsEnabled()) {
+        bool fullClockOnScreensaver = (!config.isScreensaver || (_fb->ready() && FULL_SCR_CLOCK));
+        static int8_t _dbgLastSec = -1;
+        if (network.timeinfo.tm_sec != _dbgLastSec) {
+            _dbgLastSec = (int8_t)network.timeinfo.tm_sec;
+            Serial.printf("[clock/dbg] classic SS gate fullclock=%d secEn=%d ssaver=%d fb=%d fullOn=%d\n",
+                          _fullclock ? 1 : 0, _secondsEnabled() ? 1 : 0, config.isScreensaver ? 1 : 0,
+                          _fb->ready() ? 1 : 0, fullClockOnScreensaver ? 1 : 0);
+        }
+        if (fullClockOnScreensaver) {
+            gfx.setFont(Clock_GFXfontPtr_Sec);
+            gfx.setTextSize(0);
+            gfx.setTextColor(config.theme.seconds, config.theme.background);
+            int16_t       secX = (int16_t)_left() + (int16_t)_timewidth + (int16_t)_space + 8;
+            int16_t       secY = _top();
+            // Center SS vertically relative to MM in classic clock.
+            int16_t       secProbeX = 0, secProbeY = 0;
+            uint16_t      secProbeW = 0, secProbeH = 0;
+            gfx.getTextBounds("88", 0, 0, &secProbeX, &secProbeY, &secProbeW, &secProbeH);
+            if (secProbeH > 0) {
+                int16_t  mmProbeX = 0, mmProbeY = 0;
+                uint16_t mmProbeW = 0, mmProbeH = 0;
+                if (Clock_GFXfontPtr) {
+                    gfx.setFont(Clock_GFXfontPtr);
+                    gfx.getTextBounds("88", 0, _top(), &mmProbeX, &mmProbeY, &mmProbeW, &mmProbeH);
+                    gfx.setFont(Clock_GFXfontPtr_Sec);
+                }
+                const int16_t mmCenterY = (mmProbeH > 0)
+                    ? (mmProbeY + (int16_t)mmProbeH / 2)
+                    : ((int16_t)_top() - (int16_t)_timeheight / 2);
+                const int16_t secTop = mmCenterY - (int16_t)secProbeH / 2;
+                secY = secTop - secProbeY;
+            }
+            int16_t       bx = 0, by = 0;
+            uint16_t      bw = 0, bh = 0;
+            // Center SS horizontally between MM right edge and right screen edge.
+            const int16_t zoneLeft = (int16_t)_left() + (int16_t)_timewidth;
+            const int16_t zoneRight = (int16_t)gfx.width();
+            gfx.getTextBounds("88", secX, secY, &bx, &by, &bw, &bh);
+            if (bw > 0) {
+                const int16_t zoneCenterX = zoneLeft + (zoneRight - zoneLeft) / 2;
+                const int16_t targetLeft = zoneCenterX - (int16_t)bw / 2;
+                secX += (targetLeft - bx); // shift by measured bbox offset
+                gfx.getTextBounds("88", secX, secY, &bx, &by, &bw, &bh);
+            }
+            if (bw > 0 && bh > 0) {
+                gfx.fillRect(bx, by, bw, bh, config.theme.background);
+            }
+            sprintf(_tmp, "%02d", network.timeinfo.tm_sec);
+            Serial.printf("[clock/dbg] classic SS draw val=%s x=%d y=%d bx=%d by=%d bw=%u bh=%u zoneL=%d zoneR=%d\n",
+                          _tmp, secX, secY, bx, by, bw, bh, zoneLeft, zoneRight);
+            gfx.setCursor(secX, secY);
+            gfx.print(_tmp);
+        }
+    }
+#endif
+#endif
+    // Classic mode: blinking colon disabled. The fixed ':' from HH:MM stays visible.
     gfx.setFont();
     #ifndef FLIP_CLOCK
     // FLIP_CLOCK rysuje karteczki bezpośrednio na dsp – _fb nie jest używany do wyświetlania.
     // Gdyby _fb->display() zostało wywołane, nadpisałoby karteczki kolorem tła.
     if (_fb->ready()) { _fb->display(); }
+
+#ifndef AM_PM_STYLE
+    // Classic fallback: when clock uses framebuffer, force SS directly to display.
+    // This helps verify if SS is being lost between _fb rendering and final screen update.
+    if (_fullclock && _secondsEnabled() && _fb->ready()) {
+        bool fullClockOnScreensaver = (!config.isScreensaver || (_fb->ready() && FULL_SCR_CLOCK));
+        if (fullClockOnScreensaver) {
+            dsp.setFont(Clock_GFXfontPtr_Sec);
+            dsp.setTextSize(0);
+            dsp.setTextColor(config.theme.seconds, config.theme.background);
+
+            int16_t secX = (int16_t)_clockleft + (int16_t)_timewidth + (int16_t)_space + 8;
+            int16_t secY = (int16_t)_config.top;
+
+            int16_t  secProbeX = 0, secProbeY = 0;
+            uint16_t secProbeW = 0, secProbeH = 0;
+            dsp.getTextBounds("88", 0, 0, &secProbeX, &secProbeY, &secProbeW, &secProbeH);
+            if (secProbeH > 0) {
+                int16_t  mmProbeX = 0, mmProbeY = 0;
+                uint16_t mmProbeW = 0, mmProbeH = 0;
+                if (Clock_GFXfontPtr) {
+                    dsp.setFont(Clock_GFXfontPtr);
+                    dsp.getTextBounds("88", 0, _config.top, &mmProbeX, &mmProbeY, &mmProbeW, &mmProbeH);
+                    dsp.setFont(Clock_GFXfontPtr_Sec);
+                }
+                const int16_t mmCenterY = (mmProbeH > 0)
+                    ? (mmProbeY + (int16_t)mmProbeH / 2)
+                    : ((int16_t)_config.top - (int16_t)_timeheight / 2);
+                const int16_t secTop = mmCenterY - (int16_t)secProbeH / 2;
+                secY = secTop - secProbeY;
+            }
+
+            int16_t  bx = 0, by = 0;
+            uint16_t bw = 0, bh = 0;
+            const int16_t zoneLeft = (int16_t)_clockleft + (int16_t)_timewidth;
+            const int16_t zoneRight = (int16_t)dsp.width();
+            dsp.getTextBounds("88", secX, secY, &bx, &by, &bw, &bh);
+            if (bw > 0) {
+                const int16_t zoneCenterX = zoneLeft + (zoneRight - zoneLeft) / 2;
+                const int16_t targetLeft = zoneCenterX - (int16_t)bw / 2;
+                secX += (targetLeft - bx);
+                dsp.getTextBounds("88", secX, secY, &bx, &by, &bw, &bh);
+            }
+            if (bw > 0 && bh > 0) {
+                dsp.fillRect(bx, by, bw, bh, config.theme.background);
+            }
+            sprintf(_tmp, "%02d", network.timeinfo.tm_sec);
+            Serial.printf("[clock/dbg] classic SS dsp-fallback val=%s x=%d y=%d bx=%d by=%d bw=%u bh=%u zoneL=%d zoneR=%d\n",
+                          _tmp, secX, secY, bx, by, bw, bh, zoneLeft, zoneRight);
+            dsp.setCursor(secX, secY);
+            dsp.print(_tmp);
+        }
+    }
+#endif
     #endif
         // Mai névnap letöltése - csak ha engedélyezve van.
         #ifdef NAMEDAYS_FILE
@@ -1330,7 +1891,7 @@ void ClockWidget::_printClock(bool force) {
         static uint32_t lastRotation = 0;
         if (millis() - lastRotation >= 4000) {
             getNamedayUpper(_namedayBuf, sizeof(_namedayBuf));
-            if (!config.isScreensaver && strcmp(_oldNamedayBuf, _namedayBuf) != 0) {
+            if (!config.isScreensaver && !config.isSdPlayer && strcmp(_oldNamedayBuf, _namedayBuf) != 0) {
                 strlcpy(_oldNamedayBuf, _namedayBuf, sizeof(_oldNamedayBuf));
                 _namedaywidth = strlen(_namedayBuf) * CHARWIDTH * namedayConf.textsize; // csak változáskor számoljuk újra
                 _printNameday();
@@ -1413,6 +1974,9 @@ void ClockWidget::_printNameday() {
     nameday_top = _namedayConf.top + 22;
             #endif
     if (config.store.nameday) {
+        // Nameday text must use regular text font, not the flip clock numeric GFX font.
+        // In flip mode _printNameday() can be called from _printClock(false), where clock font is active.
+        dsp.setFont();
         // Rajzold le a nyelvfüggő "Névnap:" szót fehér színnel.
         dsp.setTextColor(config.theme.date, config.theme.background);
         dsp.setCursor(_namedayConf.left, _namedayConf.top); // egy sorral feljebb
@@ -1421,7 +1985,7 @@ void ClockWidget::_printNameday() {
             #else
         dsp.setTextSize(_namedayConf.textsize);
             #endif
-        if (!config.isScreensaver) {
+        if (!config.isScreensaver && !config.isSdPlayer) {
             // Serial.printf("Widget.cpp->nameday_label: %s \n", nameday_label);
             // Serial.printf("Widget.cpp->utf8To(nameday_label, false): %s \n", utf8To(nameday_label, false));
             dsp.print(utf8To(nameday_label, false)); // <<< Itt már a headerből jön "nameday"
@@ -1446,6 +2010,11 @@ void ClockWidget ::clearNameday() {
         #endif // NAMEDAYS_FILE
 
 void ClockWidget::_clearClock() {
+    if (_flipEnabled()) {
+        dsp.fillRect(_clockleft, _config.top - _timeheight - FLIP_PANEL_VPAD,
+                     _clockwidth, _flipPanelH + 1, config.theme.background);
+        return;
+    }
         #ifdef FLIP_CLOCK
     // FLIP_CLOCK: karteczki i sekundy rysowane bezpośrednio na dsp (nie przez _fb).
     // _fb->clear() czyściłoby tylko bufor w pamięci — stara pozycja na ekranie
@@ -1481,22 +2050,23 @@ void ClockWidget::_draw() {
 }
 
 void ClockWidget::_reset() {
-    #ifdef FLIP_CLOCK
-    // FLIP_CLOCK: przy zmianie układu (np. font, motyw) przelicz granice
-    // i przebuduj FlipDigit z nowymi współrzędnymi i wymiarami.
-    _getTimeBounds();
-    _initFlipDigits();
-    #ifdef PSFBUFFER
-    _beginFlipSecBuf();  // reinit bufora sekund na nowej pozycji
-    #endif
-    #else
+    if (_flipEnabled()) {
+        _getTimeBounds();
+        _initFlipDigits();
         #ifdef PSFBUFFER
+        _beginFlipSecBuf();
+        #endif
+        _lastTimebuffer[0] = '\0';
+        _forceflag = 0;
+        _lastSec = -1;
+        return;
+    }
+    #ifdef PSFBUFFER
     if (_fb->ready()) {
         _fb->freeBuffer();
         _getTimeBounds();
         _begin();
     }
-        #endif
     #endif
 }
 
@@ -1507,9 +2077,6 @@ void ClockWidget::_clear() {
 /*************************************************************************************************************************
                                                      FLIP CLOCK IMPLEMENTATION
  *************************************************************************************************************************/
-#ifdef FLIP_CLOCK
-
-
 /**
  * @brief Inicjalizuje obiekty FlipDigit (_flipHH i _flipMM) na podstawie
  *        aktualnych wymiarów i pozycji zegara.
@@ -1557,6 +2124,7 @@ void ClockWidget::_initFlipDigits() {
  *        Dwukropek usunięty – zbędny dla flip clock.
  */
 void ClockWidget::_drawFlipSeconds() {
+    if (!_secondsEnabled()) return;
     if (!_fb->ready()) return;
     _fb->clear();
     _fb->setFont(Clock_GFXfontPtr_Sec);
@@ -1576,7 +2144,7 @@ void ClockWidget::_drawFlipSeconds() {
  *        Klatki animacji FlipDigit delegowane do _flipHH.loop() i _flipMM.loop().
  */
 void ClockWidget::tick() {
-    if (!_active) return;
+    if (!_active || !_flipEnabled()) return;
 
     int8_t curSec = (int8_t)network.timeinfo.tm_sec;
     if (curSec != _lastSec) {
@@ -1587,8 +2155,6 @@ void ClockWidget::tick() {
     _flipHH.loop();
     _flipMM.loop();
 }
-
-#endif // FLIP_CLOCK
 
     #else  // #ifndef DSP_LCD
 
@@ -1615,6 +2181,26 @@ void ClockWidget::_draw() {
 void ClockWidget::_reset() {}
 void ClockWidget::_clear() {}
     #endif // #ifndef DSP_LCD
+
+bool ClockWidget::isMMTap(uint16_t x, uint16_t y) const {
+    if (_clockwidth == 0) return false;
+    uint16_t mmLeft  = _clockleft + _clockwidth / 2;
+    uint16_t mmRight = _clockleft + (_timewidth > 0 ? _timewidth : _clockwidth);
+    uint8_t  h       = _clockheight > 0 ? _clockheight : _timeheight;
+    int16_t  top     = (int16_t)_config.top - (int16_t)h;
+    int16_t  bot     = (int16_t)_config.top + 8;
+    return x >= mmLeft && x <= mmRight && (int16_t)y >= top && (int16_t)y <= bot;
+}
+
+bool ClockWidget::isSecondsTap(uint16_t x, uint16_t y) const {
+    if (_clockwidth == 0 || _timewidth >= _clockwidth) return false;
+    uint16_t secLeft  = _clockleft + _timewidth;
+    uint16_t secRight = _clockleft + _clockwidth;
+    uint8_t  h   = _clockheight > 0 ? _clockheight : _timeheight;
+    int16_t  top = (int16_t)_config.top - (int16_t)h;
+    int16_t  bot = (int16_t)_config.top + 8;
+    return x >= secLeft && x <= secRight && (int16_t)y >= top && (int16_t)y <= bot;
+}
 
 /****************************************************************************************************
                                                      BITRATE WIDGET
@@ -1757,6 +2343,11 @@ void BitrateWidget::_clear() {
 /* Törli mindkét bitratewidget területét és a "nameday" területet is. */
 void BitrateWidget::clearAll() {
     dsp.fillRect(_config.left, _config.top, _dimension * 2, _dimension + 11, _bgcolor);
+    VuWidget::setLabelsDrawn(false);
+#ifdef DEBUG_FLIP_CLOCK_UI
+    Serial.printf("[flip/ui] bitrate.clearAll x=%u y=%u w=%u h=%u dateY=%u\n",
+                  _config.left, _config.top, _dimension * 2, _dimension + 11, dateConf.top);
+#endif
     // Serial.printf("widgets.cpp->BitrateWidget clearAll() \n") ;
 }
 
