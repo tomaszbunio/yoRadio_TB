@@ -1050,6 +1050,11 @@ uint16_t _textWidth(const char *txt, const GFXfont *f) {
   for (uint16_t c = 0; c < l; c++) { w += _charWidth((unsigned char)txt[c], f); }
   return w;
 }
+
+uint16_t _classicSecondsWidth(uint8_t fs) {
+  uint16_t w = _textWidth("88", Clock_GFXfontPtr_Sec);
+  return w > 0 ? w : CHARWIDTH * fs * 2;
+}
 /************************************************************************************************************
                                                       NUM WIDGET (hangerő stb.)
  ************************************************************************************************************/
@@ -1184,6 +1189,9 @@ void ProgressWidget::loop() {
 #endif
 #ifndef FLIP_DIGIT_GAP
   #define FLIP_DIGIT_GAP 4
+#endif
+#ifndef CLASSIC_CLOCK_SECONDS_GAP
+  #define CLASSIC_CLOCK_SECONDS_GAP 11
 #endif
 
 bool ClockWidget::_flipEnabled() const {
@@ -1330,30 +1338,26 @@ bool ClockWidget::_getTime() {
 
 uint16_t ClockWidget::_left() {
     if (_flipEnabled()) { return _clockleft; }
-    #ifdef FLIP_CLOCK
-    // FLIP_CLOCK: FlipDigit rysuje bezpośrednio na ekranie – zawsze zwracaj
-    // rzeczywistą pozycję ekranową (nie lokalną 0 framebuffera).
-    return _clockleft;
-    #else
+    #ifdef PSFBUFFER
     if (_fb->ready()) {
         return 0;         // rysowanie do framebuffera – współrzędne lokalne
     } else {
         return _clockleft;
     }
+    #else
+    return _clockleft;
     #endif
 }
 uint16_t ClockWidget::_top() {
     if (_flipEnabled()) { return _config.top; }
-    #ifdef FLIP_CLOCK
-    // FLIP_CLOCK: _config.top = baseline czcionki (dół tekstu) na ekranie.
-    // FlipDigit sam oblicza górną krawędź bufora: y - _h - FLIP_CARD_MARGIN.
-    return _config.top;
-    #else
+    #ifdef PSFBUFFER
     if (_fb->ready()) {
         return _timeheight;   // framebuffer – baseline w lokalnych współrzędnych
     } else {
         return _config.top;
     }
+    #else
+    return _config.top;
     #endif
 }
 
@@ -1382,44 +1386,9 @@ void ClockWidget::_getTimeBounds() {
         }
         return;
     }
-#ifdef FLIP_CLOCK
-    if (Clock_GFXfontPtr && _flipDigitW > 0) {
-        // Panel layout: [HH pw][gap][colon colonW][gap][MM pw]
-        // Override FLIP_DIGIT_PAD / FLIP_DIGIT_GAP in myoptions.h to tune spacing.
-        #ifndef FLIP_DIGIT_PAD
-          #define FLIP_DIGIT_PAD 4  // horizontal padding inside each digit panel (px)
-        #endif
-        #ifndef FLIP_DIGIT_GAP
-          #define FLIP_DIGIT_GAP 4  // gap between panels and colon (px)
-        #endif
-        const uint16_t padX  = FLIP_DIGIT_PAD;
-        const uint16_t gap   = FLIP_DIGIT_GAP;
-        uint16_t pw     = _flipDigitW * 2 + padX * 2; // panel fits 2 digits
-        uint16_t colonW = _charWidth(':', Clock_GFXfontPtr);
-        if (colonW == 0) colonW = pw / 4;
-        _timewidth = pw * 2 + gap * 2 + colonW;
-        // _dotsleft = colon position (after HH panel + gap)
-        _dotsleft = pw + gap;
-
-        uint8_t  fs        = _superfont > 0 ? _superfont : TIME_SIZE;
-        uint16_t rightside = CHARWIDTH * fs * 2; // seconds area
-        if (_fullclock) {
-            rightside += _space * 2 + 1; // 2×space + vertical divider
-            _clockwidth = _timewidth + rightside;
-        } else {
-            _clockwidth = (_superfont == 0) ? _timewidth : _timewidth + rightside;
-        }
-        switch (_config.align) {
-            case WA_LEFT:  _clockleft = _config.left; break;
-            case WA_RIGHT: _clockleft = dsp.width() - _clockwidth - _config.left; break;
-            default:       _clockleft = (dsp.width() / 2 - _clockwidth / 2) + _config.left; break;
-        }
-        return;
-    }
-#endif
     if (!_flipEnabled() && Clock_GFXfontPtr) {
-        char hhTxt[3] = { _timebuffer[0], _timebuffer[1], '\0' };
-        char mmTxt[3] = { _timebuffer[3], _timebuffer[4], '\0' };
+        const char *hhProbe = "88";
+        const char *mmProbe = "88";
         const int16_t baseY = (int16_t)_config.top;
         constexpr int16_t kColonGapPx = 10;
 
@@ -1429,8 +1398,8 @@ void ClockWidget::_getTimeBounds() {
         uint16_t dummyW = 0, dummyH = 0;
         dsp.setTextSize(1);
         dsp.setFont(Clock_GFXfontPtr);
-        dsp.getTextBounds(hhTxt, 0, baseY, &hhBx, &dummyX, &hhBw, &dummyW);
-        dsp.getTextBounds(mmTxt, 0, baseY, &mmBx, &dummyY, &mmBw, &dummyH);
+        dsp.getTextBounds(hhProbe, 0, baseY, &hhBx, &dummyX, &hhBw, &dummyW);
+        dsp.getTextBounds(mmProbe, 0, baseY, &mmBx, &dummyY, &mmBw, &dummyH);
         dsp.getTextBounds(":", 0, baseY, &cBx, &dummyX, &cBw, &dummyW);
 
         const int16_t hhRight = hhBx + (int16_t)hhBw;
@@ -1440,34 +1409,27 @@ void ClockWidget::_getTimeBounds() {
 
         int16_t  mmPlacedBx = 0, mmPlacedBy = 0;
         uint16_t mmPlacedBw = 0, mmPlacedBh = 0;
-        dsp.getTextBounds(mmTxt, mmCursorX, baseY, &mmPlacedBx, &mmPlacedBy, &mmPlacedBw, &mmPlacedBh);
-
-        int16_t totalLeft = hhBx;
-        if (colonLeft < totalLeft) totalLeft = colonLeft;
-        if (mmPlacedBx < totalLeft) totalLeft = mmPlacedBx;
+        dsp.getTextBounds(mmProbe, mmCursorX, baseY, &mmPlacedBx, &mmPlacedBy, &mmPlacedBw, &mmPlacedBh);
 
         int16_t totalRight = hhRight;
         if (colonRight > totalRight) totalRight = colonRight;
         const int16_t mmPlacedRight = mmPlacedBx + (int16_t)mmPlacedBw;
         if (mmPlacedRight > totalRight) totalRight = mmPlacedRight;
 
-        _timewidth = (totalRight > totalLeft) ? (uint16_t)(totalRight - totalLeft) : _textWidth(_timebuffer);
+        _timewidth = totalRight > 0 ? (uint16_t)totalRight : _textWidth(_timebuffer);
         _dotsleft = colonLeft - cBx; // cursor X for ':' relative to _left()
     } else {
     _timewidth = _textWidth(_timebuffer);
     }
     uint8_t  fs = _superfont > 0 ? _superfont : TIME_SIZE;
-    uint16_t rightside = _secondsEnabled() ? CHARWIDTH * fs * 2 : 0; // seconds
-    if (_fullclock && _secondsEnabled()) {
-        rightside += _space * 2 + 1; // 2space+vline
-        _clockwidth = _timewidth + rightside;
-    } else {
-        if (_superfont == 0) {
-            _clockwidth = _timewidth;
-        } else if (_secondsEnabled()) {
-            _clockwidth = _timewidth + rightside;
+    uint16_t rightside = 0;
+    if (_fullclock || _superfont > 0) {
+        rightside = CLASSIC_CLOCK_SECONDS_GAP + _classicSecondsWidth(fs);
+        if (_fullclock) {
+            rightside += _space * 2 + 1; // 2space+vline
         }
     }
+    _clockwidth = _timewidth + rightside;
     switch (_config.align) {
         case WA_LEFT: _clockleft = _config.left; break;
         case WA_RIGHT: _clockleft = dsp.width() - _clockwidth - _config.left; break;
@@ -1490,16 +1452,10 @@ void ClockWidget::_getTimeBounds() {
 
 Adafruit_GFX& ClockWidget::getRealDsp() {
     if (_flipEnabled()) { return dsp; }
-    #ifdef FLIP_CLOCK
-    // FLIP_CLOCK: karteczki HH/MM rysowane przez FlipDigit bezpośrednio na dsp.
-    // Sekundy, data i dwukropek też trafiają na dsp (nie do _fb).
-    return dsp;
-    #else
         #ifdef PSFBUFFER
     if (_fb && _fb->ready()) { return *_fb; }
         #endif
     return dsp;
-    #endif
 }
 
         #if DSP_MODEL == DSP_SSD1322
@@ -1603,48 +1559,10 @@ void ClockWidget::_printClock(bool force) {
         gfx.setFont();
         return;
     }
-#ifdef FLIP_CLOCK
-    // Diagnostic: when FLIP_CLOCK macro is enabled, classic SS drawing block below
-    // (guarded by #ifndef FLIP_CLOCK) is compiled out.
-    static bool _dbgClassicSsCompiledOut = false;
-    if (!_dbgClassicSsCompiledOut) {
-        Serial.println("[clock/dbg] FLIP_CLOCK defined: classic SS draw block is compiled out by #ifndef FLIP_CLOCK");
-        _dbgClassicSsCompiledOut = true;
-    }
-    if (!_flipEnabled()) {
-        static int8_t _dbgClassicNoSsSec = -1;
-        if (network.timeinfo.tm_sec != _dbgClassicNoSsSec) {
-            _dbgClassicNoSsSec = (int8_t)network.timeinfo.tm_sec;
-            Serial.printf("[clock/dbg] runtime classic mode (clockmode=%d), but SS renderer is compiled out by FLIP_CLOCK\n",
-                          config.store.clockmode);
-        }
-    }
-#endif
     // bool clockInTitle = !config.isScreensaver && _config.top < _timeheight;  //DSP_SSD1306x32
     if (force) {
-        #ifndef FLIP_CLOCK
-        // FLIP_CLOCK: nie czyść ekranu tutaj – FlipDigit sam zarządza swoimi buforami.
-        // _clearClock() w moveTo() czyści stare miejsce; kolejny fillRect nadpisywałby
-        // świeżo narysowane karteczki i powodował trzykrotne miganie przy zmianie pozycji.
         _clearClock();
-        #endif
         _getTimeBounds();
-        #ifdef FLIP_CLOCK
-        {
-          // _printClock(force=true) wywoływane jest co minutę (gdy tm_sec==0).
-          // Przekaż nowe wartości HH i MM do odpowiednich FlipDigit:
-          //   - jeśli cyfry się zmieniły → flipTo() uruchamia animację
-          //   - jeśli niezmienione (np. reset widgetu) → setValue() odświeża bez animacji
-          char hhNew[3] = { _timebuffer[0], _timebuffer[1], '\0' };
-          char mmNew[3] = { _timebuffer[3], _timebuffer[4], '\0' };
-          if (strcmp(hhNew, _flipHH.current()) != 0) _flipHH.flipTo(hhNew);
-          else                                        _flipHH.setValue(hhNew);
-          if (strcmp(mmNew, _flipMM.current()) != 0) _flipMM.flipTo(mmNew);
-          else                                        _flipMM.setValue(mmNew);
-          strncpy(_prevTimebuffer, _timebuffer, sizeof(_prevTimebuffer));
-          _drawFlipSeconds();  // odśwież sekundy przez psFrameBuffer (burst SPI)
-        }
-        #else
         #ifdef CLOCKFONT_MONO
         gfx.setTextColor(config.theme.clockbg, config.theme.background);
         gfx.setCursor(_left(), _top());
@@ -1667,8 +1585,8 @@ void ClockWidget::_printClock(bool force) {
             uint16_t hhBw = 0, cBw0 = 0;
             int16_t  dummyX = 0, dummyY = 0;
             uint16_t dummyW = 0, dummyH = 0;
-            gfx.getTextBounds(hhTxt, hhCursorX, baseY, &hhBx, &dummyX, &hhBw, &dummyW);
-            gfx.getTextBounds(mmTxt, 0, baseY, &mmBx0, &dummyY, &dummyW, &dummyH);
+            gfx.getTextBounds("88", hhCursorX, baseY, &hhBx, &dummyX, &hhBw, &dummyW);
+            gfx.getTextBounds("88", 0, baseY, &mmBx0, &dummyY, &dummyW, &dummyH);
             gfx.getTextBounds(":", 0, baseY, &cBx0, &dummyX, &cBw0, &dummyW);
 
             const int16_t hhRight = hhBx + (int16_t)hhBw;
@@ -1688,7 +1606,6 @@ void ClockWidget::_printClock(bool force) {
             gfx.setCursor(_left(), _top());
             gfx.print(_timebuffer); // Az óra, perc kiírása.
         }
-        #endif // FLIP_CLOCK
 
         #if DSP_MODEL == DSP_SSD1322
             #ifndef HIDE_DATE
@@ -1718,7 +1635,8 @@ void ClockWidget::_printClock(bool force) {
 
         if (_fullclock) { // A másodperceket is kiírja nem csak az óra percet.
             bool fullClockOnScreensaver = (!config.isScreensaver || (_fb->ready() && FULL_SCR_CLOCK));
-            _linesleft = _left() + _timewidth + _space;
+            const int16_t classicSecGap = CLASSIC_CLOCK_SECONDS_GAP;
+            _linesleft = _left() + _timewidth + classicSecGap + _space;
             if (fullClockOnScreensaver) {
                 // pionowa linia sekund
                 // gfx.drawFastVLine(_linesleft, _top() - _timeheight, _timeheight, config.theme.div); // A másodperc vertikális vonala.
@@ -1761,26 +1679,18 @@ void ClockWidget::_printClock(bool force) {
             }
         }
     }
-    // FLIP_CLOCK: sekundy rysuje wyłącznie _drawFlipSeconds() przez psFrameBuffer (burst SPI).
-    // Tutaj nie rysujemy sekund, żeby nie było podwójnego rysowania w innej pozycji.
+    // Classic mode is reached only when runtime flip is disabled.
     gfx.setTextSize(Clock_GFXfontPtr == nullptr ? TIME_SIZE : 1);
     gfx.setFont(Clock_GFXfontPtr);
-#ifndef FLIP_CLOCK
 #ifndef AM_PM_STYLE
     if (_fullclock && _secondsEnabled()) {
         bool fullClockOnScreensaver = (!config.isScreensaver || (_fb->ready() && FULL_SCR_CLOCK));
-        static int8_t _dbgLastSec = -1;
-        if (network.timeinfo.tm_sec != _dbgLastSec) {
-            _dbgLastSec = (int8_t)network.timeinfo.tm_sec;
-            Serial.printf("[clock/dbg] classic SS gate fullclock=%d secEn=%d ssaver=%d fb=%d fullOn=%d\n",
-                          _fullclock ? 1 : 0, _secondsEnabled() ? 1 : 0, config.isScreensaver ? 1 : 0,
-                          _fb->ready() ? 1 : 0, fullClockOnScreensaver ? 1 : 0);
-        }
         if (fullClockOnScreensaver) {
             gfx.setFont(Clock_GFXfontPtr_Sec);
             gfx.setTextSize(0);
             gfx.setTextColor(config.theme.seconds, config.theme.background);
-            int16_t       secX = (int16_t)_left() + (int16_t)_timewidth + (int16_t)_space + 8;
+            const int16_t classicSecGap = CLASSIC_CLOCK_SECONDS_GAP;
+            int16_t       secX = (int16_t)_left() + (int16_t)_timewidth + classicSecGap + (int16_t)_space + 8;
             int16_t       secY = _top();
             // Center SS vertically relative to MM in classic clock.
             int16_t       secProbeX = 0, secProbeY = 0;
@@ -1803,8 +1713,8 @@ void ClockWidget::_printClock(bool force) {
             int16_t       bx = 0, by = 0;
             uint16_t      bw = 0, bh = 0;
             // Center SS horizontally between MM right edge and right screen edge.
-            const int16_t zoneLeft = (int16_t)_left() + (int16_t)_timewidth;
-            const int16_t zoneRight = (int16_t)gfx.width();
+            const int16_t zoneLeft = (int16_t)_left() + (int16_t)_timewidth + classicSecGap;
+            const int16_t zoneRight = (int16_t)_left() + (int16_t)_clockwidth;
             gfx.getTextBounds("88", secX, secY, &bx, &by, &bw, &bh);
             if (bw > 0) {
                 const int16_t zoneCenterX = zoneLeft + (zoneRight - zoneLeft) / 2;
@@ -1812,79 +1722,28 @@ void ClockWidget::_printClock(bool force) {
                 secX += (targetLeft - bx); // shift by measured bbox offset
                 gfx.getTextBounds("88", secX, secY, &bx, &by, &bw, &bh);
             }
-            if (bw > 0 && bh > 0) {
-                gfx.fillRect(bx, by, bw, bh, config.theme.background);
+            int16_t clearTop = (int16_t)_top() - (int16_t)_timeheight - 2;
+            if (clearTop < 0) clearTop = 0;
+            const int16_t clearLeft = zoneLeft > 0 ? zoneLeft - 1 : 0;
+            int16_t clearRight = zoneRight + 1;
+            int16_t clearBottom = clearTop + (int16_t)_clockheight + 4;
+            if (clearRight > (int16_t)gfx.width()) clearRight = (int16_t)gfx.width();
+            if (clearBottom > (int16_t)gfx.height()) clearBottom = (int16_t)gfx.height();
+            if (clearRight > clearLeft && clearBottom > clearTop) {
+                gfx.fillRect(clearLeft, clearTop, (uint16_t)(clearRight - clearLeft), (uint16_t)(clearBottom - clearTop), config.theme.background);
             }
             sprintf(_tmp, "%02d", network.timeinfo.tm_sec);
-            Serial.printf("[clock/dbg] classic SS draw val=%s x=%d y=%d bx=%d by=%d bw=%u bh=%u zoneL=%d zoneR=%d\n",
-                          _tmp, secX, secY, bx, by, bw, bh, zoneLeft, zoneRight);
             gfx.setCursor(secX, secY);
             gfx.print(_tmp);
         }
     }
 #endif
-#endif
     // Classic mode: blinking colon disabled. The fixed ':' from HH:MM stays visible.
     gfx.setFont();
-    #ifndef FLIP_CLOCK
-    // FLIP_CLOCK rysuje karteczki bezpośrednio na dsp – _fb nie jest używany do wyświetlania.
-    // Gdyby _fb->display() zostało wywołane, nadpisałoby karteczki kolorem tła.
+        #ifdef PSFBUFFER
     if (_fb->ready()) { _fb->display(); }
+        #endif
 
-#ifndef AM_PM_STYLE
-    // Classic fallback: when clock uses framebuffer, force SS directly to display.
-    // This helps verify if SS is being lost between _fb rendering and final screen update.
-    if (_fullclock && _secondsEnabled() && _fb->ready()) {
-        bool fullClockOnScreensaver = (!config.isScreensaver || (_fb->ready() && FULL_SCR_CLOCK));
-        if (fullClockOnScreensaver) {
-            dsp.setFont(Clock_GFXfontPtr_Sec);
-            dsp.setTextSize(0);
-            dsp.setTextColor(config.theme.seconds, config.theme.background);
-
-            int16_t secX = (int16_t)_clockleft + (int16_t)_timewidth + (int16_t)_space + 8;
-            int16_t secY = (int16_t)_config.top;
-
-            int16_t  secProbeX = 0, secProbeY = 0;
-            uint16_t secProbeW = 0, secProbeH = 0;
-            dsp.getTextBounds("88", 0, 0, &secProbeX, &secProbeY, &secProbeW, &secProbeH);
-            if (secProbeH > 0) {
-                int16_t  mmProbeX = 0, mmProbeY = 0;
-                uint16_t mmProbeW = 0, mmProbeH = 0;
-                if (Clock_GFXfontPtr) {
-                    dsp.setFont(Clock_GFXfontPtr);
-                    dsp.getTextBounds("88", 0, _config.top, &mmProbeX, &mmProbeY, &mmProbeW, &mmProbeH);
-                    dsp.setFont(Clock_GFXfontPtr_Sec);
-                }
-                const int16_t mmCenterY = (mmProbeH > 0)
-                    ? (mmProbeY + (int16_t)mmProbeH / 2)
-                    : ((int16_t)_config.top - (int16_t)_timeheight / 2);
-                const int16_t secTop = mmCenterY - (int16_t)secProbeH / 2;
-                secY = secTop - secProbeY;
-            }
-
-            int16_t  bx = 0, by = 0;
-            uint16_t bw = 0, bh = 0;
-            const int16_t zoneLeft = (int16_t)_clockleft + (int16_t)_timewidth;
-            const int16_t zoneRight = (int16_t)dsp.width();
-            dsp.getTextBounds("88", secX, secY, &bx, &by, &bw, &bh);
-            if (bw > 0) {
-                const int16_t zoneCenterX = zoneLeft + (zoneRight - zoneLeft) / 2;
-                const int16_t targetLeft = zoneCenterX - (int16_t)bw / 2;
-                secX += (targetLeft - bx);
-                dsp.getTextBounds("88", secX, secY, &bx, &by, &bw, &bh);
-            }
-            if (bw > 0 && bh > 0) {
-                dsp.fillRect(bx, by, bw, bh, config.theme.background);
-            }
-            sprintf(_tmp, "%02d", network.timeinfo.tm_sec);
-            Serial.printf("[clock/dbg] classic SS dsp-fallback val=%s x=%d y=%d bx=%d by=%d bw=%u bh=%u zoneL=%d zoneR=%d\n",
-                          _tmp, secX, secY, bx, by, bw, bh, zoneLeft, zoneRight);
-            dsp.setCursor(secX, secY);
-            dsp.print(_tmp);
-        }
-    }
-#endif
-    #endif
         // Mai névnap letöltése - csak ha engedélyezve van.
         #ifdef NAMEDAYS_FILE
     if (config.store.nameday) {
@@ -2015,16 +1874,6 @@ void ClockWidget::_clearClock() {
                      _clockwidth, _flipPanelH + 1, config.theme.background);
         return;
     }
-        #ifdef FLIP_CLOCK
-    // FLIP_CLOCK: karteczki i sekundy rysowane bezpośrednio na dsp (nie przez _fb).
-    // _fb->clear() czyściłoby tylko bufor w pamięci — stara pozycja na ekranie
-    // pozostałaby niezmieniona. Zamiast tego robimy fillRect na ekranie.
-    // _clockwidth obejmuje zarówno karteczki HH:MM, jak i kolumnę sekund,
-    // więc jeden prostokąt czyści wszystko.
-    dsp.fillRect(_clockleft, _config.top - _timeheight - FLIP_PANEL_VPAD,
-                 _clockwidth, _flipPanelH + 1, config.theme.background);
-    return;
-        #endif
         #ifdef PSFBUFFER
     if (_fb->ready()) {
         _fb->clear();
