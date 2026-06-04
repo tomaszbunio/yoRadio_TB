@@ -6,14 +6,14 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 ## Moje zmiany: v8.8_TB
 
 - Sortowanie playlisty SD alfabetycznie zamiast kolejności FAT, co umożliwia poprawną numerację  albumów.
-- Wprowadzono wybudzanie ESP32 z soft standby przez pilot IR (zmiana IR_PIN na GPIO 2).
-- Dodano zmianę czcionki zegara dotykiem obszaru minut oraz zapisywanie wyboru do EEPROM.
-- Umożliwiono przełączanie trybu SD/Radio dotykiem obszaru sekund zegara na ekranie PLAYER.
+- Oprogramowanie posiada wbudowane domyślne przypisania przycisków pilota (czytaj [konfiguracja_IR.md](konfiguracja_IR.md)) oraz obsługuje wybudzanie ESP32 z soft standby (`IR_PIN` GPIO 2).
+- Dodano zmianę czcionki zegara dotykiem obszaru minut oraz umożliwiono przełączanie trybu SD/Radio dotykiem obszaru sekund zegara na ekranie PLAYER.
 - Dodano dedykowany ekran SD_PLAYER dla odtwarzania z karty SD, z paskiem postępu i sterowaniem.
 - Naprawiono auto-play.
 - Obsługa NeoPixel i Clock przez www.
 - Dodano pobieranie okładki z Last.fm, gdy nie uda się jej zdekodować z pliku MP3.
 - Dodano wizualizację FFT do odtwarzacza dla trybu noTouch.
+- Dodatkowo kilkadziesiąt optymalizacji w zakresie szybkości wyświetlania.
 
 ---
 
