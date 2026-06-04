@@ -178,6 +178,7 @@ public:
   void loop();
   void setText(const char *txt);
   void setText(const char *txt, const char *format);
+  void setColors(uint16_t fg, uint16_t bg, bool redraw = true);
   void setFbLabel(const char *lbl) { if (_fb) _fb->setLabel(lbl); }
 
 private:
@@ -192,9 +193,12 @@ private:
   uint8_t _charWidth;
   int16_t _fontBaselineY = 0;
   psFrameBuffer *_fb = nullptr;
+  psFrameBuffer *_scrollCache = nullptr;
+  bool _scrollCacheReady = false;
 
 private:
   void _setTextParams();
+  void _buildScrollCache();
   void _calcX();
   void _drawFrame();
   void _draw();
@@ -269,12 +273,17 @@ public:
     _vumidcolor = vumidcolor;
     _vumincolor = vumincolor;
     _bgcolor = bgcolor;
+    _segmentsInitialized = false;
     if (redraw && _active && !_locked) {
       _clear();
       _draw();
     }
   }
-  
+  void invalidate() {
+    _segmentsInitialized = false;
+    _labelsDrawn = false;
+  }
+
 protected:
   #if defined(DSP_OLED)
   uint16_t _maxDimension = 216;  // VU teljes hossza pixelben
@@ -286,11 +295,15 @@ protected:
   #endif
 
   #if !defined(DSP_LCD) && !defined(DSP_OLED)
-  Canvas *_canvas;
+  Canvas *_canvas = nullptr;
   #endif
   static bool _labelsDrawn;  // MĂłdosĂ­tĂˇs Ăşj vĂˇltozĂł.
   VUBandsConfig _bands;
   uint16_t _vumaxcolor, _vumidcolor, _vumincolor;  // MĂłdosĂ­tĂˇs: plussz _vumidcolor
+  static constexpr uint8_t _maxSegments = 64;
+  uint16_t _segmentColorsL[_maxSegments] = {};
+  uint16_t _segmentColorsR[_maxSegments] = {};
+  bool _segmentsInitialized = false;
   void _draw();
   void _clear();
 };
@@ -366,12 +379,13 @@ private:
 protected:
   char _timebuffer[20] = "00:00";
   char _lastTimebuffer[6] = "";
-  char _tmp[38], _datebuf[38];  // MĂłdosĂ­tva 38-ra v7.4
+  char _tmp[38] = {}, _datebuf[38] = {};  // MĂłdosĂ­tva 38-ra v7.4
   uint8_t _superfont = 0;
   uint16_t _clockleft = 0, _clockwidth = 0, _timewidth = 0, _dotsleft = 0, _linesleft = 0;
   uint8_t _clockheight = 0, _timeheight = 0, _dateheight = 0, _space = 0;
-  char _namedayBuf[30], _oldNamedayBuf[30];                   // MĂłdosĂ­tĂˇs "nameday"
+  char _namedayBuf[30] = {}, _oldNamedayBuf[30] = {};         // MĂłdosĂ­tĂˇs "nameday"
   uint16_t _namedaywidth, _oldnamedayleft, _oldnamedaywidth;  //MĂłdosĂ­tĂˇs "nameday"
+  bool _namedayLabelDrawn = false;
   uint16_t _forceflag = 0;
   bool dots = true;
   bool _fullclock;

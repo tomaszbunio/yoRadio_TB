@@ -4,13 +4,9 @@ Konwerter boot logo PNG -> nagłówki C (RGB565)
 Użycie: python convert_bootlogo.py
 
 Wejście:  logos_src/bootlogo.png
-Wyjście:  src/displays/fonts/bootlogo{W}x{H}.h  (jeden plik na rozmiar)
+Wyjście:  src/displays/fonts/bootlogo80x80.h
 
-Rozmiary dopasowane do karteczki flip clock:
-  80x80  -> ILI9488, ST7796  (480x320)
-  54x54  -> ILI9341, ST7789  (320x240)
-  62x40  -> ST7789 mały      (bez zmian, generowany osobno)
-  21x32  -> SSD1322 OLED     (bez zmian, generowany osobno)
+Konwerter generuje logo 80x80 dla wyświetlacza ILI9488.
 
 Wymagania: pip install Pillow
 """
@@ -24,11 +20,8 @@ except ImportError:
     print("Brak biblioteki Pillow. Zainstaluj: pip install Pillow")
     sys.exit(1)
 
-# Rozmiary do wygenerowania: (szerokość, wysokość)
-SIZES = [
-    (80, 80),   # ILI9488, ST7796  (480x320)
-    (54, 54),   # ILI9341, ST7789  (320x240)
-]
+# Rozmiar bootlogo dla ILI9488
+SIZES = [(80, 80)]
 
 SRC      = Path(__file__).parent / "logos_src" / "bootlogo.png"
 FONT_DIR = Path(__file__).parent / "src" / "displays" / "fonts"

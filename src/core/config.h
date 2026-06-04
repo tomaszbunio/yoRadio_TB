@@ -225,8 +225,8 @@ uint16_t tch;
 
 #if IR_PIN != 255
 struct ircodes_t {
-    unsigned int ir_set; // must be 4224
-    uint64_t     irVals[20][3];
+    unsigned int ir_set;
+    uint64_t     irVals[24][3];
 };
 #endif
 

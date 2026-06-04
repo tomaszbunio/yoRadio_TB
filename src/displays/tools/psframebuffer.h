@@ -7,7 +7,7 @@
 class  psFrameBuffer : public Adafruit_GFX {
   public:
     psFrameBuffer(int16_t w, int16_t h):Adafruit_GFX(w, h){ setTextWrap(false); cp437(true); }
-    ~psFrameBuffer(){ freeBuffer(); }
+    ~psFrameBuffer(){ discardBuffer(); }
     bool ready() { return _ready; }
     void setLabel(const char *lbl) { strncpy(_label, lbl, sizeof(_label) - 1); _label[sizeof(_label)-1] = '\0'; }
 
@@ -17,6 +17,11 @@ class  psFrameBuffer : public Adafruit_GFX {
         _dspl->fillRect(_ll, _tt, _ww, _hh, _bgcolor);
         free(buffer);
       }
+      buffer = nullptr;
+    }
+    void discardBuffer(){
+      _ready = false;
+      if(buffer) free(buffer);
       buffer = nullptr;
     }
     bool begin(yoDisplay *dspl, int16_t l, int16_t t, int16_t w, int16_t h, uint16_t bgcolor = 0){
@@ -56,6 +61,23 @@ class  psFrameBuffer : public Adafruit_GFX {
     const uint16_t* getRow(int16_t y) const {
       if (!buffer || y < 0 || y >= _hh) return nullptr;
       return buffer + y * _ww;
+    }
+    bool copyWindowFrom(const psFrameBuffer &src, int16_t sourceX) {
+      if (!buffer || !src.buffer || src._hh != _hh || src._ww <= 0) return false;
+      sourceX %= src._ww;
+      if (sourceX < 0) sourceX += src._ww;
+      for (int16_t y = 0; y < _hh; ++y) {
+        uint16_t *dst = buffer + y * _ww;
+        int16_t copied = 0;
+        int16_t x = sourceX;
+        while (copied < _ww) {
+          const int16_t chunk = min<int16_t>(_ww - copied, src._ww - x);
+          memcpy(dst + copied, src.buffer + y * src._ww + x, chunk * sizeof(uint16_t));
+          copied += chunk;
+          x = 0;
+        }
+      }
+      return true;
     }
   private:
     int16_t _ll, _tt, _ww, _hh;

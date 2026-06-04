@@ -638,11 +638,15 @@ if (strEquals(command, "tflipcard")) {
         return true;
     }
     if (strEquals(command, "chkid")) {
-        config.irchck = static_cast<uint8_t>(atoi(value));
+        int slot = atoi(value);
+        if (slot >= 0 && slot < 3) config.irchck = static_cast<uint8_t>(slot);
         return true;
     }
     if (strEquals(command, "irclr")) {
-        config.ircodes.irVals[config.irindex][static_cast<uint8_t>(atoi(value))] = 0;
+        int slot = atoi(value);
+        if (config.irindex >= 0 && config.irindex < IR_ACTION_COUNT && slot >= 0 && slot < 3) {
+            config.ircodes.irVals[config.irindex][slot] = 0;
+        }
         return true;
     }
 #endif

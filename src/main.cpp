@@ -7,6 +7,7 @@
 #include "core/telnet.h"
 #include "core/player.h"
 #include "core/display.h"
+#include "core/profiler.h"
 #include "../myoptions.h"
 // Forward declaration to avoid including widgets.h (depends on display Canvas types)
 void widgetsSetClockFont(uint8_t fontId);
@@ -206,6 +207,7 @@ void loop() {
 #ifdef NEOPIXEL_ON
 	NeoPixel_loop();
 #endif
+    PROFILE_LOOP();
 }
 
 

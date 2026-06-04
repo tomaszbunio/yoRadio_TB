@@ -461,7 +461,17 @@ void irLoop() {
     if (netserver.irRecordEnable) {
       Serial.print(resultToHumanReadableBasic(&irResults));
       Serial.println("--------------------------");
-      config.ircodes.irVals[config.irindex][config.irchck]=irResults.value;
+      if (config.irindex >= 0 && config.irindex < IR_ACTION_COUNT && config.irchck < 3) {
+        for (uint8_t action = 0; action < IR_ACTION_COUNT; action++) {
+          for (uint8_t slot = 0; slot < 3; slot++) {
+            if ((action != config.irindex || slot != config.irchck) &&
+                config.ircodes.irVals[action][slot] == irResults.value) {
+              config.ircodes.irVals[action][slot] = 0;
+            }
+          }
+        }
+        config.ircodes.irVals[config.irindex][config.irchck] = irResults.value;
+      }
       netserver.irToWs(typeToString(irResults.decode_type, irResults.repeat).c_str(), irResults.value);
       return;
     }
@@ -478,7 +488,7 @@ void irLoop() {
           break;
         }
     }
-    for(int target=0; target<19; target++){
+    for(int target=0; target<IR_ACTION_COUNT; target++){
       for(int j=0; j<3; j++){
         if(config.ircodes.irVals[target][j]==irResults.value){
           if (g_softStandby) {
@@ -527,6 +537,24 @@ void irLoop() {
                 irVolRepeat = 2;
                 break;
               }
+            case IR_VOL_UP: {
+                player.stepVol(true);
+                break;
+              }
+            case IR_VOL_DOWN: {
+                player.stepVol(false);
+                break;
+              }
+            case IR_MUTE: {
+                static uint8_t volumeBeforeMute = 10;
+                if (config.store.volume > 0) {
+                  volumeBeforeMute = config.store.volume;
+                  player.setVol(0);
+                } else {
+                  player.setVol(volumeBeforeMute);
+                }
+                break;
+              }
             case IR_HASH: {
                 break;
               }
@@ -544,6 +572,18 @@ void irLoop() {
                   display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
                 } else if (display.mode() == PLAYER || display.mode() == SD_PLAYER) {
                   display.putRequest(NEWMODE, STATIONS);
+                }
+                break;
+              }
+            case IR_HOME: {
+                display.numOfNextStation = 0;
+                display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
+                break;
+              }
+            case IR_BACK: {
+                if (display.mode() != PLAYER && display.mode() != SD_PLAYER) {
+                  display.numOfNextStation = 0;
+                  display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
                 }
                 break;
               }
@@ -606,7 +646,7 @@ void irLoop() {
                 break;
               }
           } /* switch (target) */
-          target=19;
+          target=IR_ACTION_COUNT;
           break;
         } /* if(config.ircodes.irVals[target][j]==irResults.value) */
       }   /* for(int j=0; j<3; j++) */

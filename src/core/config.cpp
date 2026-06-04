@@ -546,6 +546,9 @@ void Config::initPlaylistMode() {
 void Config::_initHW() {
     loadTheme();
 #if IR_PIN != 255
+    constexpr unsigned int IR_MAP_VERSION_LEGACY = 4224;
+    constexpr unsigned int IR_MAP_VERSION = 4225;
+
     auto applyDefaultIrMap = [this]() {
 #if defined(IR_DEFAULT_MAP_ENABLED) && IR_DEFAULT_MAP_ENABLED
         memset(ircodes.irVals, 0, sizeof(ircodes.irVals));
@@ -568,14 +571,30 @@ void Config::_initHW() {
         ircodes.irVals[IR_HASH][0] = IR_DEFAULT_HASH;
         ircodes.irVals[IR_POWER][0] = IR_DEFAULT_POWER;
         ircodes.irVals[IR_MENU][0] = IR_DEFAULT_MENU;
+        ircodes.irVals[IR_MUTE][0] = IR_DEFAULT_MUTE;
+        ircodes.irVals[IR_VOL_UP][0] = IR_DEFAULT_VOL_UP;
+        ircodes.irVals[IR_VOL_DOWN][0] = IR_DEFAULT_VOL_DOWN;
+        ircodes.irVals[IR_HOME][0] = IR_DEFAULT_HOME;
+        ircodes.irVals[IR_BACK][0] = IR_DEFAULT_BACK;
 #else
         memset(ircodes.irVals, 0, sizeof(ircodes.irVals));
 #endif
     };
 
     eepromRead(EEPROM_START_IR, ircodes);
-    if (ircodes.ir_set != 4224) {
-        ircodes.ir_set = 4224;
+    if (ircodes.ir_set == IR_MAP_VERSION_LEGACY) {
+        memset(&ircodes.irVals[IR_MUTE], 0, sizeof(ircodes.irVals) - sizeof(ircodes.irVals[0]) * IR_MUTE);
+#if defined(IR_DEFAULT_MAP_ENABLED) && IR_DEFAULT_MAP_ENABLED
+        ircodes.irVals[IR_MUTE][0] = IR_DEFAULT_MUTE;
+        ircodes.irVals[IR_VOL_UP][0] = IR_DEFAULT_VOL_UP;
+        ircodes.irVals[IR_VOL_DOWN][0] = IR_DEFAULT_VOL_DOWN;
+        ircodes.irVals[IR_HOME][0] = IR_DEFAULT_HOME;
+        ircodes.irVals[IR_BACK][0] = IR_DEFAULT_BACK;
+#endif
+        ircodes.ir_set = IR_MAP_VERSION;
+        saveIR();
+    } else if (ircodes.ir_set != IR_MAP_VERSION) {
+        ircodes.ir_set = IR_MAP_VERSION;
         applyDefaultIrMap();
         saveIR();
     }
@@ -811,7 +830,7 @@ void Config::setWeatherKey(const char* val) {
 
 #if IR_PIN != 255
 void Config::setIrBtn(int val) {
-    irindex = val;
+    irindex = (val >= 0 && val < IR_ACTION_COUNT) ? val : -1;
     netserver.irRecordEnable = (irindex >= 0);
     irchck = 0;
     netserver.irValsToWs();
@@ -934,7 +953,7 @@ void Config::setDefaults() {
     store.flipscreen = true;	//false for 4"
     store.invertdisplay = false;
     store.numplaylist = false;
-    store.fliptouch = false; //true for 4"
+    store.fliptouch = true; //true for 4"
     store.dbgtouch = false;
     store.dspon = true;
     store.brightness = 100;

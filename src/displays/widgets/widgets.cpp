@@ -7,6 +7,7 @@
     #include "../../core/config.h"
     #include "../../core/network.h" //  for Clock widget
     #include "../../core/player.h"  //  for VU widget
+    #include "../../core/profiler.h"
     #include "../dspcore.h"
     #include "../tools/l10n.h"
     #include "../tools/psframebuffer.h"
@@ -114,7 +115,8 @@ ScrollWidget::ScrollWidget(const char* separator, ScrollConfig conf, uint16_t fg
 }
 
 ScrollWidget::~ScrollWidget() {
-    free(_fb);
+    delete _fb;
+    delete _scrollCache;
     free(_sep);
     free(_window);
 }
@@ -164,6 +166,7 @@ void ScrollWidget::init(const char* separator, ScrollConfig conf, uint16_t fgcol
     _doscroll = false;
     #ifdef PSFBUFFER
     _fb = new psFrameBuffer(dsp.width(), dsp.height());
+    _scrollCache = new psFrameBuffer(dsp.width(), dsp.height());
     uint16_t _rl = (_config.align == WA_CENTER) ? (dsp.width() - _width) / 2 : _config.left;
     _fb->begin(&dsp, _rl, _config.top, _width, _textheight, _bgcolor);
     #endif
@@ -214,6 +217,7 @@ void ScrollWidget::setText(const char* txt) {
     }
     _x = _fb->ready() ? 0 : _config.left;
     _doscroll = _checkIsScrollNeeded();
+    _buildScrollCache();
     if (dsp.getScrollId() == this) { dsp.setScrollId(NULL); }
     _scrolldelay = millis();
     if (_active) {
@@ -278,6 +282,7 @@ void ScrollWidget::setText(const char* txt, const char* format) {
 }
 
 void ScrollWidget::loop() {
+    PROFILE_SCOPE("scroll.loop");
     if (_locked) { return; }
     if (!_doscroll || (_config.textsize == 0 && !_config.u8g2font) || (dsp.getScrollId() != NULL && dsp.getScrollId() != this)) { return; }
     uint16_t fbl = _fb->ready() ? 0 : _config.left;
@@ -299,13 +304,18 @@ void ScrollWidget::_clear() {
 }
 
 void ScrollWidget::_draw() {
+    PROFILE_SCOPE("scroll.draw");
     if (!_active || _locked) { return; }
     _setTextParams();
     if (_doscroll) {
         uint16_t fbl = _fb->ready() ? 0 : _config.left;
         if (_fb->ready()) {
     #ifdef PSFBUFFER
-            _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
+            PROFILE_TIMER_START(scrollPaintStart);
+            if (_scrollCacheReady) {
+                _fb->copyWindowFrom(*_scrollCache, -_x);
+            } else {
+                _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
             if (_config.u8g2font) {
                 char loopBuf[_buffsize * 2 + 6];
                 snprintf(loopBuf, sizeof(loopBuf), "%s%s%s", _text, _sep, _text);
@@ -337,7 +347,12 @@ void ScrollWidget::_draw() {
                 _fb->setCursor(_x + hiddenChars * _charWidth, 0);
                 _fb->print(_window);
             }
-            _fb->display();
+            }
+            PROFILE_TIMER_RECORD("scroll.paint", scrollPaintStart);
+            {
+                PROFILE_SCOPE("scroll.write");
+                _fb->display();
+            }
     #endif
         } else {
             uint16_t    _newx = fbl - _x;
@@ -418,6 +433,7 @@ void ScrollWidget::_reset() {
     _fb->freeBuffer();
     uint16_t _rl = (_config.align == WA_CENTER) ? (dsp.width() - _width) / 2 : _config.left;
     _fb->begin(&dsp, _rl, _config.top, _width, _textheight, _bgcolor);
+    _buildScrollCache();
     #endif
 }
 
@@ -459,6 +475,35 @@ void SliderWidget::_clear() {
 }
 void SliderWidget::_reset() {
     _oldvalwidth = 0;
+}
+
+void ScrollWidget::_buildScrollCache() {
+    _scrollCacheReady = false;
+    #ifdef PSFBUFFER
+    if (!_scrollCache) { return; }
+    _scrollCache->discardBuffer();
+    if (!_fb->ready() || !_doscroll || _config.font || _config.u8g2font) { return; }
+    const uint16_t cacheWidth = _textwidth + _sepwidth;
+    if (cacheWidth == 0) { return; }
+    if (!_scrollCache->begin(&dsp, 0, 0, cacheWidth, _textheight, _bgcolor)) { return; }
+    _scrollCache->setFont();
+    _scrollCache->setTextSize(_config.textsize);
+    _scrollCache->setTextColor(_fgcolor, _bgcolor);
+    _scrollCache->setCursor(0, 0);
+    _scrollCache->print(_text);
+    _scrollCache->print(_sep);
+    _scrollCacheReady = true;
+    #endif
+}
+
+void ScrollWidget::setColors(uint16_t fg, uint16_t bg, bool redraw) {
+    _fgcolor = fg;
+    _bgcolor = bg;
+    _buildScrollCache();
+    if (redraw && _active && !_locked) {
+        _clear();
+        _draw();
+    }
 }
 
 SdFftWidget::~SdFftWidget() {
@@ -594,7 +639,7 @@ void SdFftWidget::_reset() {
  ************************/
 VuWidget::~VuWidget() {
     #if !defined(DSP_OLED)
-    if (_canvas) { free(_canvas); }
+    if (_canvas) { delete _canvas; }
     #endif
 }
 
@@ -613,23 +658,26 @@ void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor
     _canvas = new Canvas(_bands.width, _bands.height * 2 + _bands.space);
         #else
     // két VU egymás mellett
-    _canvas = new Canvas(_bands.width * 2 + _bands.space, _bands.height);
+    _segmentsInitialized = false;
         #endif
     #endif
 }
 
 /**************************** VU widget DRAW ********************************/
 void VuWidget::_draw() {
+    PROFILE_SCOPE("vu.draw");
     if (!_active || _locked) { return; }
     if (!config.store.vumeter) { return; }
+    #ifndef BOOMBOX_STYLE
     uint16_t        bandColor;
+    #endif
     static uint16_t measLpx = 0;
     static uint16_t measRpx = 0;
     const uint8_t   vu_decay_step = _bands.fadespeed;
     const uint16_t  dimension = _bands.width; // vízszintes
     static uint32_t last_draw_time;
-    uint8_t         refresh_time = 33; // A VU rajzolás frissítési ideje (millis)
-    #ifdef VU_PEAK
+    uint8_t         refresh_time = 40; // A VU rajzolás frissítési ideje (millis)
+    #ifdef VU_PEEK
     static uint16_t peakL = 0, peakR = 0;           // Csúcsértékek
     static uint32_t peakL_time = 0, peakR_time = 0; // Csúcs időbélyeg
     const uint8_t   peak_decay_step = 1;            // A csúcs bomlása pixelben
@@ -637,23 +685,35 @@ void VuWidget::_draw() {
     #endif
     uint32_t now = millis();
     if (last_draw_time + refresh_time > now) {
+        PROFILE_SCOPE("vu.throttle");
         return;
     } else {
         last_draw_time = now;
     }
-    uint16_t vulevel = player.getVUlevel();
+    uint16_t vulevel;
+    {
+        PROFILE_SCOPE("vu.level");
+        vulevel = player.getVUlevel();
+    }
     uint8_t  vuLeft = (vulevel >> 8) & 0xFF;
     uint8_t  vuRight = vulevel & 0xFF;
     // A maximális VU érték begyűjtése. Fájlonként nullázódik, és 2 másodpercenként -10 -el csökken.
-    uint16_t maxVU = max(vuLeft, vuRight);
+    uint16_t vuLpx;
+    uint16_t vuRpx;
+    bool     played;
+    {
+        PROFILE_SCOPE("vu.calc");
+        uint16_t maxVU = max(vuLeft, vuRight);
     if (maxVU > config.vuRefLevel) { config.vuRefLevel = maxVU; }
     // Minimális érték a kezdeti számításokhoz.
     if (config.vuRefLevel < 50) { config.vuRefLevel = 50; }
     // VU értéket pixel pozícióra skalázás
-    uint16_t vuLpx = map(vuLeft, 0, config.vuRefLevel, 0, _bands.width);
-    uint16_t vuRpx = map(vuRight, 0, config.vuRefLevel, 0, _bands.width);
-    bool     played = player.isRunning();
+        vuLpx = map(vuLeft, 0, config.vuRefLevel, 0, _bands.width);
+        vuRpx = map(vuRight, 0, config.vuRefLevel, 0, _bands.width);
+        played = player.isRunning();
+    }
     if (played) {
+        PROFILE_TIMER_START(vuPaintStart);
         // BAL csatorna
         if (vuLpx > measLpx) {
             measLpx = vuLpx; // gyors felfutás L
@@ -667,7 +727,7 @@ void VuWidget::_draw() {
             measRpx = (measRpx > vu_decay_step) ? measRpx - vu_decay_step : 0; // lassított lebomlás R
         }
         // --- Csúcs logika ---
-    #ifdef VU_PEAK
+    #ifdef VU_PEEK
         // BAL csatorna
         if (measLpx > peakL) {
             peakL = measLpx; // L - csúcs meghatározás
@@ -682,10 +742,93 @@ void VuWidget::_draw() {
         } else if (now - peakR_time > peak_hold_ms && peakR > 0) {
             peakR = (peakR > peak_decay_step) ? peakR - peak_decay_step : 0; // R - csúcs lebomlás
         }
-    #endif // VU_PEAK
+    #endif // VU_PEEK
     /*************************************  A VU sávok rajzolása  ***************************************/
     #ifdef BOOMBOX_STYLE // ===================== BOOMBOX_STYLE =====================
         #ifndef DSP_OLED
+        PROFILE_TIMER_RECORD("vu.paint", vuPaintStart);
+        {
+            PROFILE_SCOPE("vu.segments");
+            const uint16_t step = dimension / _bands.perheight;
+            const uint8_t ledWidth = step - _bands.vspace;
+            const uint16_t litCountL = measLpx / step;
+            const uint16_t litCountR = measRpx / step;
+            const uint16_t greenEnd = (_bands.width * 65) / 100;
+            const uint16_t yellowEnd = (_bands.width * 85) / 100;
+            const int midHalf = 3;
+            const int baseX = _config.left + 4;
+            const int baseY = _config.top + 10;
+            const uint8_t count = min(_bands.perheight, _maxSegments);
+            auto segmentColor = [&](uint8_t led, uint16_t litCount) {
+                if (led >= litCount) { return _bgcolor; }
+                const uint16_t position = led * step;
+                if (position < greenEnd) { return _vumincolor; }
+                if (position < yellowEnd) { return _vumidcolor; }
+                return _vumaxcolor;
+            };
+
+            for (uint8_t led = 0; led < count; ++led) {
+                const uint16_t colorL = segmentColor(led, litCountL);
+                const uint16_t colorR = segmentColor(led, litCountR);
+
+                if (!_segmentsInitialized || _segmentColorsL[led] != colorL) {
+                    const int x = baseX + _bands.width - midHalf - (led * step) - ledWidth;
+                    dsp.fillRect(x, baseY, ledWidth, _bands.height, colorL);
+                    _segmentColorsL[led] = colorL;
+                }
+                if (!_segmentsInitialized || _segmentColorsR[led] != colorR) {
+                    const int x = baseX + _bands.width + midHalf + (led * step);
+                    dsp.fillRect(x, baseY, ledWidth, _bands.height, colorR);
+                    _segmentColorsR[led] = colorR;
+                }
+            }
+            _segmentsInitialized = true;
+
+            #ifdef VU_PEEK
+            static int previousPeakXL = -1;
+            static int previousPeakXR = -1;
+            const int peakWidth = 1;
+            const uint16_t peakBright = 0xF7FF;
+            const uint16_t peakColor = 0xFFFF;
+
+            auto redrawPeakArea = [&](int oldX) {
+                if (oldX < baseX || oldX >= baseX + (_bands.width * 2 + 6)) { return; }
+                dsp.fillRect(oldX - 1, baseY, peakWidth + 2, _bands.height, _bgcolor);
+                for (uint8_t led = 0; led < count; ++led) {
+                    const int xL = baseX + _bands.width - midHalf - (led * step) - ledWidth;
+                    const int xR = baseX + _bands.width + midHalf + (led * step);
+                    if (xL <= oldX + 1 && xL + ledWidth > oldX - 1) {
+                        dsp.fillRect(xL, baseY, ledWidth, _bands.height, _segmentColorsL[led]);
+                    }
+                    if (xR <= oldX + 1 && xR + ledWidth > oldX - 1) {
+                        dsp.fillRect(xR, baseY, ledWidth, _bands.height, _segmentColorsR[led]);
+                    }
+                }
+            };
+
+            redrawPeakArea(previousPeakXL);
+            redrawPeakArea(previousPeakXR);
+
+            const int peakXL = max(baseX, baseX + _bands.width - midHalf - peakL);
+            const int peakXR = min(baseX + (_bands.width * 2 + 6) - peakWidth - 1,
+                                   baseX + _bands.width + midHalf + peakR);
+            if (peakL > 0) {
+                dsp.fillRect(peakXL - 1, baseY, peakWidth + 2, _bands.height, peakBright);
+                dsp.fillRect(peakXL, baseY, peakWidth, _bands.height, peakColor);
+                previousPeakXL = peakXL;
+            } else {
+                previousPeakXL = -1;
+            }
+            if (peakR > 0) {
+                dsp.fillRect(peakXR - 1, baseY, peakWidth + 2, _bands.height, peakBright);
+                dsp.fillRect(peakXR, baseY, peakWidth, _bands.height, peakColor);
+                previousPeakXR = peakXR;
+            } else {
+                previousPeakXR = -1;
+            }
+            #endif
+        }
+        #if 0
         // Két VU egymás mellett – TELJES TÖRLÉS kell a ghosting ellen!
         _canvas->fillRect(0, 0, _bands.width * 2 + _bands.space, _bands.height, _bgcolor);
         // --- LED színek határai ---
@@ -724,7 +867,7 @@ void VuWidget::_draw() {
             }
             _canvas->fillRect(x, 0, ledWidth, _bands.height, bandColor);
         }
-            #ifdef VU_PEAK
+            #ifdef VU_PEEK
         const uint16_t peak_color = 0xFFFF;
         const uint16_t peak_bright = 0xF7FF;
         const int      peak_width = 1;
@@ -741,12 +884,17 @@ void VuWidget::_draw() {
         if (pxR > maxX) { pxR = maxX; }
         _canvas->fillRect(pxR - 1, 0, peak_width + 2, _bands.height, peak_bright);
         _canvas->fillRect(pxR, 0, peak_width, _bands.height, peak_color);
-            #endif // VU_PEAK
+            #endif // VU_PEEK
                    // --- KIJELZŐRE KÜLDÉS ---
         dsp.startWrite();
         dsp.setAddrWindow(_config.left + 4, _config.top + 10, _bands.width * 2 + _bands.space, _bands.height);
-        dsp.writePixels((uint16_t*)_canvas->getBuffer(), (_bands.width * 2 + _bands.space) * _bands.height);
+        PROFILE_TIMER_RECORD("vu.paint", vuPaintStart);
+        {
+            PROFILE_SCOPE("vu.write");
+            dsp.writePixels((uint16_t*)_canvas->getBuffer(), (_bands.width * 2 + _bands.space) * _bands.height);
+        }
         dsp.endWrite();
+        #endif
         #endif // DSP_OLED
     #else      // ===================== BOOMBOX_STYLE END ======================
         // Háttér törlése – két VU egymás alatt
@@ -801,7 +949,7 @@ void VuWidget::_draw() {
             dsp.fillRect(_config.left + x, _config.top + _bands.height + _bands.space, ledWidth, _bands.height, bandColor);
         #endif
         }
-        #ifdef VU_PEAK
+        #ifdef VU_PEEK
             #ifndef DSP_OLED
         const uint16_t peak_color = 0xFFFF;
         const uint16_t peak_bright = 0xF7FF;
@@ -832,19 +980,27 @@ void VuWidget::_draw() {
             dsp.fillRect(peakR + _config.left, _config.top + _bands.height + _bands.space, peak_width, _bands.height, peak_color);
             #endif
         }
-        #endif // VU_PEAK
+        #endif // VU_PEEK
         #ifndef DSP_OLED
         // Kirajzolás
         int drawWidth = _bands.width;
         int drawHeight = _bands.height * 2 + _bands.space;
         dsp.startWrite();
         dsp.setAddrWindow(_config.left, _config.top, drawWidth, drawHeight);
-        dsp.writePixels((uint16_t*)_canvas->getBuffer(), drawWidth * drawHeight);
+        PROFILE_TIMER_RECORD("vu.paint", vuPaintStart);
+        {
+            PROFILE_SCOPE("vu.write");
+            dsp.writePixels((uint16_t*)_canvas->getBuffer(), drawWidth * drawHeight);
+        }
         dsp.endWrite();
         #endif
     #endif // BOOMBOX_STYLE
         /********************************** --- L/R címkék rajzolása --- **********************************/
+        #ifdef DSP_OLED
+        PROFILE_TIMER_RECORD("vu.paint", vuPaintStart);
+        #endif
         if (played && !_labelsDrawn) {
+            PROFILE_SCOPE("vu.labels");
     #ifdef BOOMBOX_STYLE
         #ifndef DSP_OLED
             // Serial.println("L/R rajzolás");
@@ -924,10 +1080,24 @@ void VuWidget::_draw() {
 }
 
 void VuWidget::loop() {
-    if (_active && !_locked && !config.isSdPlayer) { _draw(); }
+    PROFILE_SCOPE("vu.loop");
+    if (!_active) {
+        PROFILE_SCOPE("vu.inactive");
+        return;
+    }
+    if (_locked) {
+        PROFILE_SCOPE("vu.locked");
+        return;
+    }
+    if (config.isSdPlayer) {
+        PROFILE_SCOPE("vu.sdskip");
+        return;
+    }
+    _draw();
 }
 
 void VuWidget::_clear() {
+    _segmentsInitialized = false;
     #ifndef DSP_OLED
     int16_t clearLeft = _config.left;
     int16_t clearTop = _config.top;
@@ -1489,18 +1659,21 @@ void ClockWidget::_drawShortDateSSD1322() {
         #endif
 
 void ClockWidget::_printClock(bool force) {
+    PROFILE_SCOPE("clock.print");
     auto& gfx = getRealDsp();
     gfx.setTextSize(Clock_GFXfontPtr == nullptr ? TIME_SIZE : 1);
     gfx.setFont(Clock_GFXfontPtr);
     if (_flipEnabled()) {
         if (force) {
+            PROFILE_SCOPE("clock.flipforce");
             _getTimeBounds();
             char hhNew[3] = { _timebuffer[0], _timebuffer[1], '\0' };
             char mmNew[3] = { _timebuffer[3], _timebuffer[4], '\0' };
+            const bool redrawPanels = _prevTimebuffer[0] == '\0';
             if (strcmp(hhNew, _flipHH.current()) != 0) _flipHH.flipTo(hhNew);
-            else _flipHH.setValue(hhNew);
+            else if (redrawPanels) _flipHH.setValue(hhNew);
             if (strcmp(mmNew, _flipMM.current()) != 0) _flipMM.flipTo(mmNew);
-            else _flipMM.setValue(mmNew);
+            else if (redrawPanels) _flipMM.setValue(mmNew);
             strncpy(_prevTimebuffer, _timebuffer, sizeof(_prevTimebuffer));
             if (_secondsEnabled()) {
                 _drawFlipSeconds();
@@ -1518,10 +1691,14 @@ void ClockWidget::_printClock(bool force) {
         if (force && _fullclock && !config.isScreensaver) {
             _formatDate();
 #ifndef HIDE_DATE
+            char newDate[sizeof(_datebuf)];
+            strlcpy(newDate, utf8To(_tmp, false), sizeof(newDate));
+            if (strcmp(_datebuf, newDate) != 0) {
+            PROFILE_SCOPE("clock.date");
             memcpy_P(&_dateConf, &dateConf, sizeof(WidgetConfig));
             int lineHeight = _dateheight * 8;
             dsp.fillRect(0, _dateConf.top, dsp.width(), lineHeight, config.theme.background);
-            strlcpy(_datebuf, utf8To(_tmp, false), sizeof(_datebuf));
+            strlcpy(_datebuf, newDate, sizeof(_datebuf));
             uint16_t _datewidth = strlen(_datebuf) * CHARWIDTH * _dateheight;
             dsp.setFont();
             dsp.setTextSize(_dateheight);
@@ -1535,11 +1712,13 @@ void ClockWidget::_printClock(bool force) {
                               _dateConf.top, lineHeight, _dateleft, _datewidth, _datebuf);
             }
 #endif
+            }
 #endif
         }
 
 #ifdef NAMEDAYS_FILE
         if (config.store.nameday) {
+            PROFILE_SCOPE("clock.nameday");
             static uint32_t lastRotationFlip = 0;
             if (millis() - lastRotationFlip >= 4000) {
                 getNamedayUpper(_namedayBuf, sizeof(_namedayBuf));
@@ -1836,18 +2015,23 @@ void ClockWidget::_printNameday() {
         // Nameday text must use regular text font, not the flip clock numeric GFX font.
         // In flip mode _printNameday() can be called from _printClock(false), where clock font is active.
         dsp.setFont();
-        // Rajzold le a nyelvfüggő "Névnap:" szót fehér színnel.
-        dsp.setTextColor(config.theme.date, config.theme.background);
-        dsp.setCursor(_namedayConf.left, _namedayConf.top); // egy sorral feljebb
-            #if NAMEDAYS_FILE == GR                         // Görög nyevnél túl hosszú, ezért 1- es méret.
-        dsp.setTextSize(1);
-            #else
-        dsp.setTextSize(_namedayConf.textsize);
-            #endif
         if (!config.isScreensaver && !config.isSdPlayer) {
-            // Serial.printf("Widget.cpp->nameday_label: %s \n", nameday_label);
-            // Serial.printf("Widget.cpp->utf8To(nameday_label, false): %s \n", utf8To(nameday_label, false));
-            dsp.print(utf8To(nameday_label, false)); // <<< Itt már a headerből jön "nameday"
+            if (!_namedayLabelDrawn) {
+                PROFILE_SCOPE("nameday.label");
+                // Rajzold le a nyelvfüggő "Névnap:" szót fehér színnel.
+                dsp.setTextColor(config.theme.date, config.theme.background);
+                dsp.setCursor(_namedayConf.left, _namedayConf.top); // egy sorral feljebb
+            #if NAMEDAYS_FILE == GR                         // Görög nyevnél túl hosszú, ezért 1- es méret.
+                dsp.setTextSize(1);
+            #else
+                dsp.setTextSize(_namedayConf.textsize);
+            #endif
+                // Serial.printf("Widget.cpp->nameday_label: %s \n", nameday_label);
+                // Serial.printf("Widget.cpp->utf8To(nameday_label, false): %s \n", utf8To(nameday_label, false));
+                dsp.print(utf8To(nameday_label, false)); // <<< Itt már a headerből jön "nameday"
+                _namedayLabelDrawn = true;
+            }
+            PROFILE_SCOPE("nameday.value");
             // Csak a neveket rajzolja arany színnel
             dsp.setTextColor(config.theme.nameday, config.theme.background); // szürke 0x8410
             // Névnap nevének területének törlése a kijelzőről.
@@ -1865,6 +2049,7 @@ void ClockWidget::_printNameday() {
 void ClockWidget ::clearNameday() {
     int clearWidth = max(_oldnamedaywidth, _namedaywidth); // A régi és az új név közül a szélesebb szélessége.
     dsp.fillRect(namedayConf.left, namedayConf.top, clearWidth, (CHARHEIGHT * namedayConf.textsize * 2) + 5, config.theme.background);
+    _namedayLabelDrawn = false;
 }
         #endif // NAMEDAYS_FILE
 
@@ -1889,12 +2074,18 @@ void ClockWidget::_clearClock() {
 }
 
 void ClockWidget::draw(bool force) {
+    PROFILE_SCOPE("clock.draw");
     if (!_active) { return; }
     _printClock(_getTime() || force);
 }
 
 void ClockWidget::_draw() {
+    PROFILE_SCOPE("clock._draw");
     if (!_active) { return; }
+    _prevTimebuffer[0] = '\0';
+    _datebuf[0] = '\0';
+    _oldNamedayBuf[0] = '\0';
+    _namedayLabelDrawn = false;
     _printClock(true);
 }
 
@@ -1906,6 +2097,10 @@ void ClockWidget::_reset() {
         _beginFlipSecBuf();
         #endif
         _lastTimebuffer[0] = '\0';
+        _prevTimebuffer[0] = '\0';
+        _datebuf[0] = '\0';
+        _oldNamedayBuf[0] = '\0';
+        _namedayLabelDrawn = false;
         _forceflag = 0;
         _lastSec = -1;
         return;
@@ -1973,6 +2168,7 @@ void ClockWidget::_initFlipDigits() {
  *        Dwukropek usunięty – zbędny dla flip clock.
  */
 void ClockWidget::_drawFlipSeconds() {
+    PROFILE_SCOPE("clock.seconds");
     if (!_secondsEnabled()) return;
     if (!_fb->ready()) return;
     _fb->clear();
@@ -1993,6 +2189,7 @@ void ClockWidget::_drawFlipSeconds() {
  *        Klatki animacji FlipDigit delegowane do _flipHH.loop() i _flipMM.loop().
  */
 void ClockWidget::tick() {
+    PROFILE_SCOPE("clock.tick");
     if (!_active || !_flipEnabled()) return;
 
     int8_t curSec = (int8_t)network.timeinfo.tm_sec;

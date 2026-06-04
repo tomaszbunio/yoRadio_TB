@@ -1,6 +1,7 @@
 //v0.9.670
 #include "../../core/options.h"
 #if DSP_MODEL!=DSP_DUMMY
+#include "../../core/profiler.h"
 #include "../dspcore.h"
 #include "pages.h"
 #include "widgets.h"
@@ -10,6 +11,7 @@ void Pager::begin(){
 }
 
 void Pager::loop(){
+  PROFILE_SCOPE("pager.loop");
   for(const auto& p: _pages)
     if(p->isActive()) p->loop();
 }
@@ -53,6 +55,7 @@ Page::~Page() {
 }
 
 void Page::loop() {
+  PROFILE_SCOPE("page.loop");
   if(_active) for (const auto& w : _widgets) w->loop();
 }
 

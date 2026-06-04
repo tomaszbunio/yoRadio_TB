@@ -8,6 +8,7 @@
 #include "player.h"
 #include "network.h"
 #include "netserver.h"
+#include "profiler.h"
 #include "timekeeper.h"
 #include "../pluginsManager/pluginsManager.h"
 #include "../displays/dspcore.h"
@@ -502,6 +503,7 @@ void Display::_swichMode(displayMode_e newmode) {
         //_meta->setText(config.station.name);
         // _nums->setText("");
         config.isScreensaver = false;
+        if (_vuwidget) { _vuwidget->invalidate(); }
         _pager->setPage(pages[PG_PLAYER]);
         // Returning from SD_PLAYER can leave stale pixels in the audio buffer bar area.
         // Force full widget reset so next draw starts from a clean baseline.
@@ -1150,24 +1152,47 @@ void Display::_layoutChange(bool played) {
 }
 
 void Display::loop() {
+    PROFILE_SCOPE("display.loop");
     if (_bootStep == 0) {
         _pager->begin();
         _bootScreen();
         return;
     }
     if (displayQueue == NULL || _locked) { return; }
-    _pager->loop();
-    if (_clock && (_mode == PLAYER || _mode == SCREENSAVER)) { _clock->tick(); }
+    {
+        PROFILE_SCOPE("display.pager");
+        _pager->loop();
+    }
+    if (_clock && (_mode == PLAYER || _mode == SCREENSAVER)) {
+        PROFILE_SCOPE("display.clocktick");
+        _clock->tick();
+    }
     #ifdef USE_NEXTION
-    nextion.loop();
+    {
+        PROFILE_SCOPE("display.nextion");
+        nextion.loop();
+    }
     #endif
     requestParams_t request;
-    if (xQueueReceive(displayQueue, &request, DSP_QUEUE_TICKS)) {
+    bool hasRequest = false;
+    {
+        PROFILE_SCOPE("display.queue");
+        hasRequest = xQueueReceive(displayQueue, &request, DSP_QUEUE_TICKS);
+    }
+    if (hasRequest) {
+        PROFILE_SCOPE("display.request");
         bool pm_result = true;
-        pm.on_display_queue(request, pm_result);
+        {
+            PROFILE_SCOPE("display.plugins");
+            pm.on_display_queue(request, pm_result);
+        }
         if (pm_result) {
             switch (request.type) {
-                case NEWMODE: _swichMode((displayMode_e)request.payload); break;
+                case NEWMODE: {
+                    PROFILE_SCOPE("display.mode");
+                    _swichMode((displayMode_e)request.payload);
+                    break;
+                }
                 case CLOSEPLAYLIST:
                     if (!(config.getMode() == PM_SDCARD &&
                           player.isRunning() &&
@@ -1175,20 +1200,46 @@ void Display::loop() {
                         player.sendCommand({PR_PLAY, request.payload});
                     }
                     break;
-                case CLOCK:
+                case CLOCK: {
+                    PROFILE_SCOPE("display.time");
                     if (_mode == PLAYER || _mode == SCREENSAVER) { _time(request.payload == 1); }
-                    if (_mode == SD_PLAYER) { _sdPlayerScreen(); }
+                    if (_mode == SD_PLAYER) {
+                        PROFILE_SCOPE("display.sdplayer");
+                        _sdPlayerScreen();
+                    }
                     /*#ifdef USE_NEXTION
                       if(_mode==TIMEZONE) nextion.localTime(network.timeinfo);
                       if(_mode==INFO)     nextion.rssi();
                     #endif*/
                     break;
-                case NEWTITLE: _title(); break;
-                case NEWSTATION: _station(); break;
-                case NEXTSTATION: _drawNextStationNum(request.payload); break;
-                case DRAWPLAYLIST: _drawPlaylist(); break;
-                case DRAWVOL: _volume(); break;
+                }
+                case NEWTITLE: {
+                    PROFILE_SCOPE("display.title");
+                    _title();
+                    break;
+                }
+                case NEWSTATION: {
+                    PROFILE_SCOPE("display.station");
+                    _station();
+                    break;
+                }
+                case NEXTSTATION: {
+                    PROFILE_SCOPE("display.nextst");
+                    _drawNextStationNum(request.payload);
+                    break;
+                }
+                case DRAWPLAYLIST: {
+                    PROFILE_SCOPE("display.playlist");
+                    _drawPlaylist();
+                    break;
+                }
+                case DRAWVOL: {
+                    PROFILE_SCOPE("display.volume");
+                    _volume();
+                    break;
+                }
                 case DBITRATE: {
+                    PROFILE_SCOPE("display.bitrate");
                     if (_mode == PLAYER) { // csak a lejátszás képernyőn frissíti a bitrateWidgetet
                         char buf[20];
                         snprintf(buf, 20, bitrateFmt, config.station.bitrate);
@@ -1207,17 +1258,21 @@ void Display::loop() {
                     }
                 } break;
                 case CLEARALLBITRATE: {    // "nameday"
+                    PROFILE_SCOPE("display.clearbr");
                     if (_mode == PLAYER) { // csak a lejátszás képernyőn
                         if (_fullbitrate) { _fullbitrate->clearAll(); }
                     }
                 } break;
-                case AUDIOINFO:
+                case AUDIOINFO: {
+                    PROFILE_SCOPE("display.audioinf");
                     if (_heapbar) {
                         _heapbar->lock(!config.store.audioinfo);
                         _heapbar->setValue(player.inBufferFilled());
                     }
                     break;
+                }
                 case SHOWVUMETER: {
+                    PROFILE_SCOPE("display.vumeter");
                     if (_vuwidget) {
                         _vuwidget->lock(!config.store.vumeter);
                         _layoutChange(player.isRunning());
@@ -1225,6 +1280,7 @@ void Display::loop() {
                     break;
                 }
                 case SHOWWEATHER: {
+                    PROFILE_SCOPE("display.weather");
                     if (_weather) { _weather->lock(!config.store.showweather); }
                     if (!config.store.showweather) {
     #ifndef HIDE_IP
@@ -1236,10 +1292,12 @@ void Display::loop() {
                     break;
                 }
                 case NEWWEATHER: {
+                    PROFILE_SCOPE("display.weather");
                     if (_weather && timekeeper.weatherBuf) { _weather->setText(timekeeper.weatherBuf); }
                     break;
                 }
                 case BOOTSTRING: {
+                    PROFILE_SCOPE("display.boot");
                     if (_bootstring) { _bootstring->setText(config.ssids[request.payload].ssid, LANG::bootstrFmt); }
                     /*#ifdef USE_NEXTION
                       char buf[50];
@@ -1249,31 +1307,48 @@ void Display::loop() {
                     break;
                 }
                 case WAITFORSD: {
+                    PROFILE_SCOPE("display.waitsd");
                     if (_bootstring) { _bootstring->setText(LANG::const_waitForSD); }
                     break;
                 }
                 case SDFILEINDEX: {
+                    PROFILE_SCOPE("display.sdindex");
                     if (_mode == SDCHANGE) { _nums->setText(request.payload, "%d"); }
                     break;
                 }
-                case DSPRSSI:
+                case DSPRSSI: {
+                    PROFILE_SCOPE("display.rssi");
                     if (_rssi) { _setRSSI(request.payload); }
                     if (_heapbar && config.store.audioinfo) { _heapbar->setValue(player.isRunning() ? player.inBufferFilled() : 0); }
                     break;
-                case PSTART:
+                }
+                case PSTART: {
+                    PROFILE_SCOPE("display.layout");
                     _layoutChange(true);
                     break;
-                case PSTOP:
+                }
+                case PSTOP: {
+                    PROFILE_SCOPE("display.layout");
                     _layoutChange(false);
                     break;
-                case DSP_START: _start(); break;
+                }
+                case DSP_START: {
+                    PROFILE_SCOPE("display.start");
+                    _start();
+                    break;
+                }
                 case NEWIP: {
+                    PROFILE_SCOPE("display.ip");
     #ifndef HIDE_IP
                     if (_volip) { _volip->setText(config.ipToStr(WiFi.localIP()), iptxtFmt); }
     #endif
                     break;
                 }
-				case APPLY_THEME: _applyTheme(); break;
+				case APPLY_THEME: {
+                    PROFILE_SCOPE("display.theme");
+                    _applyTheme();
+                    break;
+                }
                 default:
                     break;
 
@@ -1284,7 +1359,10 @@ void Display::loop() {
         }
     }
 
-    dsp.loop();
+    {
+        PROFILE_SCOPE("display.draw");
+        dsp.loop();
+    }
     /*
     #if I2S_DOUT==255
     player.computeVUlevel();
@@ -1339,40 +1417,52 @@ void Display::_title() {
     // Ha üres a title, használja a playlistben tárolt nevet.
     if (strlen(config.station.title) == 0) { strlcpy(config.station.title, config.station.name, sizeof(config.station.title)); }
     if (_mode == SD_PLAYER) {
-        if (_sdtitle)  { _sdtitle->setText(config.station.title); }
-        if (_sdartist) { _sdartist->setText(config.station.sdArtist); }
-        if (_sdalbum)  { _sdalbum->setText(config.station.sdAlbum); }
+        if (_sdtitle)  { PROFILE_SCOPE("title.sdtitle"); _sdtitle->setText(config.station.title); }
+        if (_sdartist) { PROFILE_SCOPE("title.sdartist"); _sdartist->setText(config.station.sdArtist); }
+        if (_sdalbum)  { PROFILE_SCOPE("title.sdalbum"); _sdalbum->setText(config.station.sdAlbum); }
         #ifdef SD_COVER_ART
-        if (config.getMode() == PM_SDCARD) { _sdcover.setTrack(config.station.url); }
+        if (config.getMode() == PM_SDCARD) {
+            PROFILE_SCOPE("title.sdcover");
+            _sdcover.setTrack(config.station.url);
+        }
         #endif
     } else if (strlen(config.station.title) > 0) {
+        PROFILE_SCOPE("title.radio");
         char tmpbuf[strlen(config.station.title) + 1];
         strlcpy(tmpbuf, config.station.title, sizeof(tmpbuf));
         char* stitle = split(tmpbuf, " - ");
         if (stitle && _title2) {
-            _title1->setText(tmpbuf);
-            _title2->setText(stitle);
+            { PROFILE_SCOPE("title.line1"); _title1->setText(tmpbuf); }
+            { PROFILE_SCOPE("title.line2"); _title2->setText(stitle); }
         } else {
-            _title1->setText(config.station.title);
-            if (_title2) { _title2->setText(""); }
+            { PROFILE_SCOPE("title.line1"); _title1->setText(config.station.title); }
+            if (_title2) { PROFILE_SCOPE("title.line2"); _title2->setText(""); }
         }
     } else {
-        _title1->setText("");
-        if (_title2) { _title2->setText(""); }
+        { PROFILE_SCOPE("title.line1"); _title1->setText(""); }
+        if (_title2) { PROFILE_SCOPE("title.line2"); _title2->setText(""); }
     }
-    if (player_on_track_change) { player_on_track_change(); }
-    pm.on_track_change();
+    if (player_on_track_change) {
+        PROFILE_SCOPE("title.playerhook");
+        player_on_track_change();
+    }
+    {
+        PROFILE_SCOPE("title.pluginhook");
+        pm.on_track_change();
+    }
 }
 
 void Display::_time(bool redraw) {
 
     #if LIGHT_SENSOR != 255
     if (config.store.dspon) {
+        PROFILE_SCOPE("time.light");
         config.store.brightness = AUTOBACKLIGHT(analogRead(LIGHT_SENSOR));
         config.setBrightness();
     }
     #endif
     if (config.isScreensaver && network.timeinfo.tm_sec % 60 == 0) {
+        PROFILE_SCOPE("time.screensav");
     #if TIME_SIZE < 19
         uint16_t ft = static_cast<uint16_t>(random(TFT_FRAMEWDT, (dsp.height() - TIME_SIZE * CHARHEIGHT - TFT_FRAMEWDT)));
     #else
@@ -1383,7 +1473,10 @@ void Display::_time(bool redraw) {
         //_clock->moveTo({clockConf.left, ft, 0});
         _clock->moveTo({lt, ft, 0});
     }
-    _clock->draw(redraw);
+    {
+        PROFILE_SCOPE("time.clockdraw");
+        _clock->draw(redraw);
+    }
     /*#ifdef USE_NEXTION
       nextion.printClock(network.timeinfo);
     #endif*/

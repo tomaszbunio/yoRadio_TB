@@ -72,6 +72,7 @@
 
 #include "../tools/psframebuffer.h"
 #include "../../core/config.h"
+#include "../../core/profiler.h"
 extern const GFXfont *Clock_GFXfontPtr;  // wskaźnik na aktywną czcionkę zegara
 
 class FlipDigit {
@@ -112,6 +113,7 @@ public:
    * @brief Ustawia wartość natychmiast (bez animacji) i odświeża ekran.
    */
   void setValue(const char *val) {
+    PROFILE_SCOPE("flip.setvalue");
     if (!_bufA || !_bufA->ready()) return;
     strncpy(_current, val, 2); _current[2] = '\0';
     _flipping = false; _frame = 0;
@@ -124,6 +126,7 @@ public:
    *        Jeśli animacja już trwa lub wartość niezmieniona – ignoruje.
    */
   void flipTo(const char *val) {
+    PROFILE_SCOPE("flip.flipto");
     if (_flipping) return;                          // animacja w toku – ignoruj
     if (strncmp(val, _current, 2) == 0) return;    // ta sama wartość – nic do roboty
     if (!_bufA || !_bufB || !_bufA->ready() || !_bufB->ready()) {
@@ -145,10 +148,15 @@ public:
     uint32_t now = millis();
     // Czas między klatkami = całkowity czas animacji / liczba klatek
     if (now - _lastFrame < (uint32_t)(FLIP_SPEED_MS / FLIP_FRAMES)) return;
+    PROFILE_SCOPE("flip.loop");
     _lastFrame = now;
-    _drawFrame(_frame);
+    {
+      PROFILE_SCOPE("flip.frame");
+      _drawFrame(_frame);
+    }
     _frame++;
     if (_frame >= FLIP_FRAMES) {
+      PROFILE_SCOPE("flip.finish");
       // Animacja zakończona – bufor A = nowa wartość, wyświetl statycznie
       _flipping = false;
       strncpy(_current, _next, 2); _current[2] = '\0';
@@ -194,6 +202,7 @@ private:
    * Linia środkowa dzieli karteczkę na górną i dolną połowę.
    */
   void _renderStr(psFrameBuffer *buf, const char *str) {
+    PROFILE_SCOPE("flip.render");
     if (!buf || !buf->ready()) return;
     const int16_t W    = _w;
     const int16_t H    = _h + 2 * FLIP_CARD_MARGIN;
@@ -261,6 +270,7 @@ private:
    * setAddrWindow/writePixels (minimalna liczba transakcji SPI).
    */
   void _drawFrame(uint8_t frame) {
+    PROFILE_SCOPE("flip.drawframe");
     if (!_bufA || !_bufB || !_bufA->ready() || !_bufB->ready()) return;
 
     const int16_t H    = _h + 2 * FLIP_CARD_MARGIN;  // całkowita wysokość bufora

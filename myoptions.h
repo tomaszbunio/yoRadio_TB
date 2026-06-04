@@ -17,6 +17,7 @@
 #endif
 
 // #define HEAP_DBG
+// #define DEBUG_PROFILER       // Lekki profiler: display.loop/draw, web, main, player/audio, network
 // #define DEBUG_MODE_SWITCH   // Debug przełączania trybów (IR MENU / playlist return / display mode)
 
 /* You can set the program language here.
@@ -64,8 +65,8 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 */
 
 /*----- Touch ISP -----*/
- #define TS_MODEL TS_MODEL_XPT2046
- #define TS_CS    48
+ //#define TS_MODEL TS_MODEL_XPT2046
+ //#define TS_CS    48
  
 /*----- Touch I2C -----*/
 // #define TS_MODEL TS_MODEL_FT6X36
@@ -158,7 +159,7 @@ If there is a // sign at the beginning of the line, the basic VU meter is workin
  #define BOOMBOX_STYLE
 
 /*----- A white bar will appear at the end of the VU meter at the peak values ​​if you enable this. -----*/
-#define VU_PEAK
+#define VU_PEEK
 
  /* When selecting from the station list, you do not need to press the rotary encoder button, the channel will automatically
 change when you exit. (By Zsigmond Becskehazi) -----*/

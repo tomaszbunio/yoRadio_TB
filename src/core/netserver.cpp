@@ -811,49 +811,6 @@ void NetServer::irValsToWs() {
   websocket.textAll(wsBuf);
 }
 
-static bool handleIrPowerJson(const char *payload) {
-  if (strstr(payload, "\"ircode\"") == nullptr || strstr(payload, "\"protocol\"") == nullptr) {
-    return false;
-  }
-
-  const char *codePos = strstr(payload, "\"ircode\"");
-  codePos = strchr(codePos, ':');
-  if (codePos == nullptr) return false;
-  codePos++;
-  while (*codePos == ' ' || *codePos == '\t') codePos++;
-  uint64_t ircode = strtoull(codePos, nullptr, 10);
-
-  const char *protoPos = strstr(payload, "\"protocol\"");
-  protoPos = strchr(protoPos, ':');
-  if (protoPos == nullptr) return false;
-  protoPos++;
-  while (*protoPos == ' ' || *protoPos == '\t') protoPos++;
-  if (*protoPos != '\"') return false;
-  protoPos++;
-  const char *protoEnd = strchr(protoPos, '\"');
-  if (protoEnd == nullptr) return false;
-
-  char protocol[16] = {0};
-  size_t protoLen = (size_t)(protoEnd - protoPos);
-  if (protoLen >= sizeof(protocol)) protoLen = sizeof(protocol) - 1;
-  memcpy(protocol, protoPos, protoLen);
-  protocol[protoLen] = '\0';
-
-  // New pilot POWER button: {ircode: 33731149, protocol: "NEC"}
-  if (strcmp(protocol, "NEC") == 0 && ircode == 33731149ULL) {
-    if (display.mode() == SLEEPING || display.mode() == SCREENBLANK || display.mode() == SCREENSAVER) {
-      config.setDspOn(true);
-      display.putRequest(NEWMODE, PLAYER);
-    } else {
-      display.putRequest(NEWMODE, SLEEPING);
-      delay(150);
-      goToSleep();
-    }
-    return true;
-  }
-
-  return false;
-}
 #endif
 
 void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t clientId) {
@@ -865,12 +822,6 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
     }
     memcpy(msg, data, len);
     msg[len] = '\0';
-#if IR_PIN != 255
-    if (handleIrPowerJson(msg)) {
-      free(msg);
-      return;
-    }
-#endif
     if (config.parseWsCommand(msg, _wscmd, _wsval, 65)) {
       if (strcmp(_wscmd, "ping") == 0) {
         websocket.text(clientId, "{\"pong\": 1}");
