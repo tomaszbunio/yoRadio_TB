@@ -1,6 +1,7 @@
-﻿#pragma once
+#pragma once
 #if defined(SD_COVER_ART) && SDC_CS != 255
 
+typedef unsigned long my_ulong;
 #include <JPEGDEC.h>
 #include "../../core/options.h"
 #include "../../core/player.h"

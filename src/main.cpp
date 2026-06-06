@@ -1,4 +1,4 @@
-﻿#include "Arduino.h"
+#include "Arduino.h"
 #include "clock_tts/clock_tts.h" // "clock_tts"
 #include "core/options.h"
 #include "core/config.h"

@@ -1,4 +1,4 @@
-﻿//MĂłdosĂ­tva! v0.9.710
+
 #ifndef widgets_h
 #define widgets_h
 #if DSP_MODEL != DSP_DUMMY
@@ -14,7 +14,7 @@ class Adafruit_GFX;
   // JeĹ›li nie wiemy jaki wyĹ›wietlacz, uĹĽyj forward declaration
   // ale jako klasa, nie typedef
   class GFXcanvas16;  // Forward declaration oryginalnej klasy
-  typedef GFXcanvas16 Canvas;  // Teraz to jest poprawne
+  typedef GFXcanvas16 Canvas;
 #endif
 
 /** Ustawia czcionkÄ™ zegara runtime (1..7) */
