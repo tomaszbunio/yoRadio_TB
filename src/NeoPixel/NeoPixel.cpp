@@ -1,6 +1,7 @@
 #include <Adafruit_NeoPixel.h>
 #include "NeoPixel.h"
 #include "../core/config.h"
+#include "../core/display.h"
 #include "../../myoptions.h"
 
 Adafruit_NeoPixel strip(LED_COUNT, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
@@ -11,10 +12,19 @@ static constexpr uint16_t RING2_START = RING1_START + RING_SIZE;
 static uint8_t ringPhase1 = 0;
 static uint8_t ringPhase2 = 0;
 static uint32_t lastFrame = 0;
-static bool encoderAnimActive = false;
-static int encoderPos = 0;
-static uint32_t encoderLast = 0;
-static uint16_t encoderOverlayColor = 0xFFFF;
+
+struct EncoderOverlay {
+  bool active;
+  int pos;
+  uint32_t last;
+  displayMode_e targetMode;
+  bool modeSeen;
+};
+
+static EncoderOverlay encoderOverlay[2] = {
+  {false, 0, 0, STATIONS, false},
+  {false, 0, 0, VOL, false}
+};
 
 static uint32_t Wheel(byte wheelPos) {
   wheelPos = 255 - wheelPos;
@@ -72,6 +82,66 @@ static void renderRing(uint16_t start, uint16_t end, uint8_t effect, uint16_t co
   }
 }
 
+static void ringBounds(uint8_t encoderId, uint16_t total, uint16_t &start, uint16_t &end) {
+  start = (encoderId == 2) ? RING2_START : RING1_START;
+  end = start + RING_SIZE;
+  if (start > total) start = total;
+  if (end > total) end = total;
+}
+
+static uint8_t encoderEffect(uint8_t encoderId) {
+  return (encoderId == 2) ? config.store.neopixel_rotate2_effect : config.store.neopixel_rotate1_effect;
+}
+
+static uint16_t encoderRotateColor(uint8_t encoderId) {
+  return (encoderId == 2) ? config.store.neopixel_rotate2_color : config.store.neopixel_rotate1_color;
+}
+
+static bool encoderRotateEnabled(uint8_t encoderId) {
+  return (encoderId == 2) ? config.store.neopixel_rotate2_enabled : config.store.neopixel_rotate1_enabled;
+}
+
+static void updateOverlayMode(EncoderOverlay &overlay) {
+  if (!overlay.active) return;
+  displayMode_e currentMode = display.mode();
+  if (currentMode == overlay.targetMode) {
+    overlay.modeSeen = true;
+    return;
+  }
+  if (overlay.modeSeen) {
+    overlay.active = false;
+    overlay.modeSeen = false;
+  }
+}
+
+static void renderEncoderOverlay(uint8_t encoderId, uint16_t total) {
+  uint8_t idx = (encoderId == 2) ? 1 : 0;
+  EncoderOverlay &overlay = encoderOverlay[idx];
+  updateOverlayMode(overlay);
+  if (!overlay.active) return;
+
+  uint16_t start, end;
+  ringBounds(encoderId, total, start, end);
+  uint16_t count = end - start;
+  if (count == 0) {
+    overlay.active = false;
+    return;
+  }
+  if (overlay.pos < 0) overlay.pos = count - 1;
+  if (overlay.pos >= count) overlay.pos = 0;
+
+  uint8_t effect = encoderEffect(encoderId);
+  if (effect == 0) return;
+  if (effect == 1) {
+    strip.setPixelColor(start + overlay.pos, color565ToNeo(encoderRotateColor(encoderId)));
+    return;
+  }
+
+  uint8_t phase = (encoderId == 2) ? ringPhase2 : ringPhase1;
+  phase += overlay.pos * 8;
+  renderRing(start, end, effect, encoderRotateColor(encoderId), phase);
+}
+
 static void renderRingsAndShow() {
   if (!config.store.neopixel_enabled) {
     strip.clear();
@@ -94,11 +164,8 @@ static void renderRingsAndShow() {
   // Any extra LEDs outside two 8-LED rings are forced off.
   for (uint16_t i = ring2End; i < total; i++) strip.setPixelColor(i, 0);
 
-  if (encoderAnimActive && millis() - encoderLast <= 120) {
-    strip.setPixelColor(encoderPos, color565ToNeo(encoderOverlayColor));
-  } else {
-    encoderAnimActive = false;
-  }
+  renderEncoderOverlay(1, total);
+  renderEncoderOverlay(2, total);
 
   strip.show();
 }
@@ -115,14 +182,29 @@ void NeoPixel_off() {
   strip.show();
 }
 
+void ledEncoderRotate(uint8_t encoderId, bool dir) {
+  if (!config.store.neopixel_enabled) return;
+  encoderId = (encoderId == 2) ? 2 : 1;
+  if (!encoderRotateEnabled(encoderId)) return;
+
+  uint16_t start, end;
+  ringBounds(encoderId, strip.numPixels(), start, end);
+  int count = end - start;
+  if (count <= 0) return;
+
+  EncoderOverlay &overlay = encoderOverlay[encoderId - 1];
+  overlay.active = true;
+  overlay.last = millis();
+  overlay.targetMode = (encoderId == 2) ? VOL : STATIONS;
+  overlay.modeSeen = (display.mode() == overlay.targetMode);
+  overlay.pos += dir ? 1 : -1;
+  if (overlay.pos < 0) overlay.pos = count - 1;
+  if (overlay.pos >= count) overlay.pos = 0;
+  renderRingsAndShow();
+}
+
 void ledEncoderRotate(bool dir) {
-  encoderAnimActive = true;
-  encoderLast = millis();
-  uint16_t controlledPixels = strip.numPixels() < (RING_SIZE * 2) ? strip.numPixels() : (RING_SIZE * 2);
-  if (controlledPixels == 0) return;
-  encoderPos += dir ? 1 : -1;
-  if (encoderPos < 0) encoderPos = controlledPixels - 1;
-  if (encoderPos >= controlledPixels) encoderPos = 0;
+  ledEncoderRotate(1, dir);
 }
 
 void NeoPixel_init() {
@@ -157,13 +239,11 @@ void NeoPixel_setEncoderColor(uint8_t encoderId, uint16_t rgb565) {
   } else {
     config.store.neopixel_enc1_color = rgb565;
   }
-  encoderOverlayColor = rgb565;
   renderRingsAndShow();
 }
 
 void NeoPixel_applyConfig() {
   strip.setBrightness(config.store.neopixel_brightness);
-  encoderOverlayColor = config.store.neopixel_enc1_color;
   renderRingsAndShow();
 }
 

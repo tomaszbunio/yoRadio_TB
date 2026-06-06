@@ -1,4 +1,4 @@
-//v0.9.670 // Módosítva. "vol_step"
+//v0.9.670
 #include "Arduino.h"
 #include "options.h"
 #include "controls.h"
@@ -262,6 +262,9 @@ void encodersLoop(yoEncoder *enc, bool first) {
 
   int8_t delta = enc->encoderChanged();
   if (delta == 0) return;
+#ifdef NEOPIXEL_ON
+  ledEncoderRotate(first ? 1 : 2, delta > 0);
+#endif
   volDbg(first ? "encoder1" : "encoder2", "delta", delta, first ? 1 : 2);
 
 #if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)

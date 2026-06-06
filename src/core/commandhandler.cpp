@@ -81,7 +81,7 @@ bool CommandHandler::exec(const char* command, const char* value, uint8_t cid) {
     }
     if (strEquals(command, "vol")) {
         int v = atoi(value);
-        config.store.volume = v < 0 ? 0 : (v > 100 ? 100 : v); // Módosítás "vol_step"
+        config.store.volume = v < 0 ? 0 : (v > 100 ? 100 : v);
         player.setVol(v);
         return true;
     }
@@ -159,6 +159,44 @@ bool CommandHandler::exec(const char* command, const char* value, uint8_t cid) {
     config.saveValue(&config.store.neopixel_enc2_color, col, false);
     config.scheduleEEPROMCommit();
     NeoPixel_setEncoderColor(2, col);
+    return true;
+  }
+  if (strEquals(command, "neopixel_rotate1_enabled")) {
+    config.saveValue(&config.store.neopixel_rotate1_enabled, static_cast<uint8_t>(atoi(value) ? 1 : 0));
+    NeoPixel_applyConfig();
+    return true;
+  }
+  if (strEquals(command, "neopixel_rotate2_enabled")) {
+    config.saveValue(&config.store.neopixel_rotate2_enabled, static_cast<uint8_t>(atoi(value) ? 1 : 0));
+    NeoPixel_applyConfig();
+    return true;
+  }
+  if (strEquals(command, "neopixel_rotate1_effect")) {
+    uint8_t effect = static_cast<uint8_t>(atoi(value));
+    if (effect > 4) effect = 4;
+    config.saveValue(&config.store.neopixel_rotate1_effect, effect);
+    NeoPixel_applyConfig();
+    return true;
+  }
+  if (strEquals(command, "neopixel_rotate2_effect")) {
+    uint8_t effect = static_cast<uint8_t>(atoi(value));
+    if (effect > 4) effect = 4;
+    config.saveValue(&config.store.neopixel_rotate2_effect, effect);
+    NeoPixel_applyConfig();
+    return true;
+  }
+  if (strEquals(command, "neopixel_rotate1_color")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.neopixel_rotate1_color, col, false);
+    config.scheduleEEPROMCommit();
+    NeoPixel_applyConfig();
+    return true;
+  }
+  if (strEquals(command, "neopixel_rotate2_color")) {
+    uint16_t col = Config::htmlColorTo565(value);
+    config.saveValue(&config.store.neopixel_rotate2_color, col, false);
+    config.scheduleEEPROMCommit();
+    NeoPixel_applyConfig();
     return true;
   }
 #endif
@@ -529,7 +567,7 @@ if (strEquals(command, "tflipcard")) {
         config.saveValue(&config.store.watchdog, static_cast<bool>(atoi(value)));
         return true;
     }
-    if (strEquals(command, "nameday")) {                                         // "nameday"  itt veszi át a webről a toggle értékét.
+    if (strEquals(command, "nameday")) {
         display.putRequest(CLEARALLBITRATE);                                     // Törli mindkét bitratewidget és a nameday területet.
         config.saveValue(&config.store.nameday, static_cast<bool>(atoi(value))); // Elmenti a gomb beállítását
         display.putRequest(DBITRATE);
@@ -596,7 +634,7 @@ if (strEquals(command, "tflipcard")) {
         config.saveValue(&config.store.weatherSyncInterval, static_cast<uint16_t>(atoi(value)));
         return true;
     }
-    if (strEquals(command, "volume")) { // Ha weben állítom a hangerő csúszkát itt kapja meg az értéket.
+    if (strEquals(command, "volume")) {
         player.setVol(static_cast<uint8_t>(atoi(value)));
         return true;
     }

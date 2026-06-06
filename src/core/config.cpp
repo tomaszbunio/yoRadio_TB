@@ -26,7 +26,7 @@
 
 Config config;
 
-void u8fix(char* src) { // Ha az utolsó tőbbájtos karakter (ékezetes) utolsó bájtja hiányzik akkor az elejét levágja.
+void u8fix(char* src) {
     char last = src[strlen(src) - 1];
     if ((uint8_t)last >= 0xC2) { src[strlen(src) - 1] = '\0'; }
 }
@@ -180,7 +180,7 @@ void Config::_setupVersion() {
             saveValue(&store.abuff, (uint16_t)(VS1053_CS == 255 ? 7 : 10));
             saveValue(&store.telnet, true);
             saveValue(&store.watchdog, true);
-            saveValue(&store.nameday, true);                     // Módosítás új sor "nameday"
+            saveValue(&store.nameday, true);
             saveValue(&store.timeSyncInterval, (uint16_t)60);    // min
             saveValue(&store.timeSyncIntervalRTC, (uint16_t)24); // hours
             saveValue(&store.weatherSyncInterval, (uint16_t)30); // min
@@ -292,6 +292,14 @@ void Config::_setupVersion() {
   case 16:
   if (store.tvolbar == 0xFFFF) saveValue(&store.tvolbar, color565(COLOR_VOLBAR_IN));
   break;
+  case 17:
+  saveValue(&store.neopixel_rotate1_enabled, (uint8_t)1);
+  saveValue(&store.neopixel_rotate2_enabled, (uint8_t)1);
+  saveValue(&store.neopixel_rotate1_effect, (uint8_t)2);
+  saveValue(&store.neopixel_rotate2_effect, (uint8_t)2);
+  saveValue(&store.neopixel_rotate1_color, store.neopixel_enc1_color == 0xFFFF ? color565(COLOR_STATION_NAME) : store.neopixel_enc1_color);
+  saveValue(&store.neopixel_rotate2_color, store.neopixel_enc2_color == 0xFFFF ? color565(COLOR_CLOCK) : store.neopixel_enc2_color);
+  break;
         default: break;
     }
     currentVersion++;
@@ -303,11 +311,10 @@ void Config::changeMode(int newmode) { // DLNA mod
 #ifdef USE_SD
     // Encoder dupla klikk (paraméter nélküli hívás)
     if (newmode == -1) {
-        // DLNA nem választható encoderről
         newmode = (getMode() == PM_SDCARD) ? PM_WEB : PM_SDCARD;
     }
 
-    // 🔒 biztonsági ellenőrzés
+    // Safety check.
     if (newmode < 0 || newmode >= 2) { // 0 --> radio; 1 --> SD; 2 --> DLNA
         Serial.printf("##[ERROR]# changeMode invalid newmode: %d\n", newmode);
         return;
@@ -397,7 +404,7 @@ void Config::changeMode(int newmode) { // DLNA mod
 
 void Config::initSDPlaylist() {
 #ifdef USE_SD
-    // bool doIndex = !sdman.exists(INDEX_SD_PATH); // "módosítás"
+    // bool doIndex = !sdman.exists(INDEX_SD_PATH);
     // if(doIndex) sdman.indexSDPlaylist();
     //  Mindig legyen indexelés az SD kártyán.
     sdman.indexSDPlaylist();
@@ -437,7 +444,7 @@ bool Config::prepareForPlaying(uint16_t stationId) {
     screensaverPlayingTicks = SCREENSAVERSTARTUPDELAY;
     if (getMode() != PM_SDCARD) { display.putRequest(PSTOP); }
     if (!loadStation(stationId)) { return false; }
-    setTitle(LANG::const_PlConnect); // inen van a connect felirat a kijelzőn
+    setTitle(LANG::const_PlConnect);
     station.bitrate = 0;
     setBitrateFormat(BF_UNKNOWN);
     display.putRequest(DBITRATE);
@@ -476,7 +483,7 @@ void Config::setSDpos(uint32_t val) {
             config.sdResumePos = val - player.sd_min;
         #endif
         } else {
-            player.setAudioFilePosition(val - player.sd_min); // futó lejátszásnál seek webről
+            player.setAudioFilePosition(val - player.sd_min);
         }
     }
 }
@@ -670,9 +677,9 @@ void Config::loadTheme() {
     theme.div = color565(COLOR_DIVIDER);
     theme.weather = color565(COLOR_WEATHER);
     theme.vumax = color565(COLOR_VU_MAX);
-    theme.vumid = color565(COLOR_VU_MID); // Módosítás: plussz sor.
+    theme.vumid = color565(COLOR_VU_MID);
     theme.vumin = color565(COLOR_VU_MIN);
-    theme.nameday = color565(COLOR_NAMEDAY); // Módosítás: plussz sor.
+    theme.nameday = color565(COLOR_NAMEDAY);
     theme.clock = color565(COLOR_CLOCK);
     theme.clockbg = color565(COLOR_CLOCK_BG);
     theme.seconds  = color565(COLOR_SECONDS);
@@ -741,14 +748,14 @@ theme.bitrate   = store.tbitrate;
     theme.playlist[2] = color565(COLOR_PLAYLIST_2);
     theme.playlist[3] = color565(COLOR_PLAYLIST_3);
     theme.playlist[4] = color565(COLOR_PLAYLIST_4);
-    theme.prst_button = color565(COLOR_PRST_BUTTON);  // Módosítás: plussz gombszín. "presets"
-    theme.prst_card = color565(COLOR_PRST_CARD);      // Módosítás: plussz kártya szín. "presets"
-    theme.prst_accent = color565(COLOR_PRST_ACCENT);  // Módosítás: plussz kiemelés szín. "presets"
-    theme.prst_fav = color565(COLOR_PRST_FAV);        // Módosítás: plussz FAV gomb text szín. "presets"
-    theme.prst_title1 = color565(COLOR_PRST_TITLE_1); // Módosítás: plussz kártya text1 szín. "presets"
-    theme.prst_title2 = color565(COLOR_PRST_TITLE_2); // Módosítás: plussz kártya text2 szín. "presets"
-    theme.prst_title3 = color565(COLOR_PRST_TITLE_3); // Módosítás: plussz kártya text3 inaktív szín. "presets"
-    theme.prst_line = color565(COLOR_PRST_LINE);      // Módosítás: plussz vonal szín. "presets"
+    theme.prst_button = color565(COLOR_PRST_BUTTON);
+    theme.prst_card = color565(COLOR_PRST_CARD);
+    theme.prst_accent = color565(COLOR_PRST_ACCENT);
+    theme.prst_fav = color565(COLOR_PRST_FAV);
+    theme.prst_title1 = color565(COLOR_PRST_TITLE_1);
+    theme.prst_title2 = color565(COLOR_PRST_TITLE_2);
+    theme.prst_title3 = color565(COLOR_PRST_TITLE_3);
+    theme.prst_line = color565(COLOR_PRST_LINE);
 #include "../displays/tools/tftinverttitle.h"
 }
 
@@ -847,7 +854,7 @@ void Config::resetSystem(const char* val, uint8_t clientId) {
         saveValue(&store.abuff, (uint16_t)(VS1053_CS == 255 ? 7 : 10), false);
         saveValue(&store.telnet, true);
         saveValue(&store.watchdog, true);
-        saveValue(&store.nameday, true); // Módosítás "nameday"
+        saveValue(&store.nameday, true);
         snprintf(store.mdnsname, MDNS_LENGTH, "yoradio-%x", (unsigned int)getChipId());
         saveValue(store.mdnsname, store.mdnsname, MDNS_LENGTH, true, true);
         display.putRequest(NEWMODE, CLEAR);
@@ -920,6 +927,12 @@ void Config::resetSystem(const char* val, uint8_t clientId) {
         saveValue(&store.neopixel_enc2_color, color565(COLOR_CLOCK));
         saveValue(&store.neopixel_effect, (uint8_t)1);
         saveValue(&store.neopixel_effect2, (uint8_t)1);
+        saveValue(&store.neopixel_rotate1_enabled, (uint8_t)1);
+        saveValue(&store.neopixel_rotate2_enabled, (uint8_t)1);
+        saveValue(&store.neopixel_rotate1_effect, (uint8_t)2);
+        saveValue(&store.neopixel_rotate2_effect, (uint8_t)2);
+        saveValue(&store.neopixel_rotate1_color, color565(COLOR_STATION_NAME));
+        saveValue(&store.neopixel_rotate2_color, color565(COLOR_CLOCK));
         setEncAcceleration(200);
         setIRTolerance(40);
         netserver.requestOnChange(GETCONTROLS, clientId);
@@ -950,10 +963,18 @@ void Config::setDefaults() {
     store.timezoneOffset = 0;
     store.vumeter = true;
     store.softapdelay = 0;
-    store.flipscreen = true;	//false for 4"
+    #if defined(SCREEN) && SCREEN == 4
+    store.flipscreen = false;
+    #else
+    store.flipscreen = true;
+    #endif
     store.invertdisplay = false;
     store.numplaylist = false;
-    store.fliptouch = true; //true for 4"
+    #if defined(SCREEN) && SCREEN == 4
+    store.fliptouch = true;
+    #else
+    store.fliptouch = false;
+    #endif
     store.dbgtouch = false;
     store.dspon = true;
     store.brightness = 100;
@@ -994,7 +1015,7 @@ void Config::setDefaults() {
     store.abuff = VS1053_CS == 255 ? 7 : 10;
     store.telnet = true;
     store.watchdog = true;
-    store.nameday = true;           // Módosítás "nameday" kezdő érték.
+    store.nameday = true;
     store.timeSyncInterval = 60;    // min
     store.timeSyncIntervalRTC = 24; // hour
     store.weatherSyncInterval = 30; // min
@@ -1016,6 +1037,12 @@ void Config::setDefaults() {
   store.neopixel_enc2_color = color565(COLOR_STATION_NAME);
   store.neopixel_effect = 1;
   store.neopixel_effect2 = 1;
+  store.neopixel_rotate1_enabled = 1;
+  store.neopixel_rotate2_enabled = 1;
+  store.neopixel_rotate1_effect = 2;
+  store.neopixel_rotate2_effect = 2;
+  store.neopixel_rotate1_color = color565(COLOR_STATION_NAME);
+  store.neopixel_rotate2_color = color565(COLOR_CLOCK);
   store.thememode = false;
   store.tbg = color565(COLOR_BACKGROUND);
   store.tpr = color565(COLOR_STATION_NAME);
@@ -1062,7 +1089,7 @@ uint16_t Config::getTimezoneOffset() {
 // Véletlen lejátszás beállítása.
 void Config::setSnuffle(bool sn) {
     saveValue(&store.sdsnuffle, sn);
-    // if(store.sdsnuffle) player.next(); //Továbbléptette egy másik fájlra, ezért kivettem.
+    // if(store.sdsnuffle) player.next();
 }
 
 #if IR_PIN != 255

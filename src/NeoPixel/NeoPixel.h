@@ -46,8 +46,10 @@ void updateLedState();
 void setLedState(LedState state);
 
 // Overlay: animacja obrotu enkodera
+// encoderId = 1 -> pierwszy pierścień, encoderId = 2 -> drugi pierścień
 // dir = true  -> obrót w prawo
 // dir = false -> obrót w lewo
+void ledEncoderRotate(uint8_t encoderId, bool dir);
 void ledEncoderRotate(bool dir);
 
 #endif // NEOPIXEL_H

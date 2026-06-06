@@ -7,7 +7,7 @@
 #include <EEPROM.h>
 #include "../displays/widgets/widgetsconfig.h" //BitrateFormat
 
-#define EEPROM_SIZE     1024 // 860-nál járok 2025.10.21 >> 1024 is bőven elég lesz majd
+#define EEPROM_SIZE     1024
 #define EEPROM_START    500
 #define EEPROM_START_IR 0
 #define EEPROM_START_2  10
@@ -41,7 +41,7 @@
     #define ESP_ARDUINO_3 1
 #endif
 
-#define CONFIG_VERSION 17
+#define CONFIG_VERSION 18
 
 enum playMode_e : uint8_t { // DLNA mod
     PM_WEB = 0,
@@ -67,14 +67,14 @@ struct theme_t {
     uint16_t div;
     uint16_t weather;
     uint16_t vumax;
-    uint16_t vumid; // Módosítás: plussz változó. "wumeter"
+    uint16_t vumid;
     uint16_t vumin;
     uint16_t clock;
     uint16_t clockbg;
     uint16_t seconds;
     uint16_t flipText;
     uint16_t flipCard;
-    uint16_t nameday; // Módosítás: plussz változó. "nameday"
+    uint16_t nameday;
     uint16_t dow;
     uint16_t date;
     uint16_t heap;
@@ -90,14 +90,14 @@ struct theme_t {
     uint16_t plcurrentbg;
     uint16_t plcurrentfill;
     uint16_t playlist[5];
-    uint16_t prst_card;   // Módosítás: plussz változó. "presets"
-    uint16_t prst_button; // Módosítás: plussz változó. "presets"
-    uint16_t prst_accent; // Módosítás: plussz változó. "presets"
-    uint16_t prst_fav;    // Módosítás: plussz változó. "presets"
-    uint16_t prst_title1; // Módosítás: plussz változó. "presets"
-    uint16_t prst_title2; // Módosítás: plussz változó. "presets"
-    uint16_t prst_title3; // Módosítás: plussz változó. "presets"
-    uint16_t prst_line;   // Módosítás: plussz változó. "presets"
+    uint16_t prst_card;
+    uint16_t prst_button;
+    uint16_t prst_accent;
+    uint16_t prst_fav;
+    uint16_t prst_title1;
+    uint16_t prst_title2;
+    uint16_t prst_title3;
+    uint16_t prst_line;
 };
 struct config_t {
     uint16_t config_set; // must be 4263
@@ -190,6 +190,12 @@ struct config_t {
   uint16_t neopixel_enc2_color;
   uint8_t neopixel_effect;
   uint8_t neopixel_effect2;
+  uint8_t neopixel_rotate1_enabled;
+  uint8_t neopixel_rotate2_enabled;
+  uint8_t neopixel_rotate1_effect;
+  uint8_t neopixel_rotate2_effect;
+  uint16_t neopixel_rotate1_color;
+  uint16_t neopixel_rotate2_color;
 
   // Custom display theme (options.html)
   bool thememode;
@@ -276,8 +282,8 @@ class Config {
     uint8_t       ssidsCount;
     uint16_t      sleepfor;
     uint32_t      sdResumePos;
-    uint16_t      stopedSdStationId = -1; // "módosítás" új változó a player.stop ad neki értéket.
-    bool          isClockTTS;             // "módosítás" Ha aktív a clockTTS
+    uint16_t      stopedSdStationId = -1;
+    bool          isClockTTS;
     bool          emptyFS;
     uint16_t      vuRefLevel;
     uint16_t      screensaverTicks;

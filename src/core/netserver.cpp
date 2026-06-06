@@ -1,4 +1,4 @@
-//v0.9.693 Módosítva "nameday"
+//v0.9.693
 // clang-format off
 #include "options.h"
 #include "Arduino.h"
@@ -215,7 +215,6 @@ bool NetServer::begin(bool quiet) {
   /* ================= DLNA STATUS ================= */
   webserver.on("/dlna/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     //DLNA modplus
-    // Build után egyszer reseteljük a DLNA indexet 1-re, hogy a lista első eleme legyen aktív.
     static uint32_t s_appliedBuildVer = 0;
     if (!g_dlnaStatus.busy && g_dlnaStatus.ok && g_dlnaStatus.playlistVer != 0 && g_dlnaStatus.playlistVer != s_appliedBuildVer
         && strstr(g_dlnaStatus.msg, "build ok") != nullptr) {
@@ -641,15 +640,21 @@ void NetServer::processQueue() {
         break;
       case GETCONTROLS:
       {
-        char neopixel_enc1_color[8], neopixel_enc2_color[8];
+        char neopixel_enc1_color[8], neopixel_enc2_color[8], neopixel_rotate1_color[8], neopixel_rotate2_color[8];
         Config::rgb565ToHtml(config.store.neopixel_enc1_color, neopixel_enc1_color);
         Config::rgb565ToHtml(config.store.neopixel_enc2_color, neopixel_enc2_color);
+        Config::rgb565ToHtml(config.store.neopixel_rotate1_color, neopixel_rotate1_color);
+        Config::rgb565ToHtml(config.store.neopixel_rotate2_color, neopixel_rotate2_color);
         sprintf(
           wsBuf,
           "{\"vols\":%d,\"enca\":%d,\"irtl\":%d,\"skipup\":%d,"
-          "\"neopixel_enabled\":%d,\"neopixel_brightness\":%d,\"neopixel_enc1_color\":\"%s\",\"neopixel_enc2_color\":\"%s\",\"neopixel_effect\":%d,\"neopixel_effect2\":%d}",
+          "\"neopixel_enabled\":%d,\"neopixel_brightness\":%d,\"neopixel_enc1_color\":\"%s\",\"neopixel_enc2_color\":\"%s\",\"neopixel_effect\":%d,\"neopixel_effect2\":%d,"
+          "\"neopixel_rotate1_enabled\":%d,\"neopixel_rotate2_enabled\":%d,\"neopixel_rotate1_effect\":%d,\"neopixel_rotate2_effect\":%d,"
+          "\"neopixel_rotate1_color\":\"%s\",\"neopixel_rotate2_color\":\"%s\"}",
           config.store.volsteps, config.store.encacc, config.store.irtlp, config.store.skipPlaylistUpDown,
-          config.store.neopixel_enabled, config.store.neopixel_brightness, neopixel_enc1_color, neopixel_enc2_color, config.store.neopixel_effect, config.store.neopixel_effect2
+          config.store.neopixel_enabled, config.store.neopixel_brightness, neopixel_enc1_color, neopixel_enc2_color, config.store.neopixel_effect, config.store.neopixel_effect2,
+          config.store.neopixel_rotate1_enabled, config.store.neopixel_rotate2_enabled, config.store.neopixel_rotate1_effect, config.store.neopixel_rotate2_effect,
+          neopixel_rotate1_color, neopixel_rotate2_color
         );
         break;
       }
@@ -687,13 +692,11 @@ void NetServer::processQueue() {
         ); /*rssi = 255;*/
         break;
       case SDPOS:
-        //"módosítás" Itt adja át az SD kártya pozícióját a csúszkához és a számlálóhoz.
         sprintf(
           wsBuf, "{\"sdpos\": %lu,\"sdtpos\": %lu,\"sdtend\": %lu}", player.getAudioFilePosition(), player.getAudioCurrentTime(), player.getAudioFileDuration()
         );
         //Serial.printf("netserver.cpp-->wsBuf: %s \n", wsBuf);
         break;
-      // Az mp3 fájlon belül a zenekezdeti byte és utolsó byte pozíciója.
       case SDLEN:
         sprintf(wsBuf, "{\"sdmin\": %lu,\"sdmax\": %lu}", player.sd_min, player.sd_max);  // Az audionanlersben kap értéket.
         //Serial.printf("netserver.cpp-->wsBuf: %s \n", wsBuf);
