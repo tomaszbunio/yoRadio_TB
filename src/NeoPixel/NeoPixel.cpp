@@ -4,6 +4,8 @@
 #include "../core/display.h"
 #include "../../myoptions.h"
 
+#ifdef NEOPIXEL_ON
+
 Adafruit_NeoPixel strip(LED_COUNT, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 static constexpr uint16_t RING1_START = 0;
 static constexpr uint16_t RING_SIZE = 8;
@@ -254,3 +256,5 @@ void NeoPixel_loop() {
   ringPhase2 += 2;
   renderRingsAndShow();
 }
+
+#endif // NEOPIXEL_ON

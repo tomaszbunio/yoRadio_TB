@@ -784,6 +784,7 @@ void controlsEvent(bool toRight, int8_t volDelta) {
 }
 
 void onBtnClick(int id) {
+#if IR_PIN!=255
   if (g_softStandby) {
     if ((controlEvt_e)id == EVT_ENCBTNB) {
       Serial.println("[SOFT_STANDBY] ENC1 wake, restart");
@@ -792,6 +793,7 @@ void onBtnClick(int id) {
     }
     return;
   }
+#endif
   bool passBnCenter = (controlEvt_e)id==EVT_BTNCENTER || (controlEvt_e)id==EVT_ENCBTNB || (controlEvt_e)id==EVT_ENC2BTNB;
   controlEvt_e btnid = static_cast<controlEvt_e>(id);
   if (btnid == EVT_BTNLEFT || btnid == EVT_BTNRIGHT || btnid == EVT_BTNUP || btnid == EVT_BTNDOWN) {
@@ -889,7 +891,11 @@ void onBtnDoubleClick(int id) {
       }
     case EVT_BTNCENTER:
     case EVT_ENCBTNB:{
+#if IR_PIN!=255
       enterSoftStandby();
+#else
+      display.putRequest(NEWMODE, SLEEPING);
+#endif
       break;
 	}
     case EVT_ENC2BTNB: {
