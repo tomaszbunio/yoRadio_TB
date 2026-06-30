@@ -9,16 +9,14 @@
 #include "audiohelpers.h"
 
 #ifdef USE_NEXTION
-extern decltype(nextion) nextion;  // Nextion kijelző objektum (extern)
+extern decltype(nextion) nextion;
 #endif
 
-// Globális vagy osztály szintű változók
 String currentArtist = "";
 String currentTitle = "";
 uint16_t currentStationId = static_cast<uint16_t>(-1);
 bool metaOff = false;
 
-// Előre deklarációk
 void my_audio_info(Audio::msg_t m);
 void processID3(const char *msg);
 void audio_bitrate(const char *info);
@@ -70,7 +68,6 @@ void my_audio_info(Audio::msg_t m) {
     return;
   }
 
-  // META letiltás: ha a csatorna neve ponttal kezdődik,
   // akkor a title mindig a listában tárolt név lesz,
   // és nem használunk stream metaadatot.
   if (config.station.name[0] == '.') {
@@ -200,7 +197,6 @@ void my_audio_info(Audio::msg_t m) {
     // ----- ICY URL -----
     case Audio::evt_icyurl:
     {
-      // Jelenleg nincs külön feldolgozás, de ha kell, itt bővíthető
       // if (config.store.audioinfo) { ... }
     } break;
 
@@ -226,11 +222,10 @@ void my_audio_info(Audio::msg_t m) {
     case Audio::evt_log:
     {
       // Ide jöhetne finomabb log-elemzés, de most az általános
-      // hibaszűrést már a switch előtt elintéztük (Account in use / 401).
       // Ha kell, itt tovább bontható.
     } break;
 
-    // ----- Nem használt / újonnan bejövő események -----
+    // ----- Other events -----
     case Audio::evt_lasthost:
     case Audio::evt_icylogo:
     case Audio::evt_lyrics:
@@ -353,7 +348,7 @@ bool printable(const char *info) {
   const unsigned char *p = reinterpret_cast<const unsigned char *>(info);
   while (*p) {
     unsigned char c = *p;
-    // Kontroll karakterek tiltása (0x00–0x1F), TAB opcionálisan engedhető
+    // Block control characters (0x00-0x1F); TAB can be allowed.
     if (c < 0x20) {
       if (c != 0x09) {
         return false;
@@ -391,17 +386,15 @@ bool printable(const char *info) {
   return true;
 }
 
-// Külső meghívásra.
 void audio_showstation(const char *info) {
   bool p = printable(info) && (info && strlen(info) > 0);
-  if (player.remoteStationName) {  // MQTT-ről jön
+  if (player.remoteStationName) {
     config.setStation(p ? info : config.station.name);
     display.putRequest(NEWSTATION);
     netserver.requestOnChange(STATION, 0);
   }
 }
 
-// Külső meghívásra.
 void audio_showstreamtitle(const char *info) {
   if (!info) {
     return;
@@ -465,7 +458,7 @@ void audio_icy_description(const char *info) {
     return;
   }
   if (strlen(config.station.title) == 0 ||                           // ha üres
-      strcmp(config.station.title, config.station.name) == 0 ||      // ha a title megegyezik az állomás nevével
+      strcmp(config.station.title, config.station.name) == 0 ||
       strstr(config.station.title, "timeout") != nullptr ||          // ha tartalmazza a "timeout" szót
       strcmp_P(config.station.title, LANG::const_PlConnect) == 0) {  // ha title = "[csatlakozás]" (lokalizált)
     config.setTitle(info);
@@ -549,7 +542,7 @@ bool cleanMeta(const char *src, char *dst, size_t dstSize) {
   removeBOM(dst);
   // UTF-8 takarítás
   _utf8_clean(dst);
-  // csak ellenőrzés (nem módosít):
+  // Check only.
   if (!printable(dst)) {
     return false;
   }
@@ -561,7 +554,7 @@ void _utf8_clean(char *s) {
   char *out = s;
   while (*in) {
     unsigned char c = (unsigned char)*in;
-    // --- ZERO-WIDTH karakterek kiszűrése ---
+    // --- Filter zero-width characters ---
     if (c == 0xE2 && (unsigned char)in[1] == 0x80 && ((unsigned char)in[2] == 0x8B || (unsigned char)in[2] == 0x8C || (unsigned char)in[2] == 0x8D)) {
       in += 3;
       continue;

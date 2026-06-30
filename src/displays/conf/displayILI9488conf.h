@@ -1,4 +1,4 @@
-//v0.9.676 Módosítva!
+//v0.9.676
 // clang-format off
 /*************************************************************************************
     ILI9488 480X320 displays configuration file.
@@ -75,7 +75,7 @@ const FillConfig heapbarConf     PROGMEM = {{ 0, DSP_HEIGHT-2, 0, WA_LEFT }, DSP
 /* WIDGETS  */ /* { left, top, fontsize, align } */
 const WidgetConfig bootstrConf    PROGMEM = {0, 243, 2, WA_CENTER};
 const WidgetConfig bitrateConf    PROGMEM = {TFT_FRAMEWDT, 145, 2, WA_RIGHT};
-const WidgetConfig voltxtConf     PROGMEM = {0, DSP_HEIGHT - 38, 2, WA_CENTER}; // Hangerő
+const WidgetConfig voltxtConf     PROGMEM = {0, DSP_HEIGHT - 38, 2, WA_CENTER};
 const WidgetConfig chtxtConf      PROGMEM = { 310 ,282, 2, WA_LEFT }; //→ az aktuális csatorna CH:szöveg (PLAYER footer)
 const WidgetConfig iptxtConf      PROGMEM = {TFT_FRAMEWDT, DSP_HEIGHT - 38, 2, WA_LEFT};
 const WidgetConfig rssiConf       PROGMEM = {TFT_FRAMEWDT, DSP_HEIGHT - 34, 2, WA_RIGHT};
@@ -99,8 +99,8 @@ const WidgetConfig clockConf      PROGMEM = {1, 185, 2, WA_RIGHT};
 #define FLIP_CLOCK_LEFT      1     // 1 px od prawej krawędzi ekranu
 const WidgetConfig vuConf         PROGMEM = {35, 258, 1, WA_CENTER}; // center fektetett, "align" nincs használva
 const WidgetConfig bootWdtConf    PROGMEM = {0, 216, 1, WA_CENTER};
-const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 226, 2, WA_LEFT };  // Módosítás új sor "nameday"
-const WidgetConfig dateConf       PROGMEM = { TFT_FRAMEWDT, 206, 1, WA_LEFT }; // Módosítás új sor "date"
+const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 226, 2, WA_LEFT };
+const WidgetConfig dateConf       PROGMEM = { TFT_FRAMEWDT, 206, 1, WA_LEFT };
 const ProgressConfig bootPrgConf  PROGMEM = {90, 14, 4};
 
 //{{ left, top, fontsize, align }dimension}
@@ -124,7 +124,7 @@ const char bitrateFmt[] PROGMEM = "%d kBs";
 /* MOVES  */ /* { left, top, width } */
 const MoveConfig clockMove     PROGMEM = {0, 176, -1};
 const MoveConfig weatherMove   PROGMEM = {10, 116, MAX_WIDTH}; // Ha a VU ki van kapcsolva (szélesített pozíció)
-const MoveConfig weatherMoveVU PROGMEM = {10, 116, MAX_WIDTH}; // Az időjárás widget pozíciója.
+const MoveConfig weatherMoveVU PROGMEM = {10, 116, MAX_WIDTH};
 
 /* SD_PLAYER screen */
 const ScrollConfig sdTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 1, WA_LEFT, nullptr, u8g2_font_helvB24_te }, 140, false, MAX_WIDTH, 3000, 7, 40 };

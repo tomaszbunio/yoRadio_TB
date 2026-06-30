@@ -1,6 +1,6 @@
 #include "Arduino.h"
 #include "../../core/options.h"
-#if L10N_LANGUAGE == RU || L10N_LANGUAGE == EN || L10N_LANGUAGE == NL // Módosítás plussz sor. "utf8To"
+#if L10N_LANGUAGE == RU || L10N_LANGUAGE == EN || L10N_LANGUAGE == NL
     #include "../dspcore.h"
     #include "utf8To.h"
 

@@ -44,7 +44,6 @@ void dlna_status_setDone(const DlnaJob& j, bool ok, int err, const char* msg) {
 
 /*
 static bool write_playlist_atomic(const char* tmpPath, const char* finalPath, const String& content) {
-  // mutex: egy időben ne olvassa/írja más
   xSemaphoreTake(g_spiffsMux, portMAX_DELAY);
 
   File f = SPIFFS.open(tmpPath, FILE_WRITE);
@@ -282,7 +281,7 @@ void dlna_worker_start() {
   BaseType_t ok = xTaskCreatePinnedToCore(
     dlna_worker_task,
     "dlna_worker",
-    24 * 1024,     // 12KB elég (ha kell, később feljebb)
+    24 * 1024,
     nullptr,
     2,             // közepes prio
     &s_workerTask,

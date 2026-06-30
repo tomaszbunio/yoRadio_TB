@@ -57,7 +57,6 @@ bool DlnaDescription::parseStream(Stream& s, String& outControlPath) {
       isContentDir = false;
     }
 
-    // EXAKT serviceType ellenőrzés
     if (inService &&
         line.indexOf("<serviceType>urn:schemas-upnp-org:service:ContentDirectory:1</serviceType>") >= 0) {
       isContentDir = true;

@@ -1,4 +1,4 @@
-// Módosítva! v0.9.710  "weather" ; "direct_channel_change"
+//v0.9.710
 #include "options.h"
 #include "Arduino.h"
 #include "timekeeper.h"
@@ -451,7 +451,7 @@ bool _getWeather() {
                             result = false;
                         }
     // press = press / 1.333;
-    // press = press / 0.973; //Módosítva hPa kijelzéshez. "weather"
+    // press = press / 0.973;
     #ifdef WIND_SPEED_IN_KMH
                         wind_speed *= 3.6f;
     #endif

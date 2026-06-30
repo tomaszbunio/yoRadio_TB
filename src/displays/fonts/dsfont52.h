@@ -1,4 +1,3 @@
-// Módosítás "font"   (320x240)   https://tchapi.github.io/Adafruit-GFX-Font-Customiser/
 #ifndef dsfont_h
 #define dsfont_h
 #include "../../core/options.h"
@@ -14,10 +13,10 @@
 #else  // CLOCKFONT == VT_DIGI
   #ifdef AM_PM_STYLE
     #include "VT_DIGI_20x11s.h"  // A másodperc fontja
-    #include "VT_DIGI_47x26.h"   // Az óra nagyméretű fontjának betöltése.
+    #include "VT_DIGI_47x26.h"
   #else
     #include "VT_DIGI_27x15s.h"  // A másodperc fontja
-    #include "VT_DIGI_47x26.h"   // Az óra nagyméretű fontjának betöltése.
+    #include "VT_DIGI_47x26.h"
   #endif
 #endif
 

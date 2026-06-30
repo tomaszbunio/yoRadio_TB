@@ -4,8 +4,6 @@
 #include "../dspcore.h"
 #include "utf8To.h"
 
-// A DspCore korábbi logikáját megtartjuk, csak kiegészítjük a hosszú ő/ű támogatással,
-// és az LCD ágban az egybájtos kódokra (0x93/0x9B/0x8B/0x98) fordítjuk.
 // A javítást végezte: Botfai Tibor
 
 char* utf8To(const char* str, bool uppercase) {
@@ -42,7 +40,7 @@ char* utf8To(const char* str, bool uppercase) {
 
   while (strn[index])
   {
-    // Latin-1 (C3 ..) – marad a korábbi magyar ékezetek mappingje
+    // Latin-1 (C3 ..)
     if ((unsigned char)strn[index] == 0xC3)
     {
       switch ((unsigned char)strn[index + 1]) {
@@ -70,17 +68,17 @@ char* utf8To(const char* str, bool uppercase) {
       continue;
     }
 
-    // Latin Extended-A (C5 ..) – HOSSZÚ ő/Ő és ű/Ű egybájtos LCD-kódokra
+    // Latin Extended-A (C5 ..)
     if ((unsigned char)strn[index] == 0xC5)
     {
       unsigned char cont = (unsigned char)strn[index + 1];
-      if (cont == 0x91) {            // ő
+      if (cont == 0x91) {
         strn[index] = (char)0x93;
-      } else if (cont == 0x90) {     // Ő
+      } else if (cont == 0x90) {
         strn[index] = (char)0x9B;
-      } else if (cont == 0xB1) {     // ű
+      } else if (cont == 0xB1) {
         strn[index] = (char)0x8B;
-      } else if (cont == 0xB0) {     // Ű
+      } else if (cont == 0xB0) {
         strn[index] = (char)0x98;
       } else {
         index++;

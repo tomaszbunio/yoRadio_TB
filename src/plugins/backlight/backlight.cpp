@@ -7,7 +7,7 @@
 
 #if (BRIGHTNESS_PIN != 255)
 
-BacklightPlugin backlightPlugin; // globalis példány
+BacklightPlugin backlightPlugin;
 
 BacklightPlugin::BacklightPlugin() {}
 
@@ -31,7 +31,6 @@ bool BacklightPlugin::isFadeControl() {
         return true;
     }
     activity();
-    // Ébresztés után ennyi ideig nem veszi figyelembe az érintéseket.
     if ((millis() - lastUiWakeMs) < 500) {
         return true;
     } else {
@@ -55,8 +54,8 @@ void BacklightPlugin::setBacklight(uint8_t backLight) {
 void BacklightPlugin::wake() {
     if (network.softStandby) return;
     Serial.println("##BACKLIGHT -> wake");
-    if (!brightnessCaptured) return;       // ha nincs mentett állapot, kilép
-    setBacklight(config.store.brightness); // visszaállítja a WEB UI -on mentett fényerőt
+    if (!brightnessCaptured) return;
+    setBacklight(config.store.brightness);
     lastUiWakeMs = millis();
     lastActivity = millis();
     brightnessCaptured = false;
@@ -70,7 +69,7 @@ void BacklightPlugin::tick() {
     // Serial.printf("Backlight.cpp-->config.store.fadeStartDelay: %d\n",config.store.fadeStartDelay);
     // Serial.printf("Backlight.cpp-->config.store.fadeTarget: %d\n",config.store.fadeTarget);
     // Serial.printf("Backlight.cpp-->config.store.fadeStep: %d\n",config.store.fadeStep);
-    if (config.store.fadeEnabled == 0) { // ha ki van kapcsolva a fade funkció
+    if (config.store.fadeEnabled == 0) {
         if (state == FADING || state == DIMMED) { wake(); }
         return;
     }
@@ -80,34 +79,34 @@ void BacklightPlugin::tick() {
         wake();
     }
     if (display.mode() != PLAYER) { return; }
-    if (!brightnessCaptured && config.store.brightness > 0) { // ha nincs rögzített fényerő és a mentett fényerő > 0
-        savedBrightness = config.store.brightness;            // beolvassa az eredeti fényerőt
-        currentBrightness = savedBrightness;                  // az aktuális fényerő az eredeti fényerő lesz
-        brightnessCaptured = true;                            // rögzítés állapota igaz
+    if (!brightnessCaptured && config.store.brightness > 0) {
+        savedBrightness = config.store.brightness;
+        currentBrightness = savedBrightness;
+        brightnessCaptured = true;
     }
     uint32_t now = millis();
     switch (state) {
         case WAIT:
-            if (now - lastActivity > config.store.fadeStartDelay * 1000) { // ha eltelt a várakozási idő
-                targetBrightness = config.store.fadeTarget;                // a sötétedési cél átadása
-                state = FADING;                                            // átkapcsol FADING állapotba
-                lastFadeStep = now;                                        // a mostani idő lesz a fade lépcső kezdete
+            if (now - lastActivity > config.store.fadeStartDelay * 1000) {
+                targetBrightness = config.store.fadeTarget;
+                state = FADING;
+                lastFadeStep = now;
             }
             break;
         case FADING:
-            if (now - lastFadeStep < FADE_PERIOD) break; // ha a két lépcső közötti idő még nem telt el, akkor kilép
-            lastFadeStep = now;                          // a mostani idő lesz a fade lépcső kezdete
-            if (currentBrightness > targetBrightness) {  // ha még kell tovább sötétíteni
+            if (now - lastFadeStep < FADE_PERIOD) break;
+            lastFadeStep = now;
+            if (currentBrightness > targetBrightness) {
                 if (currentBrightness <= config.store.fadeStep)
                     currentBrightness = targetBrightness;
                 else
                     currentBrightness -= config.store.fadeStep;
-                setBacklight(currentBrightness); // beállítja a képernyőt
+                setBacklight(currentBrightness);
             } else {
-                state = DIMMED; // ha már nem kell tovább sötétíteni akkor az állapot DIMMED
+                state = DIMMED;
             }
             break;
-        case DIMMED: break; // ha már DIMMED csak továbblép
+        case DIMMED: break;
     }
 }
 

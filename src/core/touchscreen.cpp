@@ -42,7 +42,6 @@ typedef TP_Point TSPoint;
 
 // Global Wire objektum I2C config.cpp --> Wire.begin(TS_SDA, TS_SCL)
 FT6X36 ts(&Wire, TS_INT);
-// A későbbi kódhoz egységes típusnév
 typedef TPoint           TSPoint;
 static volatile bool     g_ftTouched = false;
 static volatile uint16_t g_ftX = 0;
@@ -433,9 +432,9 @@ void TouchScreen::loop() {
             if (direct == TDS_REQUEST) {
                 uint32_t pressTicks = millis() - touchLongPress;
                 if (pressTicks < BTN_PRESS_TICKS * 2) { // (1000 ms stations)
-                    if (pressTicks > 50) {              // Érintési zajok kiszűrése 50ms alatt nem lesz STOP
-                        if (config.store.fadeEnabled) {            // Ha be van kapcsolva a FADE CONTROL
-                            if (backlightPlugin.isFadeControl()) { // Első érintésre csak visszadja a fényt
+                    if (pressTicks > 50) {
+                        if (config.store.fadeEnabled) {
+                            if (backlightPlugin.isFadeControl()) {
                                 touchLongPress = millis();
                                 return;
                             }

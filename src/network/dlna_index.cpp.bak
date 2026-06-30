@@ -20,7 +20,6 @@ static String jsonEscape(String s) {
   s.replace("\r", "\\r");
   s.replace("\n", "\\n");
   s.replace("\t", "\\t");
-  // opcionális: egyéb problémás karakterek kiszűrése
   return s;
 }
 
@@ -358,7 +357,7 @@ bool DlnaIndex::autoBuildPlaylist(const String& controlUrl,
         std::vector<String> cids;
         cids.reserve(32);
 
-        std::vector<String> ctitles; // nem kötelező, de extract ezt várja
+        std::vector<String> ctitles;
         extractContainersFromDIDL(didl, cids, ctitles);
 
         for (size_t i = 0; i < cids.size() && appended < hardLimit; i++) {
@@ -444,7 +443,7 @@ String DlnaIndex::beautifyTitle(const String& raw) {
     t = t.substring(0, dot);
   }
 
-  // --- 3) vezető track szám eltávolítása ---
+  // --- 3) remove leading track number ---
   // "01 - ", "1 - ", "01.", "01 "
   while (isdigit(t[0])) {
     if (t.startsWith("0")) t.remove(0, 1);
@@ -484,7 +483,7 @@ String DlnaIndex::beautifyTitle(const String& raw) {
   track.trim();
   album.trim();
 
-  // --- 6) artist eltávolítása a track elejéről ---
+  // --- 6) remove artist from track prefix ---
   // "Artist - Track" → "Track"
   int dash = track.indexOf(" - ");
   if (dash > 0 && dash < 30) {
@@ -492,7 +491,7 @@ String DlnaIndex::beautifyTitle(const String& raw) {
     track.trim();
   }
 
-  // --- 7) végső formátum ---
+  // --- 7) final format ---
   if (album.length() && track.length()) {
     return album + " - " + track;
   }
@@ -501,4 +500,3 @@ String DlnaIndex::beautifyTitle(const String& raw) {
 }
 
 #endif // USE_DLNA
-

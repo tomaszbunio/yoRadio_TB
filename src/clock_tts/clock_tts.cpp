@@ -1,4 +1,3 @@
-// Módosítva, átírva hibák javítva.
 #include "clock_tts.h"
 #include "../core/options.h"
 #include "../../myoptions.h"
@@ -18,7 +17,6 @@ static bool clock_ttsActive = false;
 static int clock_lastMinute = -1;
 static int clock_tts_saved_station = -1;
 
-// Konfigurációs változók
 static bool clock_tts_enabled = CLOCK_TTS_ENABLED;
 static int clock_tts_interval = CLOCK_TTS_INTERVAL_MINUTES;
 static char clock_tts_language[32] = CLOCK_TTS_LANGUAGE;
@@ -91,7 +89,6 @@ void clock_tts_loop() {
   time_t now = time(nullptr);
   struct tm *tm_struct = localtime(&now);
 
-  // --- Fokozatos elhalkulás a TTS előtt ---
   if (clock_tts_fading_down) {
     if (clock_tts_fade_volume == -1) {
       clock_tts_fade_volume = player.getVolume();
@@ -106,7 +103,7 @@ void clock_tts_loop() {
       clock_tts_fade_timer = nowMillis;
     }
     if (clock_tts_fade_volume <= 0) {
-      clock_tts_saved_station = config.lastStation();  // Aktuális állomás mentése
+      clock_tts_saved_station = config.lastStation();
       config.isClockTTS = true;
       delay(150);
       char buf[48];
@@ -124,7 +121,6 @@ void clock_tts_loop() {
     return;
   }
 
-  // --- Fokozatos hangerőnövekedés a TTS után ---
   if (clock_tts_fading_up) {
     if (clock_tts_fade_volume == -1) {
       clock_tts_fade_volume = 0;
@@ -148,7 +144,7 @@ void clock_tts_loop() {
     }
     if (tm_struct->tm_min % clock_tts_interval == 0 && tm_struct->tm_min != clock_lastMinute && tm_struct->tm_sec < 2 && !clock_ttsActive
         && player.isRunning()) {
-      clock_tts_fading_down = true;  // Engedélyezi a halkítást.
+      clock_tts_fading_down = true;
       clock_tts_fade_timer = nowMillis;
       return;
     }

@@ -21,7 +21,6 @@ static String jsonEscape(String s) {
   s.replace("\r", "\\r");
   s.replace("\n", "\\n");
   s.replace("\t", "\\t");
-  // opcionális: egyéb problémás karakterek kiszűrése
   return s;
 }
 
@@ -78,9 +77,9 @@ if (!controlUrl.length()) {
     xml = http.getString();
     http.end();
   }
-  // ====== innentől PARSE: lock nélkül ======
+  // ====== PARSE without lock ======
 
-  // (opcionális) kis sanity
+  // Sanity check.
   if (!xml.length()) {
     Serial.println("[DLNA][BROWSE] empty XML");
     return false;
@@ -389,7 +388,7 @@ bool DlnaIndex::autoBuildPlaylist(const String& controlUrl,
         std::vector<String> cids;
         cids.reserve(32);
 
-        std::vector<String> ctitles; // nem kötelező, de extract ezt várja
+        std::vector<String> ctitles;
         extractContainersFromDIDL(didl, cids, ctitles);
 
         for (size_t i = 0; i < cids.size() && appended < hardLimit; i++) {
@@ -675,4 +674,3 @@ String DlnaIndex::beautifyTitle(const String& raw) {
 
 
 #endif // USE_DLNA
-

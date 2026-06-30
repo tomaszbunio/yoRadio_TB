@@ -30,7 +30,7 @@ const ScrollConfig weatherConf    PROGMEM = {{ 20, 56, 1, WA_LEFT }, 140, true, 
 
 /* BACKGROUNGC9106DS  */                       /* {{ left, top, fontsize, align }, width, height, outlined } */
 const FillConfig   metaBGConf     PROGMEM = {{ 0, 0, 0, WA_LEFT }, 0, 0, false };       
-const FillConfig   volbarConf     PROGMEM = {{ 0, 0, 0, WA_LEFT }, DSP_WIDTH, 0, false };   // → a hangerő csík (SliderWidget)
+const FillConfig   volbarConf     PROGMEM = {{ 0, 0, 0, WA_LEFT }, DSP_WIDTH, 0, false };
 const FillConfig  playlBGConf     PROGMEM = {{ 0, 66, 0, WA_LEFT }, DSP_WIDTH, 12, false };
 //const FillConfig  heapbarConf     PROGMEM = {{ 0, 63, 0, WA_LEFT }, DSP_WIDTH, 1, false };
 
@@ -39,19 +39,19 @@ const WidgetConfig bootstrConf    PROGMEM = { 0, 64-8, 1, WA_CENTER };
 
 /* FOOTER */
 const WidgetConfig iptxtConf      PROGMEM = { TFT_FRAMEWDT, 56, 1, WA_LEFT };
-const WidgetConfig voltxtConf     PROGMEM = { 120, 57, 1, WA_CENTER }; //→ az alsó, kis hangerő szöveg (PLAYER footer)
-const WidgetConfig chtxtConf      PROGMEM = { 160, 57, 1, WA_LEFT };   //→ az aktuális csatorna CH:szöveg (PLAYER footer)
+const WidgetConfig voltxtConf     PROGMEM = { 120, 57, 1, WA_CENTER };
+const WidgetConfig chtxtConf      PROGMEM = { 160, 57, 1, WA_LEFT };
 const WidgetConfig rssiConf       PROGMEM = { 214, 57, 1, WA_LEFT };   // WiFi
 const WidgetConfig bitrateConf    PROGMEM = { 200, 45, 1, WA_RIGHT };  //audio kodek egysoros, nem fullbitrate
 
-const WidgetConfig numConf        PROGMEM = { 0, 45, 1, WA_CENTER };   // → a nagy hangerő szám (VOL képernyő)
+const WidgetConfig numConf        PROGMEM = { 0, 45, 1, WA_CENTER };
 const WidgetConfig apNameConf     PROGMEM = { 0, 18, 1, WA_CENTER };
 const WidgetConfig apName2Conf    PROGMEM = { 0, 26, 1, WA_CENTER };
 const WidgetConfig apPassConf     PROGMEM = { 0, 37, 1, WA_CENTER };
 const WidgetConfig apPass2Conf    PROGMEM = { 0, 45, 1, WA_CENTER };
 const WidgetConfig clockConf      PROGMEM = { 0, 22, 14, WA_RIGHT };  
-const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 175, 2, WA_LEFT };  // Módosítás új sor "nameday"
-const WidgetConfig dateConf       PROGMEM = { 1, 28, 1, WA_RIGHT }; // Módosítás új sor "date"
+const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 175, 2, WA_LEFT };
+const WidgetConfig dateConf       PROGMEM = { 1, 28, 1, WA_RIGHT };
 
 const WidgetConfig   bootWdtConf  PROGMEM = { 0, 64-8*2-5, 1, WA_CENTER };
 const ProgressConfig bootPrgConf  PROGMEM = { 90, 10, 4 };

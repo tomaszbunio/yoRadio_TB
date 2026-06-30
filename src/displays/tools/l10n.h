@@ -1,4 +1,3 @@
-//Módositva! "multi_language"
 #include "../../core/options.h"
 #ifndef _display_l10n_h
 #define _display_l10n_h

@@ -436,7 +436,7 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef COLOR_VU_MAX
   #define COLOR_VU_MAX            231, 211,  90
 #endif
-#ifndef COLOR_VU_MID                                // Módosítás: új bejegyzés "vu_meter"
+#ifndef COLOR_VU_MID
   #define COLOR_VU_MID            255, 255, 0
 #endif
 #ifndef COLOR_VU_MIN
@@ -541,12 +541,12 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 
 #define EN  1
 #define RU  2
-#define HU  3  // Módosítás plussz sor "multi_language"
-#define PL  4  // Módosítás plussz sor "multi_language"
-#define NL  5  // Módosítás plussz sor "multi_language"
-#define GR  6  // Módosítás plussz sor Görög "multi_language"
-#define CZ  7  // Módosítás plussz sor "multi_language"
-#define SK  8  // Módosítás plussz sor "multi_language"
+#define HU  3
+#define PL  4
+#define NL  5
+#define GR  6
+#define CZ  7
+#define SK  8
 #define UA  9
 #define DE  10
 #define ES  11
@@ -572,7 +572,7 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #endif
 
 /* CLOCK:TTS */
-#ifndef CLOCK_TTS_ENABLED   // Módosítás új bejegyzés "clock_tts"
+#ifndef CLOCK_TTS_ENABLED
  #define CLOCK_TTS_ENABLED false
 #endif
 #ifndef CLOCK_TTS_INTERVAL_MINUTES

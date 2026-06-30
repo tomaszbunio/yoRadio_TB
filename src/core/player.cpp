@@ -1,4 +1,3 @@
-// Módosítva "vol_step"
 #include "options.h"
 #include "player.h"
 #include "config.h"
@@ -79,9 +78,9 @@ void Player::init() {
   }
   begin();
 #endif
-  setBalance(-config.store.balance);  // "audio_change"   -16 to 16 fordítás 16 to -16
+  setBalance(-config.store.balance);
   setTone(config.store.bass, config.store.middle, config.store.trebble);
-  setVolumeSteps(100);  // "audio_change" "vol_step" Új beállítás, a maximális hangerő.
+  setVolumeSteps(100);
   setVolume(0);
   _status = STOPPED;
   _volTimer = false;
@@ -120,7 +119,6 @@ void Player::setError(const char *e) {
   setError();
 }
 
-/* Ha az alreadyStopped true akkor a STOP művelet már le lett kezelve.*/
 void Player::_stop(bool alreadyStopped) {
   log_i("%s called", __func__);
 #ifdef SD_RESUME_ENABLED
@@ -159,10 +157,10 @@ void Player::initHeaders(const char *file) {
     return;  //TODO Read TAGs
   }
   connecttoFS(sdman, file);
-  //eofHeader = false; // megszűnt az Audio.h ban.
-  //while(!eofHeader) Audio::loop(); // megszűnt az Audio.h ban.
+  //eofHeader = false;
+  //while(!eofHeader) Audio::loop();
   //netserver.requestOnChange(SDPOS, 0);
-  //setDefaults(); // free buffers and set defaults átkerült a privat függvényekhez az Audio.h ban.
+  //setDefaults();
 }
 void resetPlayer() {
   if (!config.store.watchdog) {
@@ -240,10 +238,10 @@ void Player::loop() {
         break;
       }
 #endif
-      case PR_VUTONUS:  // 2 másodpercenként hívja a timekeeper.
+      case PR_VUTONUS:
       {
         if (config.vuRefLevel > 10) {
-          config.vuRefLevel -= 10;  // A tárolt VU csúcs csökkentése, hogy ne ragadjon fenn.
+          config.vuRefLevel -= 10;
         }
         break;
       }
@@ -364,7 +362,6 @@ void Player::_play(uint16_t stationId) {
   _status = STOPPED;
   setOutputPins(false);
   remoteStationName = false;
-  // Kijelző + metaadat alaphelyzet
   if (!config.prepareForPlaying(stationId)) { return; }
 
   Audio::setVolume(0); // wycisz przed przełączeniem strumienia (zapobiega pyknięciu)
@@ -379,11 +376,10 @@ void Player::_play(uint16_t stationId) {
     #ifdef SD_COVER_ART
     display.loadSdCover();
     #endif
-    // A connecttoFS NEM támogat start offsetet SD-n → -1, indítás pozícionálás nélkül.
     isConnected = connecttoFS(sdman, config.station.url, -1);
   } else {
 #ifdef USE_DLNA //DLNA mod
-  // DLNA is WEB engine, de nem írjuk felül a mode-ot
+  // DLNA is WEB engine.
     if (config.store.playlistSource != PL_SRC_DLNA)
 #endif
     {
@@ -443,6 +439,62 @@ void Player::browseUrl() {
 }
 #endif
 
+#define SD_SHUFFLE_HISTORY 30
+
+static uint16_t _sdShuffleHistory[SD_SHUFFLE_HISTORY];
+static uint8_t _sdShuffleHistoryPos = 0;
+static uint8_t _sdShuffleHistoryCount = 0;
+
+static void _sdShuffleRemember(uint16_t idx) {
+  if (idx == 0) return;
+  _sdShuffleHistory[_sdShuffleHistoryPos] = idx;
+  _sdShuffleHistoryPos = (_sdShuffleHistoryPos + 1) % SD_SHUFFLE_HISTORY;
+  if (_sdShuffleHistoryCount < SD_SHUFFLE_HISTORY) _sdShuffleHistoryCount++;
+}
+
+static bool _sdShuffleWasRecent(uint16_t idx, uint8_t avoidCount) {
+  uint8_t checks = min(_sdShuffleHistoryCount, avoidCount);
+  for (uint8_t i = 0; i < checks; i++) {
+    uint8_t pos = (_sdShuffleHistoryPos + SD_SHUFFLE_HISTORY - 1 - i) % SD_SHUFFLE_HISTORY;
+    if (_sdShuffleHistory[pos] == idx) return true;
+  }
+  return false;
+}
+
+static uint16_t _sdShufflePick(uint16_t current, uint16_t count) {
+  if (count <= 1) return 1;
+
+  uint8_t avoidCount = min((uint16_t)SD_SHUFFLE_HISTORY, (uint16_t)(count - 1));
+  for (uint8_t tries = 0; tries < 30; tries++) {
+    uint16_t candidate = random(1, count + 1);
+    if (candidate != current && !_sdShuffleWasRecent(candidate, avoidCount)) {
+      _sdShuffleRemember(candidate);
+      return candidate;
+    }
+  }
+
+  uint16_t start = random(1, count + 1);
+  for (uint16_t checked = 0; checked < count; checked++) {
+    uint16_t candidate = start + checked;
+    if (candidate > count) candidate -= count;
+    if (candidate != current && !_sdShuffleWasRecent(candidate, avoidCount)) {
+      _sdShuffleRemember(candidate);
+      return candidate;
+    }
+  }
+
+  for (uint16_t checked = 0; checked < count; checked++) {
+    uint16_t candidate = start + checked;
+    if (candidate > count) candidate -= count;
+    if (candidate != current) {
+      _sdShuffleRemember(candidate);
+      return candidate;
+    }
+  }
+
+  return current;
+}
+
 void Player::prev() {
   uint16_t lastStation = config.lastStation();
   if (config.getMode() != PM_SDCARD) {
@@ -455,10 +507,10 @@ void Player::prev() {
       if (lastStation <= 1) config.lastStation(config.playlistLength());
       else config.lastStation(lastStation - 1);
     } else {
-      config.lastStation(random(1, config.playlistLength() + 1));
+      config.lastStation(_sdShufflePick(lastStation, config.playlistLength()));
     }
   }
-  config.stopedSdStationId = -1;  // Reseteli a seek hez mentett SD fájl sorszámát.
+  config.stopedSdStationId = -1;
   sendCommand({PR_PLAY, config.lastStation()});
 }
 
@@ -474,10 +526,10 @@ void Player::next() {
       if (lastStation >= config.playlistLength()) config.lastStation(1);
       else config.lastStation(lastStation + 1);
     } else {
-      config.lastStation(random(1, config.playlistLength() + 1));
+      config.lastStation(_sdShufflePick(lastStation, config.playlistLength()));
     }
   }
-  config.stopedSdStationId = -1;  // Reseteli a seek hez mentett SD fájl sorszámát.
+  config.stopedSdStationId = -1;
   sendCommand({PR_PLAY, config.lastStation()});
 }
 
@@ -613,7 +665,7 @@ void Player::stepVol(bool up) {
 }
 
 uint8_t Player::volToI2S(uint8_t volume) {
-  int vol = map(volume, 0, 100 - config.station.ovol, 0, 100);  // Módosítás "vol_step"
+  int vol = map(volume, 0, 100 - config.station.ovol, 0, 100);
   if (vol > 100) {
     vol = 100;
   }
@@ -633,8 +685,6 @@ void Player::setVol(uint8_t volume) {
   player.sendCommand({PR_VOL, volume});
 }
 
-// A WEB UI a hangszínt -16 - +16 között adja, de az Audio osztály setTone()
-// függvénye -40 és +6 (dB) közötti értéket kér, ezért mepelni kell.
 int8_t Player::uiToDb(int8_t uiVal) {
   if (uiVal == 0) {
     return 0;
@@ -645,7 +695,7 @@ int8_t Player::uiToDb(int8_t uiVal) {
     return (int8_t)roundf(db);
   } else {
     // -16..0  →  -20..0 dB
-    float db = (uiVal / 16.0f) * 20.0f;  // uiVal negatív!
+    float db = (uiVal / 16.0f) * 20.0f;
     return (int8_t)roundf(db);
   }
 }

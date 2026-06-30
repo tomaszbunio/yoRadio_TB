@@ -37,7 +37,7 @@ const WidgetConfig bitrateConf    PROGMEM = { TFT_FRAMEWDT, 148, 1, WA_RIGHT };
 
 /* FOOTER */
 const WidgetConfig iptxtConf      PROGMEM = { TFT_FRAMEWDT, 214, 1, WA_LEFT };
-const WidgetConfig voltxtConf     PROGMEM = { 0, 214, 1, WA_CENTER };  // Hangerő
+const WidgetConfig voltxtConf     PROGMEM = { 0, 214, 1, WA_CENTER };
 const WidgetConfig chtxtConf      PROGMEM = { 210 ,214, 1, WA_LEFT }; //→ az aktuális csatorna CH:szöveg (PLAYER footer)
 const WidgetConfig rssiConf       PROGMEM = { TFT_FRAMEWDT, 214-6, 2, WA_RIGHT };
 
@@ -48,8 +48,8 @@ const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT, 130, 2, WA_CENTER };
 const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT, 154, 2, WA_CENTER };
 const WidgetConfig clockConf      PROGMEM = { TFT_FRAMEWDT*2, 160, 1, WA_RIGHT };
 const WidgetConfig bootWdtConf    PROGMEM = { 0, 162, 1, WA_CENTER };
-const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 139, 1, WA_LEFT }; // Módosítás új sor "nameday"
-const WidgetConfig dateConf       PROGMEM = { TFT_FRAMEWDT *2, 169, 1, WA_LEFT }; // Módosítás új sor "date"
+const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 139, 1, WA_LEFT };
+const WidgetConfig dateConf       PROGMEM = { TFT_FRAMEWDT *2, 169, 1, WA_LEFT };
 
 const ProgressConfig bootPrgConf    PROGMEM = { 90, 14, 4 };
 const BitrateConfig fullbitrateConf PROGMEM = {{8, 114, 1, WA_LEFT}, 41 }; // left, top, fontsize, align, border size

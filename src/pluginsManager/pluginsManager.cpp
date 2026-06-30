@@ -25,7 +25,7 @@ void Plugin::registerPlugin() {
 
 void pluginsManager::add(Plugin* plugin) {
   if (!_ready) {
-    pending.push_back(plugin);   // <<< setup előtti regisztráció
+    pending.push_back(plugin);
     return;
   }
   plugins.push_back(plugin);
@@ -41,4 +41,3 @@ Plugin* pluginsManager::get(size_t index) {
   }
   return nullptr;
 }
-

@@ -9,17 +9,17 @@ enum DlnaJobType : uint8_t { DJ_INIT=0, DJ_BUILD=1, DJ_APPEND=2, DJ_CANCEL=3 };
 struct DlnaJob {
   DlnaJobType type;
   char objectId[64];   // DLNA objectId
-//  char key[32];        // opcionális: category/genre key
-  uint32_t reqId;      // monoton növekvő request id
+//  char key[32];
+  uint32_t reqId;
   uint32_t hardLimit;
 };
 
 struct DlnaStatus {
   volatile bool busy;
   volatile bool ok;
-  volatile int  err;           // 0=OK, HTTP-szerű / belső hibakód
+  volatile int  err;
   volatile uint32_t reqId;
-  volatile uint32_t playlistVer;   // fájlverzió a preview sync-hez
+  volatile uint32_t playlistVer;
   char msg[96];
 };
 

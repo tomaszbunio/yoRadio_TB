@@ -270,7 +270,7 @@ void Display::_buildPager() {
     _plbackground = new FillWidget(playlBGConf, 1);
         //_metabackground = new FillWidget(metaBGConf, 1);
     #endif
-    #ifndef HIDE_VU // Módosítás config.theme.vumid új
+    #ifndef HIDE_VU
     _vuwidget = new VuWidget(vuConf, bandsConf, config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background);
     #endif
     #ifndef HIDE_VOLBAR
@@ -293,7 +293,7 @@ void Display::_buildPager() {
     _weather = new ScrollWidget("\007", weatherConf, config.theme.weather, config.theme.background);
     #endif
 
-    _chtxt = new TextWidget(chtxtConf, 12, false, config.theme.ch, config.theme.background); // Az aktuális csatorna számának kiírásához létrehoz egy TextWidgetet.
+    _chtxt = new TextWidget(chtxtConf, 12, false, config.theme.ch, config.theme.background);
 
     if (_volbar) { _footer->addWidget(_volbar); }
     if (_voltxt) { _footer->addWidget(_voltxt); }
@@ -301,7 +301,7 @@ void Display::_buildPager() {
     if (_rssi) { _footer->addWidget(_rssi); }
     if (_heapbar) { _footer->addWidget(_heapbar); }
     if (_chtxt) {
-        _footer->addWidget(_chtxt); // Az aktuális csatorna számának widgetét hozzáadja a footerhez.
+        _footer->addWidget(_chtxt);
     }
 
     if (_metabackground) { pages[PG_PLAYER]->addWidget(_metabackground); }
@@ -627,7 +627,7 @@ void Display::_applyTheme() {
   if (_plcurrent)      _plcurrent->setColors(config.theme.plcurrent, config.theme.plcurrentbg, true);
 
   #ifndef HIDE_VU
-  if (_vuwidget) _vuwidget->setVuColors(config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background, true);
+  if (_vuwidget) _vuwidget->setVuColors(config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background, false);
   #endif
   #ifndef HIDE_VOLBAR
   if (_volbar) {
@@ -675,6 +675,8 @@ void Display::_applyTheme() {
 
   _pager->setPage(pg, false);
   #ifndef HIDE_VU
+  // setPage() clears player area; force a full VU redraw after the page is rebuilt.
+  if (_vuwidget) _vuwidget->setVuColors(config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background, true);
   // setPage() clears player area; force one-shot redraw of L/R labels over VU.
   VuWidget::setLabelsDrawn(false);
   #endif
@@ -1095,7 +1097,7 @@ void Display::_drawPlaylist() {
 }
 
 void Display::_drawNextStationNum(uint16_t num) {
-    timekeeper.waitAndReturnPlayer(30); // Visszatérési idő a főképernyőre.
+    timekeeper.waitAndReturnPlayer(30);
     _meta->setText(config.stationByNum(num));
     _nums->setText(num, "%d");
 }
@@ -1240,7 +1242,7 @@ void Display::loop() {
                 }
                 case DBITRATE: {
                     PROFILE_SCOPE("display.bitrate");
-                    if (_mode == PLAYER) { // csak a lejátszás képernyőn frissíti a bitrateWidgetet
+                    if (_mode == PLAYER) {
                         char buf[20];
                         snprintf(buf, 20, bitrateFmt, config.station.bitrate);
                         if (_bitrate) { _bitrate->setText(config.station.bitrate == 0 ? "" : buf); }
@@ -1259,7 +1261,7 @@ void Display::loop() {
                 } break;
                 case CLEARALLBITRATE: {    // "nameday"
                     PROFILE_SCOPE("display.clearbr");
-                    if (_mode == PLAYER) { // csak a lejátszás képernyőn
+                    if (_mode == PLAYER) {
                         if (_fullbitrate) { _fullbitrate->clearAll(); }
                     }
                 } break;
@@ -1483,15 +1485,15 @@ void Display::_time(bool redraw) {
 }
 
 void Display::_volume() {
-    if (_volbar) { // Módosítás "vol_step"
+    if (_volbar) {
         int vol = (config.store.volume);
         if (vol > 100) { vol = 100; }
         if (vol < 0) { vol = 0; }
         _volbar->setValue(vol);
     }
     #ifndef HIDE_VOL
-    if (_voltxt) {                                        // ha az alapképernyő van
-        _voltxt->setText(config.store.volume, voltxtFmt); // Módosítás "vol_step"
+    if (_voltxt) {
+        _voltxt->setText(config.store.volume, voltxtFmt);
     }
     #endif
     if (_mode == VOL) {

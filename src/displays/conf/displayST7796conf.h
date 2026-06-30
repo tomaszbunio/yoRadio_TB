@@ -42,7 +42,7 @@ const WidgetConfig bitrateConf    PROGMEM = {TFT_FRAMEWDT, 145, 2, WA_RIGHT};
 
 /* FOOTER */
 const WidgetConfig iptxtConf      PROGMEM = {TFT_FRAMEWDT, 282, 2, WA_LEFT};
-const WidgetConfig voltxtConf     PROGMEM = {0, 282, 2, WA_CENTER}; // Hangerő
+const WidgetConfig voltxtConf     PROGMEM = {0, 282, 2, WA_CENTER};
 const WidgetConfig chtxtConf      PROGMEM = { 310 ,282, 2, WA_LEFT }; //→ az aktuális csatorna CH:szöveg (PLAYER footer)
 const WidgetConfig rssiConf       PROGMEM = {TFT_FRAMEWDT, 282, 2, WA_RIGHT};
 
@@ -54,8 +54,8 @@ const WidgetConfig apPass2Conf    PROGMEM = {TFT_FRAMEWDT, 205, 3, WA_CENTER};
 const WidgetConfig clockConf      PROGMEM = {10, 212, 2, WA_RIGHT}; // {jobb oldali távolság, top, fontsize}
 const WidgetConfig vuConf         PROGMEM = {35, 258, 1, WA_CENTER}; // center fektetett, "align" nincs használva
 const WidgetConfig bootWdtConf    PROGMEM = {0, 216, 1, WA_CENTER};
-const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 175, 2, WA_LEFT };  // Módosítás új sor "nameday"
-const WidgetConfig dateConf       PROGMEM = { TFT_FRAMEWDT, 226, 1, WA_LEFT }; // Módosítás új sor "date"
+const WidgetConfig namedayConf    PROGMEM = { TFT_FRAMEWDT, 175, 2, WA_LEFT };
+const WidgetConfig dateConf       PROGMEM = { TFT_FRAMEWDT, 226, 1, WA_LEFT };
 const ProgressConfig bootPrgConf  PROGMEM = {90, 14, 4};
 
 //{{ left, top, fontsize, align }dimension}
@@ -72,13 +72,13 @@ const VUBandsConfig bandsConf PROGMEM = {300, 7, 3, 2, 30, 6};
 const char numtxtFmt[]  PROGMEM = "%d";
 const char rssiFmt[]    PROGMEM = "WiFi %ddBm";
 const char iptxtFmt[]   PROGMEM = "%s";
-const char voltxtFmt[]  PROGMEM = "\023\025%d%%"; //Original "\023\025%d" Módosítás "vol_step"
+const char voltxtFmt[]  PROGMEM = "\023\025%d%%";
 const char bitrateFmt[] PROGMEM = "%d kBs";
 
 /* MOVES  */ /* { left, top, width } */
 const MoveConfig clockMove     PROGMEM = {0, 176, -1};
 const MoveConfig weatherMove   PROGMEM = {10, 116, MAX_WIDTH}; // Ha a VU ki van kapcsolva (szélesített pozíció)
-const MoveConfig weatherMoveVU PROGMEM = {10, 116, MAX_WIDTH}; // Az időjárás widget pozíciója.
+const MoveConfig weatherMoveVU PROGMEM = {10, 116, MAX_WIDTH};
 
 #endif
 // clang-format on

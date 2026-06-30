@@ -93,13 +93,12 @@ String fixSlovakUTF8(const String &in)
 
 
 // ============================================================================
-//  UTF-8 → GLCD belső kódtábla
-//  (A TELJES ORIGINÁLIS FÁJL VÁLTOZATLANUL MEGTARTVA!)
+//  UTF-8 to GLCD table
 // ============================================================================
 
 char *utf8To(const char *str, bool uppercase) {
 
-  // ← ÚJ: először kijavítjuk a hibás UTF-8 karaktereket
+  // Fix invalid UTF-8 first.
   String fixed = fixSlovakUTF8(str);
 
   static char strn[BUFLEN];
@@ -228,7 +227,7 @@ char *utf8To(const char *str, bool uppercase) {
         case 0xB3: strn[index] = uppercase ? 0xBF : 0xBE; break;
         case 0x93: strn[index] = 0xBF; break;
 
-        // -------- ä, ö, ü + nagybetűk --------
+        // -------- umlauts --------
         case 0xA4: strn[index] = uppercase ? 0x8E : 0x84; break;
         case 0x96: strn[index] = 0x99; break;
         case 0xB6: strn[index] = uppercase ? 0x99 : 0x94; break;

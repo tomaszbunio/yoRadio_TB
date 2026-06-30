@@ -19,12 +19,11 @@
   #error "Unsupported NAMEDAYS_FILE"
 #endif
 
-// --- Rotációs változók ---
-uint32_t namedayLastRotation = 0;  // utolsó forgási idő
-uint8_t  namedayCurrentIndex = 0;  // aktuális névindex
-char     currentNamedayBuffer[30]; // puffer az aktuális névhez
-int      lastNamedayDay = -1;      // utolsó nap a forgatás visszaállítására
-int      lastNamedayMonth = -1;    // a rotáció visszaállításának utolsó hónapja
+uint32_t namedayLastRotation = 0;
+uint8_t  namedayCurrentIndex = 0;
+char     currentNamedayBuffer[30];
+int      lastNamedayDay = -1;
+int      lastNamedayMonth = -1;
 
 // Függvény, amely visszaadja az év egy adott napjának aktuális nevét, 4 másodpercenként váltakozva
 const char *getNameDay(int month, int day) {
@@ -39,7 +38,6 @@ const char *getNameDay(int month, int day) {
     return ""; // üres karakterláncot ad vissza, ha a nap érvénytelen
   }
 
-  // Ellenőrizd, hogy változott-e a nap - ha igen, állítsd vissza a rotációt
   if (lastNamedayDay != day || lastNamedayMonth != month) {
     lastNamedayDay = day;
     lastNamedayMonth = month;
@@ -54,7 +52,6 @@ const char *getNameDay(int month, int day) {
   strcpy(tempBuffer, namedays[dayOfYear]);
 
   //  Serial.printf("displayILI9488.cpp -> A kiolvasott névnapok: %s%\n", tempBuffer);
-  // Megszámoljuk a nevek számát a karakterláncban (vesszővel elválasztva)
   uint8_t nameCount = 1;
   for (int i = 0; tempBuffer[i] != '\0'; i++) {
     if (tempBuffer[i] == ',')
@@ -68,7 +65,6 @@ const char *getNameDay(int month, int day) {
     return currentNamedayBuffer;
   }
 
-  // Ellenőrzi, hogy eltelt-e 4 másodperc az utolsó forgatás óta
   uint32_t currentTime = millis();
   if (currentTime - namedayLastRotation >= 4000) { // 4 másodperc
     namedayLastRotation = currentTime;
@@ -80,7 +76,6 @@ const char *getNameDay(int month, int day) {
     }
   }
 
-  // Keresd meg a megfelelő nevet a listából
   //strcpy_P(tempBuffer, (const char *)pgm_read_ptr(&namedays[dayOfYear])); // Másolja újra, mert az strtok megsemmisíti
  strcpy(tempBuffer, namedays[dayOfYear]);
 
@@ -90,11 +85,10 @@ const char *getNameDay(int month, int day) {
   }
 
   if (token) {
-    // Töröljük el a szóközöket az elejéről
     while (*token == ' ' || *token == '\t')
       token++;
 
-    memset(currentNamedayBuffer, 0, sizeof(currentNamedayBuffer)); // puffer ürítése írás előtt
+    memset(currentNamedayBuffer, 0, sizeof(currentNamedayBuffer));
     strlcpy(currentNamedayBuffer, token, sizeof(currentNamedayBuffer));
     return currentNamedayBuffer;
   }

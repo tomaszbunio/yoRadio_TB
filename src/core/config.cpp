@@ -973,7 +973,7 @@ void Config::setDefaults() {
     #if defined(SCREEN) && SCREEN == 4
     store.fliptouch = true;
     #else
-    store.fliptouch = false;
+    store.fliptouch = true;
     #endif
     store.dbgtouch = false;
     store.dspon = true;

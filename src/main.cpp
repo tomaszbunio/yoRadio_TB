@@ -131,7 +131,7 @@ void setup() {
         bootAutoplayNext = millis() + 1500;
     }
 #if CLOCK_TTS_ENABLED
-    clock_tts_setup(); // MĂłdosĂ­tĂˇs: plussz sor. "clock_tts"
+    clock_tts_setup();
 #endif
     if (psramFound()) {
         Serial.println("… PSRAM initialized‘!");
@@ -202,7 +202,7 @@ void loop() {
     netserver.loop();
 #endif
 #if CLOCK_TTS_ENABLED
-    clock_tts_loop(); // MĂłdosĂ­tĂˇs: plussz sor.  "clock_tts"
+    clock_tts_loop();
 #endif
 #ifdef NEOPIXEL_ON
 	NeoPixel_loop();

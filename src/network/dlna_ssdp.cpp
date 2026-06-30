@@ -63,7 +63,7 @@ bool DlnaSSDP::receiveResponse(const char* expectedHost, String& outDescUrl) {
     response += (char)_udp.read();
   }*/
 
-  // FIX: String összefűzés helyett fix buffer (heap-fragmentáció ellen)
+  // FIX: fixed buffer to reduce heap fragmentation.
   static char buf[1600];
   int n = 0;
   while (_udp.available() && n < (int)sizeof(buf) - 1) {

@@ -18,7 +18,7 @@ char* utf8To(const char* str, bool uppercase)
     static char out[BUFLEN];
     strlcpy(out, str, BUFLEN);
 
-    // HIÁNYZÓ RÉSZ – ASCII nagybetűsítés
+    // ASCII uppercase.
     if (uppercase) {
         for (char *p = out; *p; p++)
             *p = toupper(*p);
@@ -31,7 +31,7 @@ char* utf8To(const char* str, bool uppercase)
         uint8_t b1 = (uint8_t)out[index];
 
         // ==================================================================
-        // UTF-8 2-bytes:  C3 xx  → magyar + német betűk nagy része
+        // UTF-8 2-byte sequence: C3 xx.
         // ==================================================================
         if (b1 == 0xC3)
         {
@@ -74,7 +74,7 @@ char* utf8To(const char* str, bool uppercase)
         }
 
         // ==================================================================
-        // UTF-8 2-bytes:  C5 xx  → magyar hosszú ő / ű + nagybetűk
+        // UTF-8 2-byte sequence: C5 xx.
         // ==================================================================
         if (b1 == 0xC5)
         {
@@ -82,10 +82,10 @@ char* utf8To(const char* str, bool uppercase)
 
             switch (b2)
             {
-                case 0x91: out[index] = 0x93; break;  // ő
-                case 0x90: out[index] = 0x9B; break;  // Ő
-                case 0xB1: out[index] = 0x8B; break;  // ű
-                case 0xB0: out[index] = 0x98; break;  // Ű
+                case 0x91: out[index] = 0x93; break;
+                case 0x90: out[index] = 0x9B; break;
+                case 0xB1: out[index] = 0x8B; break;
+                case 0xB0: out[index] = 0x98; break;
                 default:
                     index++;
                     continue;
@@ -106,4 +106,3 @@ char* utf8To(const char* str, bool uppercase)
 }
 
 #endif // UTF8TO_COMMON_H
-

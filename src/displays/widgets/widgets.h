@@ -257,16 +257,16 @@ protected:
 /************************************************************ VU WIDGET **********************************************/
 class VuWidget : public Widget {
 public:
-  VuWidget() {}  // MĂłdosĂ­tĂˇs: vumidcolor plussz paramĂ©ter.
+  VuWidget() {}
   VuWidget(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t bgcolor) {
     init(wconf, bands, vumaxcolor, vumidcolor, vumincolor, bgcolor);
   }
-  ~VuWidget();  // MĂłdosĂ­tĂˇs: vumidcolor plussz paramĂ©ter.
+  ~VuWidget();
   using Widget::init;
   void init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t bgcolor);
   void loop();
-  static void setLabelsDrawn(bool value);  // MĂłdosĂ­tĂˇs
-  static bool isLabelsDrawn();             // MĂłdosĂ­tĂˇs
+  static void setLabelsDrawn(bool value);
+  static bool isLabelsDrawn();
   
   void setVuColors(uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t bgcolor, bool redraw = true) {
     _vumaxcolor = vumaxcolor;
@@ -289,17 +289,17 @@ protected:
   uint16_t _maxDimension = 216;  // VU teljes hossza pixelben
   uint16_t _peakL = 0;
   uint16_t _peakR = 0;
-  uint8_t _peakFallDelay = 6;  // peak kĂ©sleltetĂ©s
-  uint8_t _peakFallRate = 1;   // peak esĂ©s sebessĂ©ge
+  uint8_t _peakFallDelay = 6;
+  uint8_t _peakFallRate = 1;
   uint8_t _peakFallDelayCounter = 0;
   #endif
 
   #if !defined(DSP_LCD) && !defined(DSP_OLED)
   Canvas *_canvas = nullptr;
   #endif
-  static bool _labelsDrawn;  // MĂłdosĂ­tĂˇs Ăşj vĂˇltozĂł.
+  static bool _labelsDrawn;
   VUBandsConfig _bands;
-  uint16_t _vumaxcolor, _vumidcolor, _vumincolor;  // MĂłdosĂ­tĂˇs: plussz _vumidcolor
+  uint16_t _vumaxcolor, _vumidcolor, _vumincolor;
   static constexpr uint8_t _maxSegments = 64;
   uint16_t _segmentColorsL[_maxSegments] = {};
   uint16_t _segmentColorsR[_maxSegments] = {};
@@ -379,19 +379,19 @@ private:
 protected:
   char _timebuffer[20] = "00:00";
   char _lastTimebuffer[6] = "";
-  char _tmp[38] = {}, _datebuf[38] = {};  // MĂłdosĂ­tva 38-ra v7.4
+  char _tmp[38] = {}, _datebuf[38] = {};
   uint8_t _superfont = 0;
   uint16_t _clockleft = 0, _clockwidth = 0, _timewidth = 0, _dotsleft = 0, _linesleft = 0;
   uint8_t _clockheight = 0, _timeheight = 0, _dateheight = 0, _space = 0;
-  char _namedayBuf[30] = {}, _oldNamedayBuf[30] = {};         // MĂłdosĂ­tĂˇs "nameday"
-  uint16_t _namedaywidth, _oldnamedayleft, _oldnamedaywidth;  //MĂłdosĂ­tĂˇs "nameday"
+  char _namedayBuf[30] = {}, _oldNamedayBuf[30] = {};
+  uint16_t _namedaywidth, _oldnamedayleft, _oldnamedaywidth;
   bool _namedayLabelDrawn = false;
   uint16_t _forceflag = 0;
   bool dots = true;
   bool _fullclock;
   psFrameBuffer *_fb = nullptr;
   WidgetConfig _namedayConf;  //"nameday"
-  WidgetConfig _dateConf;     // MĂłdosĂ­tĂˇs Ăşj sor.
+  WidgetConfig _dateConf;
   void _draw();
   void _clear();
   void _reset();
@@ -401,8 +401,8 @@ protected:
   void _formatDate();
 
   #ifdef NAMEDAYS_FILE
-  void _printNameday();                          // MĂłdosĂ­tĂˇs Ăşj sor. "nameday"
-  void getNamedayUpper(char *dest, size_t len);  // MĂłdosĂ­tĂˇs "nameday"
+  void _printNameday();
+  void getNamedayUpper(char *dest, size_t len);
   #endif
   bool _getTime();
   bool _flipEnabled() const;

@@ -64,7 +64,7 @@ static void presetsBlitFull() {
     dsp.endWrite();
 }
 
-// Rect blit: csak egy téglalap frissítése a full-frame bufferből
+// Rect blit from full-frame buffer.
 static void presetsBlitRect(int16_t x, int16_t y, int16_t w, int16_t h) {
     if (!s_presetsCanvas) { return; }
 
@@ -116,7 +116,7 @@ static void ensurePrefs() {
     s_prefs.begin("presets", false); // NVS namespace
     s_inited = true;
 }
-static const uint8_t SLOTS = 8; // A memóriagombok száma.
+static const uint8_t SLOTS = 8;
 static char          presetName[SLOTS][64];
 static char          presetUrl[SLOTS][256];
 static uint16_t      presetId[SLOTS];
@@ -137,7 +137,7 @@ static const uint16_t FAV_GAP = 9;
 static const uint16_t FAV_BOTTOM_PAD = 5;
 static const uint8_t  COLS = 2;
 static const uint8_t  ROWS = 4;
-static const uint8_t  KBD_MAX = 10; // Billentyűzet max beírható karakter.
+static const uint8_t  KBD_MAX = 10;
 static const uint16_t UI_MARGIN = 5;
 static const uint16_t GAP = 10;
 static const uint16_t Y0_PAD = 10;
@@ -404,7 +404,6 @@ static void drawBackground() {
     GFX.fillScreen(config.theme.background);
 }
 
-// A felső bár megrajzolása.
 static void drawTopBar() {
     int16_t w = GFX.width();
     GFX.fillRect(0, 0, w, TOP_H, config.theme.metabg);
@@ -446,7 +445,6 @@ static void cancelTopToastAndRestore() {
     presetsBlitRect(0, 0, s_presetsW, TOP_H); // csak a topbar frissül
 }
 
-// A kártyalap nyomásakor az időcsík megjelenítése az aktuális funkció alatt.
 void presets_drawHoldBar(uint32_t heldMs) {
     // 🔹 HA VAN TOAST → AZONNAL MEGSZÜNTETJÜK
     cancelTopToastAndRestore();
@@ -481,7 +479,6 @@ void presets_drawHoldBar(uint32_t heldMs) {
     if (t > segLen) { t = segLen; }
     int16_t filled = (int16_t)((uint32_t)sw * t / segLen);
     gfx.fillRect(sx, hold_barY, filled, hold_barH, config.theme.prst_fav);
-    // CSAK a hold-bar téglalapot küldjük ki a kijelzőre
     presetsBlitRect(fullX, hold_barY, fullW, hold_barH);
 }
 
@@ -525,11 +522,11 @@ static void drawSlot(uint8_t slot, bool pressed = false, bool savedFlash = false
     uint16_t id = readIdC(slot);
     if (id >= 1 && id <= config.playlistLength()) { hasPreset = true; }
     uint16_t bg = config.theme.prst_card;
-    if (hasPreset) { // van mentett preset
+    if (hasPreset) {
         bg = config.theme.prst_accent;
     }
     if (pressed) {
-        bg = lighten565(bg, 40); // nyomásra csak világosít
+        bg = lighten565(bg, 40);
     }
     // --- kártya ---
     GFX.fillRoundRect(x, y, bw, bh, 10, bg);
@@ -546,11 +543,10 @@ static void drawSlot(uint8_t slot, bool pressed = false, bool savedFlash = false
         GFX.print(utf8To(msg, false));
         return;
     }
-    // ---- Két soros állomásnév ----
+    // ---- Station name ----
     GFX.setTextSize(2);
     String top, bottom;
     splitTwoLinesBalanced(name, bw - 40, top, bottom);
-    // főcím
     GFX.setTextSize(2);
     GFX.setTextColor(config.theme.prst_title1);
     GFX.setCursor(x + 16, y + 10);
@@ -587,7 +583,6 @@ static void drawFav(uint8_t fav) {
 }
 
 static void drawFavBar() {
-    // FAV sáv háttere (fekete + felső elválasztó vonal)
     int16_t y = FAV_TOP();
     GFX.fillRect(0, y, GFX.width(), FAV_H, config.theme.background);
     GFX.drawFastHLine(0, y, GFX.width(), config.theme.prst_line);
@@ -611,7 +606,6 @@ static void drawToastTopBar(const char* msg) {
     gfx.setCursor(tx, 12);
     gfx.print(utf8To(msg, false));
     s_toastTopbarUntil = millis() + 2000;
-    // csak a topbar sáv kerül ki a kijelzőre
     presetsBlitRect(0, 0, w, TOP_H);
 }
 
@@ -643,7 +637,6 @@ static int16_t kbdH() {
     return (int16_t)(s_presetsH - kbdY0() - 10);
 }
 
-// A FAV felirat szerkesztő box.
 static void drawInputBox() {
     ensurePresetsCanvas();
     auto&    gfx = *s_presetsCanvas;
@@ -749,11 +742,9 @@ static void drawKeyboard() {
     drawKey(x0 + wSpace + gap, y4, wOk, keyH, utf8To(kOk, false), true);
     #endif
     drawKey(x0 + wSpace + gap + wOk + gap, y4, wCan, keyH, utf8To(kCancel, false));
-    // teljes billentyűzet egy frame-ben megy ki
     presetsBlitFull();
 }
 
-// A numerikus billentyűzet érintésének kezelése.
 static bool hitKeyRow(int16_t tx, int16_t ty, int16_t rx, int16_t ry, int keyCount, int totalW, int gap, int keyH, const Key* row, Key& out) {
     int base, rem;
     keyRowMetrics(totalW, keyCount, gap, base, rem);
@@ -872,7 +863,7 @@ void presets_drawScreen() {
     ensurePrefs();
     ensurePresetsCanvas();
     if (s_kbdActive) {
-        drawKeyboard(); // ezt később canvasosítjuk
+        drawKeyboard();
         presetsBlitFull();
         return;
     }
@@ -946,7 +937,7 @@ void presets_keyboardOpen(uint8_t fav) {
     readFavLabelC(fav, buf, sizeof(buf));
     s_kbdActive = true;
     s_kbdFav = fav;
-    s_kbdText = buf; // itt OK a String, ritka művelet
+    s_kbdText = buf;
 }
 
 bool presets_keyboardTap(uint16_t x, uint16_t y) {
@@ -957,7 +948,6 @@ bool presets_keyboardTap(uint16_t x, uint16_t y) {
         drawInputBox();
         // drawInputBox() végén presetsBlitRect(...) van
     } else {
-        // billentyűzet bezárult → teljes Presets UI újrarajzolása
         presets_drawScreen();
     }
     return changed;
