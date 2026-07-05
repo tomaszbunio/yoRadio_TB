@@ -16,6 +16,8 @@
     #define ARDUINO_ESP32S3_DEV
 #endif
 
+//#define SCREEN 4
+
 // #define HEAP_DBG
 // #define DEBUG_PROFILER       // Lekki profiler: display.loop/draw, web, main, player/audio, network
 // #define DEBUG_MODE_SWITCH   // Debug przełączania trybów (IR MENU / playlist return / display mode)
@@ -65,8 +67,9 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 */
 
 /*----- Touch ISP -----*/
- //#define TS_MODEL TS_MODEL_XPT2046
- //#define TS_CS    48
+ #define ENABLE_TOUCH
+ #define TS_MODEL TS_MODEL_XPT2046
+ #define TS_CS    48
  
 /*----- Touch I2C -----*/
 // #define TS_MODEL TS_MODEL_FT6X36
@@ -94,10 +97,10 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 //#define ENC_INTERNALPULLUP	true
 
 /* ENCODER 2 */
-#define ENC2_BTNR      7  // S2
-#define ENC2_BTNL      18  // S1
-#define ENC2_BTNB      3  // KEY
-//#define ENC2_INTERNALPULLUP	true
+#define ENC2_BTNR      255  // S2
+#define ENC2_BTNL      255  // S1
+#define ENC2_BTNB      255  // KEY
+#define ENC2_INTERNALPULLUP	true
 
 // Dwa niezależne enkodery: lewy=stacje, prawy=głośność
 #define TWO_ENCODERS
@@ -142,13 +145,13 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #define CLOCK_TTS_INTERVAL_MINUTES 15   // Hány percenként mondja be. - How many times a minute does it say.
 
 // Ukryj widget pogody – zajmuje obszar nakładający się na flip clock
-#define HIDE_WEATHER
+//#define HIDE_WEATHER
 
 /*----- With this setting there is no scrolling on the weather bar. -----*/
 //#define WEATHER_FMT_SHORT
 
 /*----- With this setting, the full weather report is displayed. -----*/
- //#define EXT_WEATHER  true
+ #define EXT_WEATHER  true
 
 /*----- With this setting, the wind speed will be km/h. -----*/
  //#define WIND_SPEED_IN_KMH
@@ -259,7 +262,7 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 #endif
 
 /*----- Okładka albumu na ekranie SD_PLAYER -----*/
-#define SD_COVER_ART
+//#define SD_COVER_ART
 #ifdef SD_COVER_ART
   #define SD_COVER_W  215
   #define SD_COVER_H  215
