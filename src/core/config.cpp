@@ -984,7 +984,7 @@ void Config::setDefaults() {
     store.showweather = false;
     strlcpy(store.weatherlat,"51.0413", 10);
     strlcpy(store.weatherlon,"20.999", 10);
-    strlcpy(store.weatherkey,"4caffcd4ce6e1aced8f190d4afafaa06", WEATHERKEY_LENGTH);
+    strlcpy(store.weatherkey,"", WEATHERKEY_LENGTH);
     store._reserved = 0;
     store.lastSdStation = 0;
     store.lastDlnaStation = 0; // DLNA mod

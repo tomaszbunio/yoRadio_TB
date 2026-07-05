@@ -8,7 +8,7 @@
 
 #ifndef DUMMYDISPLAY
 #include "../displays/widgets/StationLogoWidget.h"
-#include "../displays/widgets/SdCoverWidget.h"
+#include "../displays/widgets/SdCoverWidget.h" 
 class ScrollWidget;
 class PlayListWidget;
 class BitrateWidget;
