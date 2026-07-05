@@ -63,7 +63,7 @@ const ScrollConfig title2Conf     PROGMEM = {{TFT_FRAMEWDT, 86, 2, TITLE2_ALIGN}
 const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 3, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 7, 40 };
 const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 4, WA_CENTER }, 140, false, MAX_WIDTH, 0, 7, 40 };
 const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT, 320-TFT_FRAMEWDT-16, 2, WA_LEFT }, 140, false, MAX_WIDTH, 0, 7, 40 };
-const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT, 116, 2, WA_CENTER }, 140, false, MAX_WIDTH, 5000, 4, 40 };
+const ScrollConfig weatherConf    PROGMEM = {{ TFT_FRAMEWDT, 86, 2, WA_CENTER }, 254, false, MAX_WIDTH, 5000, 4, 40 };
 
 /* BACKGROUNDS  */                       /* {{ left, top, fontsize, align }, width, height, outlined } */
 const FillConfig metaBGConf       PROGMEM = {{3, 45, 0, WA_CENTER}, DSP_WIDTH - 6, 1, true}; // Csík rajzolása a rádióadó neve alá.
@@ -123,8 +123,8 @@ const char bitrateFmt[] PROGMEM = "%d kBs";
 
 /* MOVES  */ /* { left, top, width } */
 const MoveConfig clockMove     PROGMEM = {0, 176, -1};
-const MoveConfig weatherMove   PROGMEM = {10, 116, MAX_WIDTH}; // Ha a VU ki van kapcsolva (szélesített pozíció)
-const MoveConfig weatherMoveVU PROGMEM = {10, 116, MAX_WIDTH};
+const MoveConfig weatherMove   PROGMEM = {10, 86, MAX_WIDTH}; // Ha a VU ki van kapcsolva (szélesített pozíció)
+const MoveConfig weatherMoveVU PROGMEM = {10, 86, MAX_WIDTH};
 
 /* SD_PLAYER screen */
 const ScrollConfig sdTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 1, WA_LEFT, nullptr, u8g2_font_helvB24_te }, 140, false, MAX_WIDTH, 3000, 7, 40 };

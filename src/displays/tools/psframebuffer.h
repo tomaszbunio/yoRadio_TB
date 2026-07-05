@@ -26,11 +26,15 @@ class  psFrameBuffer : public Adafruit_GFX {
     }
     bool begin(yoDisplay *dspl, int16_t l, int16_t t, int16_t w, int16_t h, uint16_t bgcolor = 0){
       _dspl = dspl; _ll = l; _tt = t; _ww = w; _hh = h; _bgcolor = bgcolor;
+      WIDTH = _width = w;
+      HEIGHT = _height = h;
       _createBuffer();
       return _ready;
     }
     void move(int16_t l, int16_t t, int16_t w, int16_t h){
       _ll = l; _tt = t; _ww = w; _hh = h;
+      WIDTH = _width = w;
+      HEIGHT = _height = h;
       freeBuffer();
       _createBuffer();
     }

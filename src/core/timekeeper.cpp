@@ -491,14 +491,15 @@ bool _getWeather() {
 
                         Serial.printf("##WEATHER###: description: %s, temp:%.1f C, pressure:%dmmHg, humidity:%d%%, wind: %d\n", desc, tempf, press, hum, (int)(wind_deg / 22.5));
     #ifdef WEATHER_FMT_SHORT
-                        sprintf(timekeeper.weatherBuf, LANG::weatherFmt, tempf, press, hum); // Módisítás LANG:: hozzáírva. "weather"
+                        int weatherLen = snprintf(timekeeper.weatherBuf, WEATHER_STRING_L, LANG::weatherFmt, tempf, press, hum); // Módisítás LANG:: hozzáírva. "weather"
     #else
         #if EXT_WEATHER
-                        sprintf(timekeeper.weatherBuf, LANG::weatherFmt, desc, tempf, tempfl, press, hum, wind_speed, LANG::wind[(int)(wind_deg / 22.5)]);
+                        int weatherLen = snprintf(timekeeper.weatherBuf, WEATHER_STRING_L, LANG::weatherFmt, desc, tempf, tempfl, press, hum, wind_speed, LANG::wind[(int)(wind_deg / 22.5)]);
         #else
-                        sprintf(timekeeper.weatherBuf, LANG::weatherFmt, desc, tempf, press, hum);
+                        int weatherLen = snprintf(timekeeper.weatherBuf, WEATHER_STRING_L, LANG::weatherFmt, desc, tempf, press, hum);
         #endif
     #endif
+                        Serial.printf("##WEATHER###: full text len=%d/%d%s: %s\n", weatherLen, WEATHER_STRING_L - 1, weatherLen >= WEATHER_STRING_L ? " TRUNCATED" : "", timekeeper.weatherBuf);
                         display.putRequest(NEWWEATHER);
                     } else {
                         Serial.println("##WEATHER###: weather not found !");
