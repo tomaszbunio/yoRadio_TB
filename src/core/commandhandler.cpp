@@ -81,8 +81,10 @@ bool CommandHandler::exec(const char* command, const char* value, uint8_t cid) {
     }
     if (strEquals(command, "vol")) {
         int v = atoi(value);
-        config.store.volume = v < 0 ? 0 : (v > 100 ? 100 : v);
-        player.setVol(v);
+        if (v < 0) v = 0;
+        if (v > VOLUME_CONTROL_STEPS) v = VOLUME_CONTROL_STEPS;
+        config.store.volume = v;
+        player.setVol(static_cast<uint8_t>(v));
         return true;
     }
     if (strEquals(command, "dspon")) {
@@ -543,13 +545,13 @@ if (strEquals(command, "tflipcard")) {
     }
     if (cmd.strEquals(command, "fadetarget")) {
         uint8_t target = atoi(value);
-        if (target > 100) target = 100;
+        if (target > VOLUME_CONTROL_STEPS) target = VOLUME_CONTROL_STEPS;
         config.saveValue(&config.store.fadeTarget, target, true, false);
         return true;
     }
     if (cmd.strEquals(command, "fadestep")) {
         uint8_t step = atoi(value);
-        if (step > 100) step = 100;
+        if (step > VOLUME_CONTROL_STEPS) step = VOLUME_CONTROL_STEPS;
         config.saveValue(&config.store.fadeStep, step, true, false);
         return true;
     }
@@ -635,7 +637,10 @@ if (strEquals(command, "tflipcard")) {
         return true;
     }
     if (strEquals(command, "volume")) {
-        player.setVol(static_cast<uint8_t>(atoi(value)));
+        int v = atoi(value);
+        if (v < 0) v = 0;
+        if (v > VOLUME_CONTROL_STEPS) v = VOLUME_CONTROL_STEPS;
+        player.setVol(static_cast<uint8_t>(v));
         return true;
     }
     if (strEquals(command, "sdpos")) {

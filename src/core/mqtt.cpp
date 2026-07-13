@@ -101,7 +101,7 @@ void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties 
     int volume;
     if ( sscanf(buf, "vol %d", &volume) == 1) {
       if (volume < 0) volume = 0;
-      if (volume > 254) volume = 254;
+      if (volume > VOLUME_CONTROL_STEPS) volume = VOLUME_CONTROL_STEPS;
       player.setVol(volume);
       return;
     }

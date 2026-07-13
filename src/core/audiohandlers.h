@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include "../audioI2S/Audio.h"
 #include "../displays/tools/l10n.h"
+#include "options.h"
 #include "audiohelpers.h"
 
 #ifdef USE_NEXTION
@@ -489,7 +490,7 @@ void audio_eof() {
   //Serial.printf("mode=%d (PM_WEB=0, PM_SDCARD=1)\n", config.getMode());
   if (!config.isClockTTS && config.getMode() == PM_SDCARD) {
     config.sdResumePos = 0;
-    Serial.println("EOF: SD -> player.next()");
+    SD_DEBUG_PRINTLN("EOF: SD -> player.next()");
     player.next();
   }
 

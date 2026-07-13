@@ -77,6 +77,26 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef LED_INVERT
   #define LED_INVERT   false      // invert onboard LED?
 #endif
+#ifdef DEBUG_SD
+  #define SD_DEBUG_PRINT(...)   Serial.print(__VA_ARGS__)
+  #define SD_DEBUG_PRINTLN(...) Serial.println(__VA_ARGS__)
+  #define SD_DEBUG_PRINTF(...)  Serial.printf(__VA_ARGS__)
+#else
+  #define SD_DEBUG_PRINT(...)
+  #define SD_DEBUG_PRINTLN(...)
+  #define SD_DEBUG_PRINTF(...)
+#endif
+#ifndef VOLUME_CONTROL_STEPS
+  #define VOLUME_CONTROL_STEPS 100
+#endif
+#if VOLUME_CONTROL_STEPS < 1
+  #undef VOLUME_CONTROL_STEPS
+  #define VOLUME_CONTROL_STEPS 1
+#endif
+#if VOLUME_CONTROL_STEPS > 100
+  #undef VOLUME_CONTROL_STEPS
+  #define VOLUME_CONTROL_STEPS 100
+#endif
 
 /*        TFT DISPLAY             */
 #ifndef TFT_CS

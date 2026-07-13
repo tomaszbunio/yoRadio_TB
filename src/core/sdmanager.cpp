@@ -32,9 +32,111 @@ SPIClass  SDSPI(HSPI);
   #define SD_INDEX_PROGRESS_EVERY 16
 #endif
 
+#ifdef DEBUG_SD
+#ifndef SD_DEBUG_SPI_SCK
+  #define SD_DEBUG_SPI_SCK SCK
+#endif
+#ifndef SD_DEBUG_SPI_MISO
+  #define SD_DEBUG_SPI_MISO MISO
+#endif
+#ifndef SD_DEBUG_SPI_MOSI
+  #define SD_DEBUG_SPI_MOSI MOSI
+#endif
+#if defined(SD_SPIPINS) || SD_HSPI
+  #define SD_DEBUG_SPI_NAME "HSPI"
+#else
+  #define SD_DEBUG_SPI_NAME "FSPI"
+#endif
+
+static void sdDebugDeselectSharedDevices() {
+  pinMode(SDC_CS, OUTPUT);
+  digitalWrite(SDC_CS, HIGH);
+  #if TFT_CS >= 0
+    pinMode(TFT_CS, OUTPUT);
+    digitalWrite(TFT_CS, HIGH);
+  #endif
+  #if TS_CS >= 0
+    pinMode(TS_CS, OUTPUT);
+    digitalWrite(TS_CS, HIGH);
+  #endif
+}
+
+static uint8_t sdDebugTransfer(bool selectCard) {
+  if (selectCard) digitalWrite(SDC_CS, LOW);
+  SDREALSPI.beginTransaction(SPISettings(SDSPISPEED, MSBFIRST, SPI_MODE0));
+  uint8_t value = SDREALSPI.transfer(0xFF);
+  SDREALSPI.endTransaction();
+  if (selectCard) digitalWrite(SDC_CS, HIGH);
+  return value;
+}
+
+static uint8_t sdDebugCmd0() {
+  sdDebugDeselectSharedDevices();
+  SDREALSPI.beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
+  digitalWrite(SDC_CS, HIGH);
+  for (uint8_t i = 0; i < 10; i++) SDREALSPI.transfer(0xFF);
+  digitalWrite(SDC_CS, LOW);
+  SDREALSPI.transfer(0x40);
+  SDREALSPI.transfer(0x00);
+  SDREALSPI.transfer(0x00);
+  SDREALSPI.transfer(0x00);
+  SDREALSPI.transfer(0x00);
+  SDREALSPI.transfer(0x95);
+  uint8_t resp = 0xFF;
+  for (uint8_t i = 0; i < 10; i++) {
+    resp = SDREALSPI.transfer(0xFF);
+    if ((resp & 0x80) == 0) break;
+  }
+  digitalWrite(SDC_CS, HIGH);
+  SDREALSPI.transfer(0xFF);
+  SDREALSPI.endTransaction();
+  return resp;
+}
+
+static void sdDebugPreflight() {
+  sdDebugDeselectSharedDevices();
+  pinMode(SD_DEBUG_SPI_MISO, INPUT_PULLUP);
+  delay(2);
+  int idleMiso = digitalRead(SD_DEBUG_SPI_MISO);
+  uint8_t idleByte = sdDebugTransfer(false);
+  digitalWrite(SDC_CS, LOW);
+  delay(1);
+  int selectedMiso = digitalRead(SD_DEBUG_SPI_MISO);
+  uint8_t selectedByte = sdDebugTransfer(true);
+  uint8_t postByte = sdDebugTransfer(false);
+  SD_DEBUG_PRINTF("[SDDBG] bus preflight idle_miso=%d idle_byte=0x%02X selected_miso=%d selected_byte=0x%02X post_byte=0x%02X\n",
+                  idleMiso, idleByte, selectedMiso, selectedByte, postByte);
+}
+#endif
+
 SDManager sdman(FSImplPtr(new VFSImpl()));
 
 bool SDManager::start(){
+#ifdef DEBUG_SD
+  SD_DEBUG_PRINTF("[SDDBG] start cs=%d speed=%lu spi=%s pins sck=%d miso=%d mosi=%d shared tft_cs=%d ts_cs=%d\n",
+                  SDC_CS, (unsigned long)SDSPISPEED, SD_DEBUG_SPI_NAME,
+                  SD_DEBUG_SPI_SCK, SD_DEBUG_SPI_MISO, SD_DEBUG_SPI_MOSI, TFT_CS, TS_CS);
+  sdDebugPreflight();
+  SD_DEBUG_PRINTF("[SDDBG] manual CMD0 cs=%d resp=0x%02X\n", SDC_CS, sdDebugCmd0());
+  ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  SD_DEBUG_PRINTF("[SDDBG] begin attempt 1 -> %s\n", ready ? "OK" : "FAIL");
+  vTaskDelay(10);
+  if(!ready) {
+    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+    SD_DEBUG_PRINTF("[SDDBG] begin attempt 2 -> %s\n", ready ? "OK" : "FAIL");
+  }
+  vTaskDelay(20);
+  if(!ready) {
+    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+    SD_DEBUG_PRINTF("[SDDBG] begin attempt 3 -> %s\n", ready ? "OK" : "FAIL");
+  }
+  vTaskDelay(50);
+  if(!ready) {
+    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+    SD_DEBUG_PRINTF("[SDDBG] begin attempt 4 -> %s\n", ready ? "OK" : "FAIL");
+  }
+  return ready;
+#else
   ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
   vTaskDelay(10);
   if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
@@ -43,6 +145,7 @@ bool SDManager::start(){
   vTaskDelay(50);
   if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
   return ready;
+#endif
 }
 
 void SDManager::stop(){
@@ -83,11 +186,11 @@ bool SDManager::_endsWith (const char* base, const char* str) {
 void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uint8_t levels) {
     File root = sdman.open(dirname);
     if (!root) {
-        Serial.println("##[ERROR]#\tFailed to open directory");
+        SD_DEBUG_PRINTLN("##[ERROR]#\tFailed to open directory");
         return;
     }
     if (!root.isDirectory()) {
-        Serial.println("##[ERROR]#\tNot a directory");
+        SD_DEBUG_PRINTLN("##[ERROR]#\tNot a directory");
         return;
     }
 
@@ -133,9 +236,9 @@ void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uin
         plSDindex.write((uint8_t*)&pos, 4);
         _sdFCount++;
         if ((_sdFCount % SD_INDEX_PROGRESS_EVERY) == 0) {
-            Serial.print(".");
+            SD_DEBUG_PRINT(".");
             if (display.mode() == SDCHANGE) display.putRequest(SDFILEINDEX, _sdFCount);
-            if ((_sdFCount % (64 * SD_INDEX_PROGRESS_EVERY)) == 0) Serial.println();
+            if ((_sdFCount % (64 * SD_INDEX_PROGRESS_EVERY)) == 0) SD_DEBUG_PRINTLN();
         }
     }
 }
@@ -155,7 +258,7 @@ void SDManager::indexSDPlaylist() {
   playlist.flush();
   playlist.close();
   if (display.mode() == SDCHANGE) display.putRequest(SDFILEINDEX, _sdFCount);
-  Serial.println();
+  SD_DEBUG_PRINTLN();
   delay(50);
 }
 #endif

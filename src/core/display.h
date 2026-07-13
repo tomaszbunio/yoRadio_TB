@@ -70,7 +70,7 @@ class Display {
     NumWidget *_nums;
     ClockWidget *_clock;
     Page *_boot;
-    TextWidget *_bootstring, *_volip, *_voltxt, *_rssi, *_bitrate, *_chtxt = nullptr;
+    TextWidget *_bootstring, *_bootversion, *_volip, *_voltxt, *_rssi, *_bitrate, *_chtxt = nullptr;
     ScrollWidget *_sdtitle = nullptr;
     ScrollWidget *_sdartist = nullptr;
     ScrollWidget *_sdalbum = nullptr;

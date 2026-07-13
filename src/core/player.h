@@ -42,6 +42,7 @@ private:
   void _stop(bool alreadyStopped = false);
   void _play(uint16_t stationId);
   void _loadVol(uint8_t volume);
+  uint8_t _normalizeVol(int volume);
   int8_t uiToDb(int8_t uiVal);
   bool _hasError;
   // Buffers for PR_URL request
@@ -78,6 +79,7 @@ public:
   void folderPrev();
   void folderNext();
   void toggle();
+  void changeVol(int steps);
   void stepVol(bool up);
   void setVol(uint8_t volume);
   uint8_t volToI2S(uint8_t volume);

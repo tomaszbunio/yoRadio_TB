@@ -1,5 +1,6 @@
 
 #define VERSION v8.8_TB
+#define FIRMWARE_VERSION "8.8.1-build.43"
 // clang-format off
 /*
    Read the before use !!!
@@ -16,7 +17,7 @@
     #define ARDUINO_ESP32S3_DEV
 #endif
 
-//#define SCREEN 4
+#define SCREEN 4
 
 // #define HEAP_DBG
 // #define DEBUG_PROFILER       // Lekki profiler: display.loop/draw, web, main, player/audio, network
@@ -97,13 +98,13 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 //#define ENC_INTERNALPULLUP	true
 
 /* ENCODER 2 */
-#define ENC2_BTNR      255  // S2
-#define ENC2_BTNL      255  // S1
-#define ENC2_BTNB      255  // KEY
-#define ENC2_INTERNALPULLUP	true
+//#define ENC2_BTNR      255  // S2
+//#define ENC2_BTNL      255  // S1
+//#define ENC2_BTNB      255  // KEY
+//#define ENC2_INTERNALPULLUP	true
 
 // Dwa niezależne enkodery: lewy=stacje, prawy=głośność
-#define TWO_ENCODERS
+//#define TWO_ENCODERS
 
 /*----- CLOCK MODUL RTC DS3132 -----*/
 // #define RTC_SCL			     7
@@ -120,6 +121,9 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
  #define SDC_CS     38
  //#define SDSPISPEED 4000000 /* 4MHz - Slower speed to prevent display flicker on shared SPI bus */
 
+/*----- SD debug logs: comment this line to disable SD debug output. -----*/
+//#define DEBUG_SD
+
  /*----- by Maciej Bednarski -----*/
 /*---- Activating this will move the cursor up and down in the playlist -----*/
 #define PLAYLIST_SCROLL_MOVING_CURSOR
@@ -133,6 +137,9 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 /*----- Inactive segments of the clock, true or false. -----*/
  //#define CLOCKFONT_MONO
 
+/*----- Volume scale maximum shown/controlled by UI (e.g. 100, 50, 30). -----*/
+#define VOLUME_CONTROL_STEPS 50
+
 /* Define 12-hour time format. -----*/
 // #define AM_PM_STYLE
 
@@ -144,14 +151,14 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #define CLOCK_TTS_LANGUAGE         "PL" // Language ( EN, HU, PL, NL, DE, RU, RO ,FR, GR)
 #define CLOCK_TTS_INTERVAL_MINUTES 15   // Hány percenként mondja be. - How many times a minute does it say.
 
-// Ukryj widget pogody – zajmuje obszar nakładający się na flip clock
+// Ukryj widget pogody 
 //#define HIDE_WEATHER
 
 /*----- With this setting there is no scrolling on the weather bar. -----*/
-//#define WEATHER_FMT_SHORT
+#define WEATHER_FMT_SHORT
 
 /*----- With this setting, the full weather report is displayed. -----*/
- #define EXT_WEATHER  true
+ //#define EXT_WEATHER  true
 
 /*----- With this setting, the wind speed will be km/h. -----*/
  //#define WIND_SPEED_IN_KMH
@@ -224,7 +231,7 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 /*----- Deep sleep wake sources -----*/
 // false = wybudzanie tylko przyciskiem enkodera (stabilniej)
 // true  = dodatkowo wybudzanie przez IR (może łapać zakłócenia)
-#define SLEEP_WAKE_BY_IR false
+#define SLEEP_WAKE_BY_IR true
 
 /*----- Autostart przy każdym włączeniu (0=idle, 1=ostatni stan, 2=zawsze) -----*/
 //#define SMARTSTART_DEFAULT 2
@@ -262,7 +269,7 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 #endif
 
 /*----- Okładka albumu na ekranie SD_PLAYER -----*/
-//#define SD_COVER_ART
+#define SD_COVER_ART
 #ifdef SD_COVER_ART
   #define SD_COVER_W  215
   #define SD_COVER_H  215

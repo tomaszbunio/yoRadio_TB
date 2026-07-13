@@ -345,7 +345,7 @@ void Config::changeMode(int newmode) { // DLNA mod
     if (newmode == PM_SDCARD) {
         if (!sdman.ready) {
             if (!sdman.start()) {
-                Serial.println("##[ERROR]# SD Not Found");
+                SD_DEBUG_PRINTLN("##[ERROR]# SD Not Found");
                 netserver.requestOnChange(GETPLAYERMODE, 0);
                 return;
             }
@@ -395,7 +395,7 @@ void Config::changeMode(int newmode) { // DLNA mod
     display.resetQueue();
     uint16_t sdLen = (getMode() == PM_SDCARD) ? playlistLength() : 0;
     displayMode_e targetMode = (getMode() == PM_SDCARD && sdLen > 0) ? SD_PLAYER : PLAYER;
-    Serial.printf("[changeMode] getMode=%d PM_SDCARD=%d sdLen=%d targetMode=%d\n", getMode(), PM_SDCARD, sdLen, (int)targetMode);
+    SD_DEBUG_PRINTF("[changeMode] getMode=%d PM_SDCARD=%d sdLen=%d targetMode=%d\n", getMode(), PM_SDCARD, sdLen, (int)targetMode);
     display.putRequest(NEWMODE, targetMode);
     display.putRequest(NEWSTATION);
     if (switchingToWeb) { display.putRequest(NEWTITLE); }
@@ -963,11 +963,7 @@ void Config::setDefaults() {
     store.timezoneOffset = 0;
     store.vumeter = true;
     store.softapdelay = 0;
-    #if defined(SCREEN) && SCREEN == 4
     store.flipscreen = false;
-    #else
-    store.flipscreen = true;
-    #endif
     store.invertdisplay = false;
     store.numplaylist = false;
     #if defined(SCREEN) && SCREEN == 4
@@ -1103,6 +1099,7 @@ void Config::saveVolume() {
 }
 
 uint8_t Config::setVolume(uint8_t val) {
+    if (val > VOLUME_CONTROL_STEPS) { val = VOLUME_CONTROL_STEPS; }
     store.volume = val;
     display.putRequest(DRAWVOL);
     netserver.requestOnChange(VOLUME, 0);

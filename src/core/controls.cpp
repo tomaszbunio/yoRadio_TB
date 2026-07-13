@@ -274,7 +274,7 @@ void encodersLoop(yoEncoder *enc, bool first) {
   if (volumeMode) {
     int nv = config.store.volume + delta;
     if (nv < 0) nv = 0;
-    if (nv > 254) nv = 254;
+    if (nv > VOLUME_CONTROL_STEPS) nv = VOLUME_CONTROL_STEPS;
     player.setVol((uint8_t)nv);
   } else {
     if (delta > 0) player.next(); else player.prev();
@@ -310,7 +310,7 @@ void encodersLoop(yoEncoder *enc, bool first) {
     }
     int nv = config.store.volume + delta * config.store.volsteps;
     if (nv < 0) nv = 0;
-    if (nv > 100) nv = 100;
+    if (nv > VOLUME_CONTROL_STEPS) nv = VOLUME_CONTROL_STEPS;
     player.setVol((uint8_t)nv);
     config.screensaverTicks = 0;
   }
@@ -352,7 +352,7 @@ void encodersLoop(yoEncoder* enc, bool first) {
     if (volumeMode) {
         int nv = config.store.volume + delta;
         if (nv < 0) { nv = 0; }
-        if (nv > 254) { nv = 254; }
+        if (nv > VOLUME_CONTROL_STEPS) { nv = VOLUME_CONTROL_STEPS; }
         player.setVol((uint8_t)nv);
     } else {
         if (delta > 0) {
@@ -371,7 +371,7 @@ void encodersLoop(yoEncoder* enc, bool first) {
         if (display.mode() != VOL) { display.putRequest(NEWMODE, VOL); }
         int nv = config.store.volume + delta * config.store.volsteps;
         if (nv < 0) { nv = 0; }
-        if (nv > 100) { nv = 100; }
+        if (nv > VOLUME_CONTROL_STEPS) { nv = VOLUME_CONTROL_STEPS; }
         player.setVol((uint8_t)nv);
         config.screensaverTicks = 0;
     } else {
@@ -766,7 +766,7 @@ void controlsEvent(bool toRight, int8_t volDelta) {
     if (volDelta != 0) {
       int nv = config.store.volume + volDelta * config.store.volsteps;
       if (nv < 0) nv = 0;
-      if (nv > 100) nv = 100;
+      if (nv > VOLUME_CONTROL_STEPS) nv = VOLUME_CONTROL_STEPS;
       player.setVol((uint8_t)nv);
     } else {
       player.stepVol(toRight);

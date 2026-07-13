@@ -233,6 +233,8 @@ void Display::_bootScreen() {
     _boot = new Page();
     _boot->addWidget(new ProgressWidget(bootWdtConf, bootPrgConf, BOOT_PRG_COLOR, 0));
     _bootstring = (TextWidget*)&_boot->addWidget(new TextWidget(bootstrConf, 50, true, BOOT_TXT_COLOR, 0));
+    _bootversion = (TextWidget*)&_boot->addWidget(new TextWidget(bootverConf, 32, false, BOOT_TXT_COLOR, 0));
+    _bootversion->setText(FIRMWARE_VERSION);
     _pager->addPage(_boot);
     _pager->setPage(_boot, true);
     dsp.drawLogo(bootLogoTop);
@@ -274,7 +276,7 @@ void Display::_buildPager() {
     _vuwidget = new VuWidget(vuConf, bandsConf, config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.background);
     #endif
     #ifndef HIDE_VOLBAR
-    _volbar = new SliderWidget(volbarConf, config.theme.volbarin, config.theme.background, 100, config.theme.volbarout); // "vol_step"
+    _volbar = new SliderWidget(volbarConf, config.theme.volbarin, config.theme.background, VOLUME_CONTROL_STEPS, config.theme.volbarout); // "vol_step"
     #endif
     #ifndef HIDE_HEAPBAR
     _heapbar = new SliderWidget(heapbarConf, config.theme.buffer, config.theme.background, psramInit() ? 300000 : 1600 * config.store.abuff);
@@ -439,6 +441,7 @@ void Display::_start() {
     if (_mode == SD_PLAYER) {
         _pager->setPage(pages[PG_SD_PLAYER]);
         _sdPlayerScreen();
+        _drawSdControls(true);
     } else {
         _pager->setPage(pages[PG_PLAYER]);
         _volume();
@@ -475,7 +478,23 @@ void Display::_swichMode(displayMode_e newmode) {
                       network.status, config.getMode(), config.isSdPlayer ? 1 : 0);
     }
 #endif
-    if (newmode == _mode || (network.status != CONNECTED && network.status != SDREADY)) { return; }
+    if (newmode == _mode) {
+        if (newmode == SD_PLAYER) {
+            SD_DEBUG_PRINTLN("[SD_PLAYER] refresh current SD_PLAYER screen");
+            config.isSdPlayer = true;
+            _sdCurTimeBuf[0] = 0;
+            _sdTotTimeBuf[0] = 0;
+            _sdFmtBuf[0] = 0;
+            _sdSrBuf[0] = 0;
+            _sdBpsBuf[0] = 0;
+            _sdPlaying = !player.isRunning();
+            _pager->setPage(pages[PG_SD_PLAYER]);
+            _sdPlayerScreen();
+            _drawSdControls(true);
+        }
+        return;
+    }
+    if (network.status != CONNECTED && network.status != SDREADY) { return; }
     _mode = newmode;
 #ifdef DEBUG_MODE_SWITCH
     Serial.printf("[MODEDBG][Display] switched=%s isSdPlayer=%d lastStation=%u currentPlItem=%u\n",
@@ -572,7 +591,7 @@ void Display::_swichMode(displayMode_e newmode) {
         _drawPlaylist();
     }
     if (newmode == SD_PLAYER) {
-        Serial.println("[SD_PLAYER] switching to SD_PLAYER screen");
+        SD_DEBUG_PRINTLN("[SD_PLAYER] switching to SD_PLAYER screen");
         #ifdef STATION_LOGO_WIDGET
         _stationLogo.clear();
         #endif
@@ -1487,7 +1506,7 @@ void Display::_time(bool redraw) {
 void Display::_volume() {
     if (_volbar) {
         int vol = (config.store.volume);
-        if (vol > 100) { vol = 100; }
+        if (vol > VOLUME_CONTROL_STEPS) { vol = VOLUME_CONTROL_STEPS; }
         if (vol < 0) { vol = 0; }
         _volbar->setValue(vol);
     }

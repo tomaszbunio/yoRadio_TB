@@ -88,6 +88,7 @@ void Player::init() {
 #if PLAYER_FORCE_MONO
   forceMono(true);
 #endif
+  config.store.volume = _normalizeVol(config.store.volume);
   _loadVol(config.store.volume);
   setConnectionTimeout(CONNECTION_TIMEOUT, CONNECTION_TIMEOUT_SSL);
   Serial.println("done");
@@ -222,8 +223,9 @@ void Player::loop() {
       }
       case PR_VOL:
       {
-        config.setVolume(requestP.payload);
-        Audio::setVolume(volToI2S(requestP.payload));
+        uint8_t volume = _normalizeVol(requestP.payload);
+        config.setVolume(volume);
+        Audio::setVolume(volToI2S(volume));
         break;
       }
       #ifdef USE_SD
@@ -312,7 +314,7 @@ if (
   _status == PLAYING &&
   player.getAudioFilePosition() == 0
 ) {
-  Serial.println("[SD] EOF -> next()");
+  SD_DEBUG_PRINTLN("[SD] EOF -> next()");
   next();
   return;
 }
@@ -649,23 +651,27 @@ void Player::toggle() {
 }
 
 void Player::stepVol(bool up) {
-  if (up) {
-    if (config.store.volume <= 100 - config.store.volsteps) {
-      setVol(config.store.volume + config.store.volsteps);
-    } else {
-      setVol(100);
-    }
-  } else {
-    if (config.store.volume >= config.store.volsteps) {
-      setVol(config.store.volume - config.store.volsteps);
-    } else {
-      setVol(0);
-    }
+  changeVol(up ? 1 : -1);
+}
+
+void Player::changeVol(int steps) {
+  int target = config.store.volume + steps * config.store.volsteps;
+  if (target < 0) {
+    target = 0;
+  } else if (target > VOLUME_CONTROL_STEPS) {
+    target = VOLUME_CONTROL_STEPS;
   }
+  setVol(target);
 }
 
 uint8_t Player::volToI2S(uint8_t volume) {
-  int vol = map(volume, 0, 100 - config.station.ovol, 0, 100);
+  int maxUi = VOLUME_CONTROL_STEPS;
+  if (config.station.ovol > 0) {
+    int ovolUi = map(config.station.ovol, 0, 100, 0, VOLUME_CONTROL_STEPS);
+    maxUi -= ovolUi;
+  }
+  if (maxUi < 1) maxUi = 1;
+  int vol = map(_normalizeVol(volume), 0, maxUi, 0, 100);
   if (vol > 100) {
     vol = 100;
   }
@@ -682,7 +688,13 @@ void Player::_loadVol(uint8_t volume) {
 void Player::setVol(uint8_t volume) {
   _volTicks = millis();
   _volTimer = true;
-  player.sendCommand({PR_VOL, volume});
+  player.sendCommand({PR_VOL, _normalizeVol(volume)});
+}
+
+uint8_t Player::_normalizeVol(int volume) {
+  if (volume < 0) return 0;
+  if (volume > VOLUME_CONTROL_STEPS) volume = VOLUME_CONTROL_STEPS;
+  return static_cast<uint8_t>(volume);
 }
 
 int8_t Player::uiToDb(int8_t uiVal) {

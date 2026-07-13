@@ -100,40 +100,40 @@ public:
     void setTrack(const char *trackPath) {
         if (!trackPath) return;
         if (!player.isRunning()) {
-            Serial.println("[SD_COVER] skip: player not running");
+            SD_DEBUG_PRINTLN("[SD_COVER] skip: player not running");
             return;
         }
 #ifdef SD_COVER_SOURCE_LASTFM
         char metaSig[384];
         snprintf(metaSig, sizeof(metaSig), "%s|%s|%s",
                  config.station.title, config.station.sdArtist, config.station.sdAlbum);
-        Serial.printf("[SD_COVER][CTX] path='%s' title='%s' artist='%s' album='%s'\n",
+        SD_DEBUG_PRINTF("[SD_COVER][CTX] path='%s' title='%s' artist='%s' album='%s'\n",
                       trackPath, config.station.title, config.station.sdArtist, config.station.sdAlbum);
         if (strcmp(trackPath, _lastPath) == 0 && strcmp(metaSig, _lastMetaSig) == 0) return;
         strlcpy(_lastPath, trackPath, sizeof(_lastPath));
         strlcpy(_lastMetaSig, metaSig, sizeof(_lastMetaSig));
 
         if (_drawEmbeddedMp3Cover(trackPath)) return;
-        Serial.println("[SD_COVER] source=embedded fail");
+        SD_DEBUG_PRINTLN("[SD_COVER] source=embedded fail");
         if (_drawLocalCover(trackPath)) return;
-        Serial.println("[SD_COVER] source=local fail");
+        SD_DEBUG_PRINTLN("[SD_COVER] source=local fail");
 
         char key[384];
         _buildLastFmKey(key, sizeof(key));
         if (config.station.sdArtist[0] == '\0' || config.station.sdAlbum[0] == '\0') {
-            Serial.println("[SD_COVER][LastFM] skip: missing artist/album metadata");
-            Serial.println("[SD_COVER] source=lastfm fail");
+            SD_DEBUG_PRINTLN("[SD_COVER][LastFM] skip: missing artist/album metadata");
+            SD_DEBUG_PRINTLN("[SD_COVER] source=lastfm fail");
         } else if (key[0] != '\0') {
             if (_drawLastFm()) return;
-            Serial.println("[SD_COVER] source=lastfm fail");
+            SD_DEBUG_PRINTLN("[SD_COVER] source=lastfm fail");
         } else {
-            Serial.println("[SD_COVER] source=lastfm fail (missing metadata key)");
-            Serial.printf("[SD_COVER][LastFM] artist='%s' album='%s' title='%s'\n",
+            SD_DEBUG_PRINTLN("[SD_COVER] source=lastfm fail (missing metadata key)");
+            SD_DEBUG_PRINTF("[SD_COVER][LastFM] artist='%s' album='%s' title='%s'\n",
                           config.station.sdArtist, config.station.sdAlbum, config.station.title);
         }
 
         if (_drawDefaultAlbum()) return;
-        Serial.println("[SD_COVER] source=none");
+        SD_DEBUG_PRINTLN("[SD_COVER] source=none");
         _freeBuf();
         redraw();
 #else
@@ -144,9 +144,9 @@ public:
         strlcpy(_lastPath, trackPath, sizeof(_lastPath));
         strlcpy(_lastMetaSig, metaSig, sizeof(_lastMetaSig));
         if (_drawLocalCover(trackPath)) return;
-        Serial.println("[SD_COVER] source=local fail");
+        SD_DEBUG_PRINTLN("[SD_COVER] source=local fail");
         if (_drawDefaultAlbum()) return;
-        Serial.println("[SD_COVER] source=none");
+        SD_DEBUG_PRINTLN("[SD_COVER] source=none");
         _freeBuf();
         redraw();
 #endif
@@ -217,7 +217,7 @@ private:
 
         const uint8_t id3Major = hdr[3];
         const bool id3v24 = (id3Major == 4);
-        Serial.printf("[SD_COVER][ID3] version=2.%u\n", id3Major);
+        SD_DEBUG_PRINTF("[SD_COVER][ID3] version=2.%u\n", id3Major);
         uint32_t tagSize = _readSynchsafe28(hdr + 6);
         if (tagSize < 10) {
             f.close();
@@ -280,7 +280,7 @@ private:
                 }
             }
             if (decoded) {
-                Serial.println("[SD_COVER][ID3] source=embedded");
+                SD_DEBUG_PRINTLN("[SD_COVER][ID3] source=embedded");
                 break;
             }
             pos += 10 + frameSize;
@@ -288,7 +288,7 @@ private:
 
         free(buf);
         if (!decoded) {
-            Serial.println("[SD_COVER][ID3] source=embedded miss");
+            SD_DEBUG_PRINTLN("[SD_COVER][ID3] source=embedded miss");
         }
         return decoded;
     }
@@ -350,13 +350,13 @@ private:
         for (size_t i = 0; i < (sizeof(candidates) / sizeof(candidates[0])); i++) {
             _buildCoverPath(trackPath, candidates[i], coverPath, sizeof(coverPath));
             bool exists = sdman.exists(coverPath);
-            Serial.printf("[SD_COVER][LOCAL] check path='%s' exists=%d\n", coverPath, exists ? 1 : 0);
+            SD_DEBUG_PRINTF("[SD_COVER][LOCAL] check path='%s' exists=%d\n", coverPath, exists ? 1 : 0);
             if (!exists) continue;
             if (_decodeFileImageNoClear(coverPath)) {
-                Serial.printf("[SD_COVER] source=local file=%s path='%s'\n", candidates[i], coverPath);
+                SD_DEBUG_PRINTF("[SD_COVER] source=local file=%s path='%s'\n", candidates[i], coverPath);
                 return true;
             }
-            Serial.printf("[SD_COVER][LOCAL] decode fail path='%s'\n", coverPath);
+            SD_DEBUG_PRINTF("[SD_COVER][LOCAL] decode fail path='%s'\n", coverPath);
         }
         return false;
     }
@@ -386,7 +386,7 @@ private:
             _decodeJpegFromRam(jpegBuf, fsize);
             free(jpegBuf);
             if (_pixelBuf) {
-                Serial.println("[SD_COVER] source=default");
+                SD_DEBUG_PRINTLN("[SD_COVER] source=default");
                 return true;
             }
         }
@@ -441,7 +441,7 @@ private:
         bool decoded = false;
         if (jpeg && jpeg->openRAM(jpegBuf, (int)fsize, _sdCoverDrawCb)) {
             int srcW = jpeg->getWidth(), srcH = jpeg->getHeight();
-            Serial.printf("[SD_COVER] src=jpeg %dx%d\n", srcW, srcH);
+            SD_DEBUG_PRINTF("[SD_COVER] src=jpeg %dx%d\n", srcW, srcH);
             if (srcW > 0 && srcH > 0 && srcW <= 800 && srcH <= 800) {
                 _sdCoverSrcW = srcW;
                 _sdCoverSrcH = srcH;
@@ -671,7 +671,7 @@ private:
         bool decoded = false;
         if (png && png->openRAM(pngBuf, (int)fsize, _sdCoverPngDrawCb) == PNG_SUCCESS) {
             int srcW = png->getWidth(), srcH = png->getHeight();
-            Serial.printf("[SD_COVER] src=png %dx%d\n", srcW, srcH);
+            SD_DEBUG_PRINTF("[SD_COVER] src=png %dx%d\n", srcW, srcH);
             if (srcW > 0 && srcH > 0 && srcW <= 800 && srcH <= 800) {
                 _sdCoverSrcW = srcW;
                 _sdCoverSrcH = srcH;
@@ -703,7 +703,7 @@ private:
             // JPEGDEC used here cannot decode progressive JPEG (SOF2).
             // Reject centrally for every source (embedded/local/LastFM).
             if (_isProgressiveJpeg(imageBuf, imageLen)) {
-                Serial.println("[SD_COVER] skip: progressive JPEG unsupported");
+                SD_DEBUG_PRINTLN("[SD_COVER] skip: progressive JPEG unsupported");
                 return;
             }
             _decodeJpegFromRam(imageBuf, imageLen);
@@ -714,7 +714,7 @@ private:
 
     bool _drawLastFm() {
         if (strlen(LASTFM_API_KEY) < 8) {
-            Serial.println("[SD_COVER][LastFM] Missing/invalid API key, fallback to local cover");
+            SD_DEBUG_PRINTLN("[SD_COVER][LastFM] Missing/invalid API key, fallback to local cover");
             return false;
         }
 
@@ -727,7 +727,7 @@ private:
         bool httpOk = _httpGetToBuffer(apiUrl, &jsonBuf, &jsonLen, 30000);
         free(apiUrl);
         if (!httpOk) {
-            Serial.println("[SD_COVER][LastFM] Metadata request failed, fallback to local cover");
+            SD_DEBUG_PRINTLN("[SD_COVER][LastFM] Metadata request failed, fallback to local cover");
             return false;
         }
 
@@ -736,7 +736,7 @@ private:
         bool found = _extractBestImage((const char*)jsonBuf, imageUrl, 384);
         free(jsonBuf);
         if (!found) {
-            Serial.println("[SD_COVER][LastFM] Cover not found, fallback to local/default cover");
+            SD_DEBUG_PRINTLN("[SD_COVER][LastFM] Cover not found, fallback to local/default cover");
             free(imageUrl);
             return false;
         }
@@ -744,7 +744,7 @@ private:
         uint8_t *imageBuf = nullptr;
         size_t imageLen = 0;
         if (!_httpGetToBuffer(imageUrl, &imageBuf, &imageLen, 500000)) {
-            Serial.println("[SD_COVER][LastFM] Image download failed, fallback to local cover");
+            SD_DEBUG_PRINTLN("[SD_COVER][LastFM] Image download failed, fallback to local cover");
             free(imageUrl);
             return false;
         }
@@ -758,13 +758,13 @@ private:
                 bool ok = _httpGetToBuffer(pngUrl, &imageBuf, &imageLen, 500000);
                 free(pngUrl);
                 if (!ok) {
-                    Serial.println("[SD_COVER][LastFM] Progressive JPEG and PNG fallback failed, fallback to local cover");
+                    SD_DEBUG_PRINTLN("[SD_COVER][LastFM] Progressive JPEG and PNG fallback failed, fallback to local cover");
                     free(imageUrl);
                     return false;
                 }
             } else {
                 free(pngUrl);
-                Serial.println("[SD_COVER][LastFM] Progressive JPEG but PNG variant URL unavailable, fallback to local cover");
+                SD_DEBUG_PRINTLN("[SD_COVER][LastFM] Progressive JPEG but PNG variant URL unavailable, fallback to local cover");
                 free(imageUrl);
                 return false;
             }
@@ -774,7 +774,7 @@ private:
         _decodeImageFromRam(imageBuf, imageLen);
         free(imageBuf);
         if (_pixelBuf) {
-            Serial.println("[SD_COVER] source=lastfm");
+            SD_DEBUG_PRINTLN("[SD_COVER] source=lastfm");
             return true;
         }
         return false;

@@ -74,6 +74,7 @@ const FillConfig heapbarConf     PROGMEM = {{ 0, DSP_HEIGHT-2, 0, WA_LEFT }, DSP
 
 /* WIDGETS  */ /* { left, top, fontsize, align } */
 const WidgetConfig bootstrConf    PROGMEM = {0, 243, 2, WA_CENTER};
+const WidgetConfig bootverConf    PROGMEM = {0, 270, 1, WA_CENTER};
 const WidgetConfig bitrateConf    PROGMEM = {TFT_FRAMEWDT, 145, 2, WA_RIGHT};
 const WidgetConfig voltxtConf     PROGMEM = {0, DSP_HEIGHT - 38, 2, WA_CENTER};
 const WidgetConfig chtxtConf      PROGMEM = { 310 ,282, 2, WA_LEFT }; //→ az aktuális csatorna CH:szöveg (PLAYER footer)
