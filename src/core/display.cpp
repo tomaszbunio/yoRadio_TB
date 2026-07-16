@@ -100,9 +100,6 @@ static const char* volDbgModeName(displayMode_e m) {
 #ifndef DSP_TASK_PRIORITY
     #define DSP_TASK_PRIORITY 2 //"task_prioritas"
 #endif
-#ifndef DSP_TASK_CORE_ID
-    #define DSP_TASK_CORE_ID 0
-#endif
 #ifndef DSP_TASK_DELAY
     #define DSP_TASK_DELAY pdMS_TO_TICKS(10) // cap for 50 fps
 #endif

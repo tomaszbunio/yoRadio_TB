@@ -58,7 +58,7 @@
 
 /* SROLLS  */                            /* {{ left, top, fontsize, align }, buffsize, uppercase, width, scrolldelay, scrolldelta, scrolltime } */
 const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 4, WA_LEFT }, 140, true, MAX_WIDTH, 5000, 3, 18 };
-const ScrollConfig title1Conf     PROGMEM = {{TFT_FRAMEWDT, 62, 2, TITLE1_ALIGN}, 140, true, MAX_WIDTH, 5000, 3, 18};
+const ScrollConfig title1Conf     PROGMEM = {{TFT_FRAMEWDT, 58, 2, TITLE1_ALIGN}, 140, true, MAX_WIDTH, 5000, 3, 18};
 const ScrollConfig title2Conf     PROGMEM = {{TFT_FRAMEWDT, 86, 2, TITLE2_ALIGN}, 140, true, MAX_WIDTH, 5000, 3, 18};
 const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 146, 3, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 7, 40 };
 const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 4, WA_CENTER }, 140, false, MAX_WIDTH, 0, 7, 40 };

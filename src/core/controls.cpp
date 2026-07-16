@@ -207,10 +207,10 @@ void initControls() {
   irrecv.setTolerance(config.store.irtlp);
   irrecv.enableIRIn();
 
-  // If device has just woken up from deep sleep by EXT0/EXT1, ignore first POWER press
+  // If device has just woken up from deep sleep by EXT0, ignore first POWER press
   // for a short window so the wake signal isn't interpreted as immediate sleep.
   esp_sleep_wakeup_cause_t wakeCause = esp_sleep_get_wakeup_cause();
-  if (wakeCause == ESP_SLEEP_WAKEUP_EXT0 || wakeCause == ESP_SLEEP_WAKEUP_EXT1) {
+  if (wakeCause == ESP_SLEEP_WAKEUP_EXT0) {
     g_ignoreIrPowerUntilMs = millis() + 1500;
   } else {
     g_ignoreIrPowerUntilMs = 0;
@@ -272,10 +272,14 @@ void encodersLoop(yoEncoder *enc, bool first) {
   uint8_t btnState = digitalRead(first ? ENC_BTNB : ENC2_BTNB);
   bool volumeMode = first ? btnState : !btnState;
   if (volumeMode) {
-    int nv = config.store.volume + delta;
-    if (nv < 0) nv = 0;
-    if (nv > VOLUME_CONTROL_STEPS) nv = VOLUME_CONTROL_STEPS;
-    player.setVol((uint8_t)nv);
+    if (config.store.volume == 0 && delta > 0) {
+      player.changeVol(delta);
+    } else {
+      int nv = config.store.volume + delta;
+      if (nv < 0) nv = 0;
+      if (nv > VOLUME_CONTROL_STEPS) nv = VOLUME_CONTROL_STEPS;
+      player.setVol((uint8_t)nv);
+    }
   } else {
     if (delta > 0) player.next(); else player.prev();
   }
@@ -308,10 +312,7 @@ void encodersLoop(yoEncoder *enc, bool first) {
       volDbg("encoder2", "request NEWMODE VOL", delta, config.store.volume);
       display.putRequest(NEWMODE, VOL);
     }
-    int nv = config.store.volume + delta * config.store.volsteps;
-    if (nv < 0) nv = 0;
-    if (nv > VOLUME_CONTROL_STEPS) nv = VOLUME_CONTROL_STEPS;
-    player.setVol((uint8_t)nv);
+    player.changeVol(delta);
     config.screensaverTicks = 0;
   }
 
@@ -764,10 +765,7 @@ void controlsEvent(bool toRight, int8_t volDelta) {
       }
     #endif
     if (volDelta != 0) {
-      int nv = config.store.volume + volDelta * config.store.volsteps;
-      if (nv < 0) nv = 0;
-      if (nv > VOLUME_CONTROL_STEPS) nv = VOLUME_CONTROL_STEPS;
-      player.setVol((uint8_t)nv);
+      player.changeVol(volDelta);
     } else {
       player.stepVol(toRight);
     }

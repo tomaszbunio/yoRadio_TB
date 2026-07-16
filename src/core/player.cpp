@@ -84,11 +84,15 @@ void Player::init() {
   setVolume(0);
   _status = STOPPED;
   _volTimer = false;
+  _volumeBeforeMute = 10;
 //randomSeed(analogRead(0));
 #if PLAYER_FORCE_MONO
   forceMono(true);
 #endif
   config.store.volume = _normalizeVol(config.store.volume);
+  if (config.store.volume > 0) {
+    _volumeBeforeMute = config.store.volume;
+  }
   _loadVol(config.store.volume);
   setConnectionTimeout(CONNECTION_TIMEOUT, CONNECTION_TIMEOUT_SSL);
   Serial.println("done");
@@ -400,7 +404,8 @@ void Player::_play(uint16_t stationId) {
     config.configPostPlaying(stationId);
     _loadVol(config.store.volume); // przywróć głośność po podłączeniu strumienia
     setOutputPins(true);
-    if (config.getMode() == PM_SDCARD) { display.putRequest(NEWMODE, SD_PLAYER); }
+    // prepareForPlaying() already queues SD_PLAYER; do not queue it again here,
+    // because a second SD_PLAYER request refreshes the whole page and causes a blink.
     if (player_on_start_play) player_on_start_play();
     pm.on_start_play();
   } else {
@@ -655,6 +660,10 @@ void Player::stepVol(bool up) {
 }
 
 void Player::changeVol(int steps) {
+  if (config.store.volume == 0 && steps > 0) {
+    setVol(_volumeBeforeMute);
+    return;
+  }
   int target = config.store.volume + steps * config.store.volsteps;
   if (target < 0) {
     target = 0;
@@ -686,9 +695,15 @@ void Player::_loadVol(uint8_t volume) {
 }
 
 void Player::setVol(uint8_t volume) {
+  uint8_t normalized = _normalizeVol(volume);
+  if (normalized > 0) {
+    _volumeBeforeMute = normalized;
+  } else if (config.store.volume > 0) {
+    _volumeBeforeMute = config.store.volume;
+  }
   _volTicks = millis();
   _volTimer = true;
-  player.sendCommand({PR_VOL, _normalizeVol(volume)});
+  player.sendCommand({PR_VOL, normalized});
 }
 
 uint8_t Player::_normalizeVol(int volume) {

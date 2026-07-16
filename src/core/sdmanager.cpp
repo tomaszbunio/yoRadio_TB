@@ -32,23 +32,27 @@ SPIClass  SDSPI(HSPI);
   #define SD_INDEX_PROGRESS_EVERY 16
 #endif
 
-#ifdef DEBUG_SD
-#ifndef SD_DEBUG_SPI_SCK
-  #define SD_DEBUG_SPI_SCK SCK
+#ifndef SD_SPI_SCK
+  #define SD_SPI_SCK SCK
 #endif
-#ifndef SD_DEBUG_SPI_MISO
-  #define SD_DEBUG_SPI_MISO MISO
+#ifndef SD_SPI_MISO
+  #define SD_SPI_MISO MISO
 #endif
-#ifndef SD_DEBUG_SPI_MOSI
-  #define SD_DEBUG_SPI_MOSI MOSI
-#endif
-#if defined(SD_SPIPINS) || SD_HSPI
-  #define SD_DEBUG_SPI_NAME "HSPI"
-#else
-  #define SD_DEBUG_SPI_NAME "FSPI"
+#ifndef SD_SPI_MOSI
+  #define SD_SPI_MOSI MOSI
 #endif
 
-static void sdDebugDeselectSharedDevices() {
+static void sdInitSpiBus() {
+#if defined(SD_SPIPINS)
+  SDREALSPI.begin(SD_SPIPINS);
+#elif SD_HSPI
+  SDREALSPI.begin();
+#else
+  SDREALSPI.begin(SD_SPI_SCK, SD_SPI_MISO, SD_SPI_MOSI, SDC_CS);
+#endif
+}
+
+static void sdDeselectSharedDevices() {
   pinMode(SDC_CS, OUTPUT);
   digitalWrite(SDC_CS, HIGH);
   #if TFT_CS >= 0
@@ -59,6 +63,27 @@ static void sdDebugDeselectSharedDevices() {
     pinMode(TS_CS, OUTPUT);
     digitalWrite(TS_CS, HIGH);
   #endif
+  delay(2);
+}
+
+#ifdef DEBUG_SD
+#ifndef SD_DEBUG_SPI_SCK
+  #define SD_DEBUG_SPI_SCK SD_SPI_SCK
+#endif
+#ifndef SD_DEBUG_SPI_MISO
+  #define SD_DEBUG_SPI_MISO SD_SPI_MISO
+#endif
+#ifndef SD_DEBUG_SPI_MOSI
+  #define SD_DEBUG_SPI_MOSI SD_SPI_MOSI
+#endif
+#if defined(SD_SPIPINS) || SD_HSPI
+  #define SD_DEBUG_SPI_NAME "HSPI"
+#else
+  #define SD_DEBUG_SPI_NAME "FSPI"
+#endif
+
+static void sdDebugDeselectSharedDevices() {
+  sdDeselectSharedDevices();
 }
 
 static uint8_t sdDebugTransfer(bool selectCard) {
@@ -72,6 +97,7 @@ static uint8_t sdDebugTransfer(bool selectCard) {
 
 static uint8_t sdDebugCmd0() {
   sdDebugDeselectSharedDevices();
+  sdInitSpiBus();
   SDREALSPI.beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
   digitalWrite(SDC_CS, HIGH);
   for (uint8_t i = 0; i < 10; i++) SDREALSPI.transfer(0xFF);
@@ -95,55 +121,71 @@ static uint8_t sdDebugCmd0() {
 
 static void sdDebugPreflight() {
   sdDebugDeselectSharedDevices();
-  pinMode(SD_DEBUG_SPI_MISO, INPUT_PULLUP);
   delay(2);
-  int idleMiso = digitalRead(SD_DEBUG_SPI_MISO);
   uint8_t idleByte = sdDebugTransfer(false);
   digitalWrite(SDC_CS, LOW);
   delay(1);
-  int selectedMiso = digitalRead(SD_DEBUG_SPI_MISO);
   uint8_t selectedByte = sdDebugTransfer(true);
   uint8_t postByte = sdDebugTransfer(false);
-  SD_DEBUG_PRINTF("[SDDBG] bus preflight idle_miso=%d idle_byte=0x%02X selected_miso=%d selected_byte=0x%02X post_byte=0x%02X\n",
-                  idleMiso, idleByte, selectedMiso, selectedByte, postByte);
+  SD_DEBUG_PRINTF("[SDDBG] bus preflight idle_byte=0x%02X selected_byte=0x%02X post_byte=0x%02X\n",
+                  idleByte, selectedByte, postByte);
+  sdInitSpiBus();
 }
 #endif
 
 SDManager sdman(FSImplPtr(new VFSImpl()));
 
 bool SDManager::start(){
+  if (ready) return true;
+  sdInitSpiBus();
+  sdDeselectSharedDevices();
 #ifdef DEBUG_SD
   SD_DEBUG_PRINTF("[SDDBG] start cs=%d speed=%lu spi=%s pins sck=%d miso=%d mosi=%d shared tft_cs=%d ts_cs=%d\n",
                   SDC_CS, (unsigned long)SDSPISPEED, SD_DEBUG_SPI_NAME,
                   SD_DEBUG_SPI_SCK, SD_DEBUG_SPI_MISO, SD_DEBUG_SPI_MOSI, TFT_CS, TS_CS);
   sdDebugPreflight();
   SD_DEBUG_PRINTF("[SDDBG] manual CMD0 cs=%d resp=0x%02X\n", SDC_CS, sdDebugCmd0());
+  sdInitSpiBus();
+  sdDeselectSharedDevices();
   ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
   SD_DEBUG_PRINTF("[SDDBG] begin attempt 1 -> %s\n", ready ? "OK" : "FAIL");
   vTaskDelay(10);
   if(!ready) {
+    sdDeselectSharedDevices();
     ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
     SD_DEBUG_PRINTF("[SDDBG] begin attempt 2 -> %s\n", ready ? "OK" : "FAIL");
   }
   vTaskDelay(20);
   if(!ready) {
+    sdDeselectSharedDevices();
     ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
     SD_DEBUG_PRINTF("[SDDBG] begin attempt 3 -> %s\n", ready ? "OK" : "FAIL");
   }
   vTaskDelay(50);
   if(!ready) {
+    sdDeselectSharedDevices();
     ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
     SD_DEBUG_PRINTF("[SDDBG] begin attempt 4 -> %s\n", ready ? "OK" : "FAIL");
   }
   return ready;
 #else
+  sdDeselectSharedDevices();
   ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
   vTaskDelay(10);
-  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  if(!ready) {
+    sdDeselectSharedDevices();
+    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  }
   vTaskDelay(20);
-  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  if(!ready) {
+    sdDeselectSharedDevices();
+    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  }
   vTaskDelay(50);
-  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  if(!ready) {
+    sdDeselectSharedDevices();
+    ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  }
   return ready;
 #endif
 }
@@ -245,13 +287,13 @@ void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uin
 
 void SDManager::indexSDPlaylist() {
   _sdFCount = 0;
-  if(exists(PLAYLIST_SD_PATH)) remove(PLAYLIST_SD_PATH);
-  if(exists(INDEX_SD_PATH)) remove(INDEX_SD_PATH);
-  File playlist = open(PLAYLIST_SD_PATH, "w", true);
+  if(SPIFFS.exists(PLAYLIST_SD_PATH)) SPIFFS.remove(PLAYLIST_SD_PATH);
+  if(SPIFFS.exists(INDEX_SD_PATH)) SPIFFS.remove(INDEX_SD_PATH);
+  File playlist = SPIFFS.open(PLAYLIST_SD_PATH, "w", true);
   if (!playlist) {
     return;
   }
-  File index = open(INDEX_SD_PATH, "w", true);
+  File index = SPIFFS.open(INDEX_SD_PATH, "w", true);
   listSD(playlist, index, "/", SD_MAX_LEVELS);
   index.flush();
   index.close();

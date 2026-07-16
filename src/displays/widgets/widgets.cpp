@@ -697,6 +697,16 @@ void VuWidget::_draw() {
     }
     uint8_t  vuLeft = (vulevel >> 8) & 0xFF;
     uint8_t  vuRight = vulevel & 0xFF;
+    const bool muted = (config.store.volume == 0);
+    if (muted) {
+        vuLeft = 0;
+        vuRight = 0;
+        config.vuRefLevel = 0;
+    #ifdef VU_PEEK
+        peakL = 0;
+        peakR = 0;
+    #endif
+    }
     // A maximális VU érték begyűjtése. Fájlonként nullázódik, és 2 másodpercenként -10 -el csökken.
     uint16_t vuLpx;
     uint16_t vuRpx;
@@ -912,7 +922,7 @@ void VuWidget::_draw() {
         uint16_t litCountL = measLpx / step;
         uint16_t litCountR = measRpx / step;
         #ifdef DSP_OLED
-        if (played) {
+        if (played && !muted) {
             if (litCountL == 0) { litCountL = 1; }
             if (litCountR == 0) { litCountR = 1; }
         }
@@ -999,7 +1009,7 @@ void VuWidget::_draw() {
         #ifdef DSP_OLED
         PROFILE_TIMER_RECORD("vu.paint", vuPaintStart);
         #endif
-        if (played && !_labelsDrawn) {
+        if (played && !muted && !_labelsDrawn) {
             PROFILE_SCOPE("vu.labels");
     #ifdef BOOMBOX_STYLE
         #ifndef DSP_OLED
@@ -1105,12 +1115,35 @@ void VuWidget::_clear() {
     int16_t clearBottom = _config.top + _bands.height * 2 + _bands.space;
 
     #ifdef BOOMBOX_STYLE
-    // BOOMBOX: bars are drawn at (_config.left + 4, _config.top + 10)
-    // and L/R labels at (_config.top - 4). Clear only this local area.
-    clearLeft = _config.left + 4;
-    clearRight = clearLeft + (_bands.width * 2 + _bands.space);
-    clearTop = _config.top - 4;
-    clearBottom = _config.top + 10 + _bands.height;
+    // BOOMBOX: clear L/R labels and VU bars separately so the gap between them
+    // does not erase nearby nameday text.
+    const int16_t labelWidth = _bands.height + 15;
+    const int16_t labelHeight = _bands.height + 4;
+    const int16_t totalLabelWidth = 2 * labelWidth + 6;
+    const int16_t labelLeftL = ((int16_t)dsp.width() - totalLabelWidth) / 2;
+    const int16_t labelLeftR = labelLeftL + labelWidth + 6;
+    const int16_t labelTop = _config.top - 4;
+    const int16_t barsLeft = _config.left + 4;
+    const int16_t barsTop = _config.top + 10;
+    const int16_t barsWidth = _bands.width * 2 + _bands.space;
+
+    auto clearRectClipped = [&](int16_t x, int16_t y, int16_t w, int16_t h) {
+        int16_t x2 = x + w;
+        int16_t y2 = y + h;
+        if (x < 0) { x = 0; }
+        if (y < 0) { y = 0; }
+        if (x2 > (int16_t)dsp.width()) { x2 = dsp.width(); }
+        if (y2 > (int16_t)dsp.height()) { y2 = dsp.height(); }
+        if (x2 > x && y2 > y) {
+            dsp.fillRect((uint16_t)x, (uint16_t)y, (uint16_t)(x2 - x), (uint16_t)(y2 - y), _bgcolor);
+        }
+    };
+
+    clearRectClipped(labelLeftL, labelTop, labelWidth, labelHeight);
+    clearRectClipped(labelLeftR, labelTop, labelWidth, labelHeight);
+    clearRectClipped(barsLeft, barsTop, barsWidth, _bands.height);
+    _labelsDrawn = false;
+    return;
     #else
     // Classic: bars are drawn in [_config.top .. _config.top + 2*height + space],
     // labels are just above the bars.

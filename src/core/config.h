@@ -7,10 +7,11 @@
 #include <EEPROM.h>
 #include "../displays/widgets/widgetsconfig.h" //BitrateFormat
 
-#define EEPROM_SIZE     1024
-#define EEPROM_START    500
-#define EEPROM_START_IR 0
-#define EEPROM_START_2  10
+#define EEPROM_SIZE         1024
+#define EEPROM_START_LEGACY 500
+#define EEPROM_START        600
+#define EEPROM_START_IR     0
+#define EEPROM_START_2      10
 #ifndef BUFLEN
     #define BUFLEN 170
 #endif
@@ -235,6 +236,13 @@ struct ircodes_t {
     uint64_t     irVals[24][3];
 };
 #endif
+
+#if IR_PIN != 255
+static_assert(EEPROM_START_IR + sizeof(ircodes_t) <= EEPROM_START,
+              "IR EEPROM area overlaps the main config area");
+#endif
+static_assert(EEPROM_START + sizeof(config_t) <= EEPROM_SIZE,
+              "Main config does not fit in EEPROM_SIZE");
 
 struct station_t {
     char     name[BUFLEN];

@@ -1,6 +1,6 @@
 
 #define VERSION v8.8_TB
-#define FIRMWARE_VERSION "8.8.1-build.43"
+#define FIRMWARE_VERSION "8.8.1-build.61"
 // clang-format off
 /*
    Read the before use !!!
@@ -17,7 +17,7 @@
     #define ARDUINO_ESP32S3_DEV
 #endif
 
-#define SCREEN 4
+//#define SCREEN 4
 
 // #define HEAP_DBG
 // #define DEBUG_PROFILER       // Lekki profiler: display.loop/draw, web, main, player/audio, network
@@ -32,13 +32,6 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #define NAMEDAYS_FILE PL
 
 #define USE_BUILTIN_LED false /* The RGB LED does not turn on.. */
-
-/* DspTask na Core 1 – AudioTask na Core 0 */
-#define DSP_TASK_CORE_ID 1
-
-/* netserver.loop() w Arduino loop() (Core 1), bezwarunkowo – bez bramkowania przez timekeeper.
-   Wymagane aby shouldReboot działał przy DSP_TASK_CORE_ID 1. */
-#define NETSERVER_LOOP1
 
 /* Arduino OTA Support */
 #define USE_OTA true                    /* Enable OTA updates from Arduino IDE */
@@ -98,13 +91,13 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 //#define ENC_INTERNALPULLUP	true
 
 /* ENCODER 2 */
-//#define ENC2_BTNR      255  // S2
-//#define ENC2_BTNL      255  // S1
-//#define ENC2_BTNB      255  // KEY
+#define ENC2_BTNR      7  // S2
+#define ENC2_BTNL      18  // S1
+#define ENC2_BTNB      3  // KEY
 //#define ENC2_INTERNALPULLUP	true
 
 // Dwa niezależne enkodery: lewy=stacje, prawy=głośność
-//#define TWO_ENCODERS
+#define TWO_ENCODERS
 
 /*----- CLOCK MODUL RTC DS3132 -----*/
 // #define RTC_SCL			     7
@@ -119,10 +112,11 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 
 /*----- SD CARD -----*/
  #define SDC_CS     38
- //#define SDSPISPEED 4000000 /* 4MHz - Slower speed to prevent display flicker on shared SPI bus */
-
-/*----- SD debug logs: comment this line to disable SD debug output. -----*/
-//#define DEBUG_SD
+ #define SD_SPI_SCK  12
+ #define SD_SPI_MISO 13
+ #define SD_SPI_MOSI 11
+ #define SDSPISPEED 4000000 /* 4MHz - Slower speed to prevent display flicker on shared SPI bus */
+ #define DEBUG_SD    /* Comment this line to disable all SD debug output. */
 
  /*----- by Maciej Bednarski -----*/
 /*---- Activating this will move the cursor up and down in the playlist -----*/
@@ -137,9 +131,6 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 /*----- Inactive segments of the clock, true or false. -----*/
  //#define CLOCKFONT_MONO
 
-/*----- Volume scale maximum shown/controlled by UI (e.g. 100, 50, 30). -----*/
-#define VOLUME_CONTROL_STEPS 50
-
 /* Define 12-hour time format. -----*/
 // #define AM_PM_STYLE
 
@@ -151,7 +142,7 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #define CLOCK_TTS_LANGUAGE         "PL" // Language ( EN, HU, PL, NL, DE, RU, RO ,FR, GR)
 #define CLOCK_TTS_INTERVAL_MINUTES 15   // Hány percenként mondja be. - How many times a minute does it say.
 
-// Ukryj widget pogody 
+// Ukryj widget pogody – zajmuje obszar nakładający się na flip clock
 //#define HIDE_WEATHER
 
 /*----- With this setting there is no scrolling on the weather bar. -----*/
@@ -227,11 +218,6 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 /*                                                                    */
 /* Pełna baza stref: https://github.com/nayarsystems/posix_tz_db     */
 #define TIMEZONE_POSIX "CET-1CEST,M3.5.0,M10.5.0/3"
-
-/*----- Deep sleep wake sources -----*/
-// false = wybudzanie tylko przyciskiem enkodera (stabilniej)
-// true  = dodatkowo wybudzanie przez IR (może łapać zakłócenia)
-#define SLEEP_WAKE_BY_IR true
 
 /*----- Autostart przy każdym włączeniu (0=idle, 1=ostatni stan, 2=zawsze) -----*/
 //#define SMARTSTART_DEFAULT 2

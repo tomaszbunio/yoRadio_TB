@@ -35,6 +35,7 @@ class Player : public Audio {
 private:
   uint32_t _volTicks; /* delayed volume save  */
   bool _volTimer;     /* delayed volume save  */
+  uint8_t _volumeBeforeMute;
   uint32_t    _resumeFilePos;
   plStatus_e _status;
   //char        _plError[PLERR_LN];

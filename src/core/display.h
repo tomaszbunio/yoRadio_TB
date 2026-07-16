@@ -139,6 +139,9 @@ class Display {
     void wakeup(){}
     void clear(bool black = true) {}
     void printPLitem(uint8_t pos, const char* item){}
+    void setBrightnessPercent(uint8_t percent) {}
+    void resetPlaylistCache() {}
+    void loadSdCover() {}
     void lock()   {}
     void unlock() {}
     uint16_t width(){ return 0; }

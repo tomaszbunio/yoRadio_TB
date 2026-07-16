@@ -307,7 +307,9 @@ void TimeKeeper::_upRSSI() {
         if (display.ready()) { display.putRequest(DSPRSSI, netserver.getRSSI()); }
     }
 #ifdef USE_SD
-    if (display.mode() != SDCHANGE) { player.sendCommand({PR_CHECKSD, 0}); }
+    if (display.mode() != SDCHANGE && config.getMode() != PM_SDCARD) {
+        player.sendCommand({PR_CHECKSD, 0});
+    }
 #endif
     player.sendCommand({PR_VUTONUS, 0});
 }

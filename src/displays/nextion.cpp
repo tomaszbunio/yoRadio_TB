@@ -296,6 +296,12 @@ void Nextion::drawVU(){
   
   uint8_t L = (vulevel >> 8) & 0xFF;
   uint8_t R = vulevel & 0xFF;
+  if (config.store.volume == 0) {
+    L = 0;
+    R = 0;
+    measL = 0;
+    measR = 0;
+  }
   
   //uint8_t L = map(player.vuLeft, 0, 255, 0, 100);
   //uint8_t R = map(player.vuRight, 0, 255, 0, 100);

@@ -16,16 +16,6 @@
   #include "../NeoPixel/NeoPixel.h"
 #endif
 
-#ifndef SLEEP_WAKE_BY_IR
-  #define SLEEP_WAKE_BY_IR false
-#endif
-
-#if defined(IR_PIN) && IR_PIN != 255 && (SLEEP_WAKE_BY_IR || (defined(IR_DEFAULT_POWER) && (IR_DEFAULT_POWER > 0)))
-  #define USE_IR_WAKE_IN_SLEEP true
-#else
-  #define USE_IR_WAKE_IN_SLEEP false
-#endif
-
 // ---------------------------------------------------------------------
 // GŁÓWNA FUNKCJA UŚPIENIA
 // ---------------------------------------------------------------------
@@ -69,17 +59,7 @@ void goToSleep() {
   rtc_gpio_pullup_en((gpio_num_t)WAKEUP_PIN);
   rtc_gpio_pulldown_dis((gpio_num_t)WAKEUP_PIN);
 
-  // 6. Konfiguruj wybudzanie
-  // Gdy IR wake jest aktywny, używamy EXT1 z maską pinów:
-  // - przycisk enkodera (WAKEUP_PIN)
-  // - odbiornik IR (IR_PIN)
-  // Dzięki temu budzenie działa i z enkodera, i z pilota POWER.
-  #if USE_IR_WAKE_IN_SLEEP
-    const uint64_t wakeMask = (1ULL << WAKEUP_PIN) | (1ULL << IR_PIN);
-    esp_sleep_enable_ext1_wakeup(wakeMask, ESP_EXT1_WAKEUP_ANY_LOW);
-    Serial.printf("   - Wakeup EXT1: ENC GPIO%d + IR GPIO%d (ANY_LOW)\n", WAKEUP_PIN, IR_PIN);
-  #endif
-
+  // 6. Wybudzanie z deep sleep realizuje tylko przycisk enkodera.
   // 7. Krótkie opóźnienie dla stabilności
   delay(100);
 
@@ -98,11 +78,9 @@ void goToSleep() {
     }
   }
 
-  // 9. Konfiguruj wybudzanie przez pin enkodera (gdy nie używamy IR wake)
-  #if !USE_IR_WAKE_IN_SLEEP
-    esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKEUP_PIN, WAKEUP_LEVEL);
-    Serial.println("   - Wakeup pin: ENC_BTNB (LOW)");
-  #endif
+  // 9. Konfiguruj wybudzanie przez pin enkodera.
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKEUP_PIN, WAKEUP_LEVEL);
+  Serial.println("   - Wakeup pin: ENC_BTNB (LOW)");
 
   // 10. Zasypiam
   Serial.println("💤 Zasypiam... Do zobaczenia!");

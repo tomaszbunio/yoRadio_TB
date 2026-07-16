@@ -30,6 +30,14 @@ STORE YOUR SETTINGS IN THE *** myoptions.h *** FILE.
 #if __has_include("../../mqttoptions.h")
     #include "../../mqttoptions.h"
 #endif
+
+/* Internal task placement defaults. */
+#ifndef DSP_TASK_CORE_ID
+    #define DSP_TASK_CORE_ID 1
+#endif
+#ifndef NETSERVER_LOOP1
+    #define NETSERVER_LOOP1
+#endif
 /*******************************************************
 
 The connection tables are located here https://github.com/e2002/yoradio#connection-tables
@@ -603,7 +611,7 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #endif
 /* Stations list return time */
 #ifndef STATIONS_LIST_RETURN_TIME            // "stations_list_return_time"
-  #define STATIONS_LIST_RETURN_TIME 30
+  #define STATIONS_LIST_RETURN_TIME 3
 #endif
 
 /* Ampli power */

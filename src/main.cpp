@@ -96,7 +96,9 @@ void setup() {
     config.init();
     // Ustaw font zegara z EEPROM zanim Display zbuduje widgety (DSP_START),
     // aby pierwsze wyliczenie pozycji HH/MM było od razu na właściwej czcionce.
+    #if DSP_MODEL != DSP_DUMMY
     widgetsSetClockFont(config.store.clockfont);
+    #endif
     display.init();
 #if BRIGHTNESS_PIN != 255
     display.clear(true);
@@ -169,7 +171,9 @@ void loop() {
       if (id < VT_DIGI || id > POINTEDLYMAD_51) id = CLOCKFONT;
 	  Serial.printf("UI_APPLY_CLOCKFONT: po sanitize id=%d\n", id);
       config.store.clockfont = id;
+      #if DSP_MODEL != DSP_DUMMY
       widgetsSetClockFont(id);
+      #endif
     }
     if (ui & Config::UI_APPLY_THEME) {
       config.loadTheme();
@@ -185,10 +189,13 @@ void loop() {
         if (bootAutoplayPending) {
             if (config.store.smartstart == 2 || player.isRunning()) {
                 bootAutoplayPending = false;
-            } else if (millis() >= bootAutoplayNext && config.playlistLength() > 0) {
-                uint16_t station = config.lastStation();
-                if (station < 1 || station > config.playlistLength()) { station = 1; }
-                player.sendCommand({PR_PLAY, station});
+            } else if (millis() >= bootAutoplayNext) {
+                uint16_t len = config.playlistLength();
+                if (len > 0) {
+                    uint16_t station = config.lastStation();
+                    if (station < 1 || station > len) { station = 1; }
+                    player.sendCommand({PR_PLAY, station});
+                }
                 bootAutoplayPending = false;
             }
         }

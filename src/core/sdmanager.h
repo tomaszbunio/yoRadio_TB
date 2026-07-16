@@ -5,7 +5,7 @@ class SDManager : public SDFS {
   public:
     bool ready;
   public:
-    SDManager(FSImplPtr impl) : SDFS(impl) {}
+    SDManager(FSImplPtr impl) : SDFS(impl), ready(false), _sdFCount(0) {}
     bool start();
     void stop();
     bool cardPresent();

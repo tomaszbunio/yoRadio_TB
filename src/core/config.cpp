@@ -99,6 +99,15 @@ void Config::init() {
     #endif
 #endif
     eepromRead(EEPROM_START, store);
+    if (store.config_set != 4263) {
+        config_t legacyStore;
+        eepromRead(EEPROM_START_LEGACY, legacyStore);
+        if (legacyStore.config_set == 4263) {
+            store = legacyStore;
+            eepromWrite(EEPROM_START, store);
+            BOOTLOG("EEPROM: migrated main config from %u to %u", (unsigned)EEPROM_START_LEGACY, (unsigned)EEPROM_START);
+        }
+    }
     BOOTLOG("---- EEPROM AFTER READ ----");
     BOOTLOG("fadeEnabled   : %d", store.fadeEnabled);
     BOOTLOG("fadeStartDelay: %d", store.fadeStartDelay);
@@ -139,7 +148,7 @@ void Config::init() {
     if (emptyFS) { BOOTLOG("SPIFFS is empty!"); }
     ssidsCount = 0;
 #ifdef USE_SD
-    _SDplaylistFS = getMode() == PM_SDCARD ? &sdman : (true ? &SPIFFS : _SDplaylistFS);
+    _SDplaylistFS = &SPIFFS;
 #else
     _SDplaylistFS = &SPIFFS;
 #endif
@@ -358,7 +367,7 @@ void Config::changeMode(int newmode) { // DLNA mod
 
     /* === filesystem binding === */
     if (getMode() == PM_SDCARD) {
-        _SDplaylistFS = &sdman;
+        _SDplaylistFS = &SPIFFS;
     } else {
         _SDplaylistFS = &SPIFFS; // WEB + DLNA
     }
@@ -497,9 +506,9 @@ void Config::initPlaylistMode() {
             changeMode(PM_WEB);
             return;
         }
-        // Skip full SD reindex during boot to shorten startup time.
-        // Keep reindex available later (e.g. on mode switch/manual trigger).
-        if (_bootDone) {
+        // Skip full SD reindex during boot when a cached SPIFFS index exists.
+        // Rebuild on first boot after cache loss, or on later mode switches/manual refresh.
+        if (_bootDone || !SPIFFS.exists(PLAYLIST_SD_PATH) || !SPIFFS.exists(INDEX_SD_PATH)) {
             initSDPlaylist();
         }
         uint16_t cs = playlistLength();
@@ -554,7 +563,8 @@ void Config::_initHW() {
     loadTheme();
 #if IR_PIN != 255
     constexpr unsigned int IR_MAP_VERSION_LEGACY = 4224;
-    constexpr unsigned int IR_MAP_VERSION = 4225;
+    constexpr unsigned int IR_MAP_VERSION_OVERLAP = 4225;
+    constexpr unsigned int IR_MAP_VERSION = 4226;
 
     auto applyDefaultIrMap = [this]() {
 #if defined(IR_DEFAULT_MAP_ENABLED) && IR_DEFAULT_MAP_ENABLED
@@ -588,8 +598,7 @@ void Config::_initHW() {
 #endif
     };
 
-    eepromRead(EEPROM_START_IR, ircodes);
-    if (ircodes.ir_set == IR_MAP_VERSION_LEGACY) {
+    auto applyDefaultIrTailMap = [this]() {
         memset(&ircodes.irVals[IR_MUTE], 0, sizeof(ircodes.irVals) - sizeof(ircodes.irVals[0]) * IR_MUTE);
 #if defined(IR_DEFAULT_MAP_ENABLED) && IR_DEFAULT_MAP_ENABLED
         ircodes.irVals[IR_MUTE][0] = IR_DEFAULT_MUTE;
@@ -598,6 +607,15 @@ void Config::_initHW() {
         ircodes.irVals[IR_HOME][0] = IR_DEFAULT_HOME;
         ircodes.irVals[IR_BACK][0] = IR_DEFAULT_BACK;
 #endif
+    };
+
+    eepromRead(EEPROM_START_IR, ircodes);
+    if (ircodes.ir_set == IR_MAP_VERSION_LEGACY) {
+        applyDefaultIrTailMap();
+        ircodes.ir_set = IR_MAP_VERSION;
+        saveIR();
+    } else if (ircodes.ir_set == IR_MAP_VERSION_OVERLAP) {
+        applyDefaultIrTailMap();
         ircodes.ir_set = IR_MAP_VERSION;
         saveIR();
     } else if (ircodes.ir_set != IR_MAP_VERSION) {
