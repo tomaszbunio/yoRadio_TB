@@ -131,6 +131,9 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 /*----- Inactive segments of the clock, true or false. -----*/
  //#define CLOCKFONT_MONO
 
+/*----- Liczba kroków głośności interfejsu: 100, 50 lub 30. -----*/
+#define VOLUME_CONTROL_STEPS 50
+
 /* Define 12-hour time format. -----*/
 // #define AM_PM_STYLE
 
