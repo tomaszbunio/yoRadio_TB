@@ -648,6 +648,19 @@ void Player::folderPrev() {
 }
 
 void Player::toggle() {
+  // Local SD playback can be paused without closing and reopening the file.
+  // Keeping the decoder alive preserves m_audioCurrentTime, file position and
+  // codec state, so resuming continues both audio and the SD timer in place.
+  if (config.getMode() == PM_SDCARD && _status == PLAYING) {
+    if (Audio::pauseResume()) {
+      const bool running = isRunning();
+      setOutputPins(running);
+      display.putRequest(running ? PSTART : PSTOP);
+      netserver.requestOnChange(MODE, 0);
+      return;
+    }
+  }
+
   if (_status == PLAYING) {
     sendCommand({PR_STOP, 0});
   } else {

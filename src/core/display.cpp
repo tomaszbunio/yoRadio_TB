@@ -1342,12 +1342,20 @@ void Display::loop() {
                 }
                 case PSTART: {
                     PROFILE_SCOPE("display.layout");
-                    _layoutChange(true);
+                    if (_mode == SD_PLAYER) {
+                        _drawSdControls(true);
+                    } else {
+                        _layoutChange(true);
+                    }
                     break;
                 }
                 case PSTOP: {
                     PROFILE_SCOPE("display.layout");
-                    _layoutChange(false);
+                    if (_mode == SD_PLAYER) {
+                        _drawSdControls(true);
+                    } else {
+                        _layoutChange(false);
+                    }
                     break;
                 }
                 case DSP_START: {
