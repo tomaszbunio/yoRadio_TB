@@ -122,11 +122,16 @@ static char          presetUrl[SLOTS][256];
 static uint16_t      presetId[SLOTS];
 static bool          s_cacheValid = false; // cache érvényesség
 
-// 6 banks (FAV1..FAV6), each has 12 presets
+// 5 banks (FAV1..FAV5), each has 8 presets
 static uint8_t s_bank = 0;          // 0..4 (active)
 static bool    s_kbdActive = false; // on-screen keyboard visible
 static uint8_t s_kbdFav = 255;      // which fav is being edited
 static String  s_kbdText;           // current edit buffer
+static uint8_t s_irDigit = 0;
+static uint8_t s_irAction = 0; // 0=open, 1=save, 2=delete
+static bool    s_irSaveMode = false;
+static bool    s_irDeleteMode = false;
+static bool    s_suppressToast = false;
 
 // -------------------- Layout --------------------
 static const uint16_t TOP_H = 40;
@@ -427,6 +432,18 @@ static void drawTopBar() {
     hold_barY = TOPBAR_Y + 12 + 16;
     holdBarReady = true;
     int16_t y = 12;
+
+    int16_t activeX = hold_xPlay;
+    int16_t activeW = hold_wPlay;
+    if (s_irAction == 1) {
+        activeX = hold_xSave;
+        activeW = hold_wSave;
+    } else if (s_irAction == 2) {
+        activeX = hold_xDel;
+        activeW = hold_wDel;
+    }
+    GFX.fillRoundRect(activeX - 8, 5, activeW + 16, TOP_H - 10, 7, config.theme.prst_accent);
+
     GFX.setCursor(30, y);
     GFX.print(utf8To(p1, false));
     GFX.setCursor(w / 2 - 20, y);
@@ -518,12 +535,14 @@ static void favRect(uint8_t fav, int16_t& x, int16_t& y, int16_t& bw, int16_t& b
 static void drawSlot(uint8_t slot, bool pressed = false, bool savedFlash = false) {
     int16_t x, y, bw, bh;
     slotRect(slot, x, y, bw, bh);
-    bool     hasPreset = false;
-    uint16_t id = readIdC(slot);
-    if (id >= 1 && id <= config.playlistLength()) { hasPreset = true; }
+    const char* url = readUrlC(slot);
+    bool     hasPreset = (url && url[0] != 0);
     uint16_t bg = config.theme.prst_card;
     if (hasPreset) {
         bg = config.theme.prst_accent;
+    }
+    if (s_irDigit == slot + 1) {
+        bg = s_irDeleteMode ? 0xF800 : (s_irSaveMode ? 0x07E0 : lighten565(bg, 70));
     }
     if (pressed) {
         bg = lighten565(bg, 40);
@@ -540,13 +559,15 @@ static void drawSlot(uint8_t slot, bool pressed = false, bool savedFlash = false
         char msg[32];
         strncpy_P(msg, LANG::prstEmptyPreset, sizeof(msg) - 1);
         msg[sizeof(msg) - 1] = 0;
+        GFX.printf("%u. ", slot + 1);
         GFX.print(utf8To(msg, false));
         return;
     }
     // ---- Station name ----
     GFX.setTextSize(2);
+    String numberedName = String(slot + 1) + ". " + name;
     String top, bottom;
-    splitTwoLinesBalanced(name, bw - 40, top, bottom);
+    splitTwoLinesBalanced(numberedName.c_str(), bw - 40, top, bottom);
     GFX.setTextSize(2);
     GFX.setTextColor(config.theme.prst_title1);
     GFX.setCursor(x + 16, y + 10);
@@ -588,6 +609,137 @@ static void drawFavBar() {
     GFX.drawFastHLine(0, y, GFX.width(), config.theme.prst_line);
     // FAV gombok
     for (uint8_t i = 0; i < FAVS; i++) { drawFav(i); }
+}
+
+void presets_irReset() {
+    s_irDigit = 0;
+    s_irAction = 0;
+    s_irSaveMode = false;
+    s_irDeleteMode = false;
+}
+
+void presets_irDigit(uint8_t digit) {
+    if (digit < 1 || digit > SLOTS) { return; }
+    uint8_t previous = s_irDigit;
+    s_irDigit = digit;
+    ensurePresetsCanvas();
+
+    if (previous >= 1 && previous <= SLOTS && previous != digit) {
+        int16_t x, y, w, h;
+        slotRect(previous - 1, x, y, w, h);
+        drawSlot(previous - 1);
+        presetsBlitRect(x, y, w, h);
+    }
+
+    int16_t x, y, w, h;
+    slotRect(digit - 1, x, y, w, h);
+    drawSlot(digit - 1);
+    presetsBlitRect(x, y, w, h);
+}
+
+void presets_irSaveMode() {
+    s_irAction = 1;
+    s_irSaveMode = true;
+    s_irDeleteMode = false;
+    if (s_irDigit >= 1 && s_irDigit <= SLOTS) {
+        int16_t x, y, w, h;
+        slotRect(s_irDigit - 1, x, y, w, h);
+        drawSlot(s_irDigit - 1);
+        presetsBlitRect(x, y, w, h);
+    }
+    drawTopBar();
+    presetsBlitRect(0, 0, s_presetsW, TOP_H);
+}
+
+void presets_irDeleteMode() {
+    s_irAction = 2;
+    s_irSaveMode = false;
+    s_irDeleteMode = true;
+    if (s_irDigit >= 1 && s_irDigit <= SLOTS) {
+        int16_t x, y, w, h;
+        slotRect(s_irDigit - 1, x, y, w, h);
+        drawSlot(s_irDigit - 1);
+        presetsBlitRect(x, y, w, h);
+    }
+    drawTopBar();
+    presetsBlitRect(0, 0, s_presetsW, TOP_H);
+}
+
+void presets_irChangeAction(bool next) {
+    s_irAction = next ? (uint8_t)((s_irAction + 1) % 3) : (uint8_t)((s_irAction + 2) % 3);
+    s_irSaveMode = (s_irAction == 1);
+    s_irDeleteMode = (s_irAction == 2);
+    ensurePresetsCanvas();
+    drawTopBar();
+    presetsBlitRect(0, 0, s_presetsW, TOP_H);
+    if (s_irDigit >= 1 && s_irDigit <= SLOTS) {
+        int16_t x, y, w, h;
+        slotRect(s_irDigit - 1, x, y, w, h);
+        drawSlot(s_irDigit - 1);
+        presetsBlitRect(x, y, w, h);
+    }
+}
+
+bool presets_irCancel() {
+    if (!s_irSaveMode && !s_irDeleteMode && s_irDigit == 0) { return false; }
+    uint8_t previous = s_irDigit;
+    presets_irReset();
+    if (previous >= 1 && previous <= SLOTS) {
+        int16_t x, y, w, h;
+        slotRect(previous - 1, x, y, w, h);
+        drawSlot(previous - 1);
+        presetsBlitRect(x, y, w, h);
+    }
+    drawTopBar();
+    presetsBlitRect(0, 0, s_presetsW, TOP_H);
+    return true;
+}
+
+void presets_irChangeBank(bool next) {
+    uint8_t bank = next ? (s_bank + 1) % FAVS : (s_bank + FAVS - 1) % FAVS;
+    s_irDigit = 0;
+    presets_selectBank(bank);
+    presets_drawScreen();
+}
+
+bool presets_irPlay() {
+    if (s_irDigit < 1 || s_irDigit > SLOTS) { return false; }
+    if (s_irDeleteMode) {
+        uint8_t slot = s_irDigit - 1;
+        s_suppressToast = true;
+        presets_clear(slot);
+        s_suppressToast = false;
+        presets_irReset();
+        int16_t x, y, w, h;
+        slotRect(slot, x, y, w, h);
+        drawSlot(slot);
+        presetsBlitRect(x, y, w, h);
+        drawTopBar();
+        presetsBlitRect(0, 0, s_presetsW, TOP_H);
+        return false;
+    }
+    if (s_irSaveMode) {
+        uint8_t slot = s_irDigit - 1;
+        s_suppressToast = true;
+        presets_save(slot);
+        s_suppressToast = false;
+        presets_irReset();
+        int16_t x, y, w, h;
+        slotRect(slot, x, y, w, h);
+        drawSlot(slot);
+        presetsBlitRect(x, y, w, h);
+        drawTopBar();
+        presetsBlitRect(0, 0, s_presetsW, TOP_H);
+        return false;
+    }
+    const char* url = readUrlC(s_irDigit - 1);
+    if (!url || url[0] == 0) {
+        presets_play(s_irDigit - 1);
+        return false;
+    }
+    presets_play(s_irDigit - 1);
+    presets_irReset();
+    return true;
 }
 
 static void drawToastTopBar(const char* msg) {
@@ -957,10 +1109,12 @@ bool presets_save(uint8_t slot) {
     if (slot >= SLOTS) { return false; }
     ensurePrefs();
     if (strlen(config.station.url) == 0) {
-        char msg[32];
-        strncpy_P(msg, LANG::prstNoUrl, sizeof(msg) - 1);
-        msg[sizeof(msg) - 1] = 0;
-        drawToastTopBar(msg);
+        if (!s_suppressToast) {
+            char msg[32];
+            strncpy_P(msg, LANG::prstNoUrl, sizeof(msg) - 1);
+            msg[sizeof(msg) - 1] = 0;
+            drawToastTopBar(msg);
+        }
         return true; // ne lépjünk ki
     }
     const char* url = config.station.url;
@@ -995,10 +1149,12 @@ bool presets_save(uint8_t slot) {
     presetsBlitRect(x, y, w, h);
     s_flashSlot = slot;
     s_flashUntil = millis() + 2500;
-    char msg[32];
-    strncpy_P(msg, LANG::prstAssigned, sizeof(msg) - 1);
-    msg[sizeof(msg) - 1] = 0;
-    drawToastTopBar(msg);
+    if (!s_suppressToast) {
+        char msg[32];
+        strncpy_P(msg, LANG::prstAssigned, sizeof(msg) - 1);
+        msg[sizeof(msg) - 1] = 0;
+        drawToastTopBar(msg);
+    }
     return true;
 }
 
@@ -1056,10 +1212,185 @@ bool presets_clear(uint8_t slot) {
     slotRect(slot, x, y, w, h);
     // AZONNAL kirakjuk a törölt kártyát
     presetsBlitRect(x, y, w, h);
-    char msg[32];
-    strncpy_P(msg, LANG::prstDeleted, sizeof(msg) - 1);
-    msg[sizeof(msg) - 1] = 0;
-    drawToastTopBar(msg);
+    if (!s_suppressToast) {
+        char msg[32];
+        strncpy_P(msg, LANG::prstDeleted, sizeof(msg) - 1);
+        msg[sizeof(msg) - 1] = 0;
+        drawToastTopBar(msg);
+    }
+    return true;
+}
+
+static String jsonEscape(const char* value) {
+    String out;
+    if (!value) { return out; }
+    out.reserve(strlen(value) + 8);
+    for (const char* p = value; *p; ++p) {
+        switch (*p) {
+            case '\\': out += F("\\\\"); break;
+            case '"': out += F("\\\""); break;
+            case '\n': out += F("\\n"); break;
+            case '\r': out += F("\\r"); break;
+            case '\t': out += F("\\t"); break;
+            default:
+                if ((uint8_t)*p >= 0x20) { out += *p; }
+                break;
+        }
+    }
+    return out;
+}
+
+static bool jsonReadString(const String& json, const char* key, size_t& cursor, String& value) {
+    String marker = String('"') + key + "\":";
+    int keyPos = json.indexOf(marker, cursor);
+    if (keyPos < 0) { return false; }
+    size_t pos = (size_t)keyPos + marker.length();
+    while (pos < json.length() && isspace((unsigned char)json[pos])) { pos++; }
+    if (pos >= json.length() || json[pos++] != '"') { return false; }
+    value = "";
+    bool escaped = false;
+    while (pos < json.length()) {
+        char c = json[pos++];
+        if (escaped) {
+            switch (c) {
+                case 'n': value += '\n'; break;
+                case 'r': value += '\r'; break;
+                case 't': value += '\t'; break;
+                case '\\': value += '\\'; break;
+                case '"': value += '"'; break;
+                default: return false;
+            }
+            escaped = false;
+        } else if (c == '\\') {
+            escaped = true;
+        } else if (c == '"') {
+            cursor = pos;
+            return true;
+        } else if ((uint8_t)c < 0x20) {
+            return false;
+        } else {
+            value += c;
+        }
+    }
+    return false;
+}
+
+static bool jsonReadUInt(const String& json, const char* key, size_t& cursor, uint16_t& value) {
+    String marker = String('"') + key + "\":";
+    int keyPos = json.indexOf(marker, cursor);
+    if (keyPos < 0) { return false; }
+    size_t pos = (size_t)keyPos + marker.length();
+    while (pos < json.length() && isspace((unsigned char)json[pos])) { pos++; }
+    if (pos >= json.length() || !isdigit((unsigned char)json[pos])) { return false; }
+    uint32_t parsed = 0;
+    while (pos < json.length() && isdigit((unsigned char)json[pos])) {
+        parsed = parsed * 10 + (json[pos++] - '0');
+        if (parsed > UINT16_MAX) { return false; }
+    }
+    value = (uint16_t)parsed;
+    cursor = pos;
+    return true;
+}
+
+String presets_exportJson() {
+    ensurePrefs();
+    String json;
+    json.reserve(16384);
+    json += F("{\"format\":\"yoradio-fav\",\"version\":1,\"selectedGroup\":");
+    json += s_prefs.getUChar("fav_sel", 0);
+    json += F(",\"groups\":[");
+    for (uint8_t bank = 0; bank < FAVS; bank++) {
+        if (bank) { json += ','; }
+        char labelKey[20];
+        snprintf(labelKey, sizeof(labelKey), "fav%u_label", bank);
+        String label = s_prefs.getString(labelKey, String("FAV") + String(bank + 1));
+        json += F("{\"index\":");
+        json += bank + 1;
+        json += F(",\"name\":\"");
+        json += jsonEscape(label.c_str());
+        json += F("\",\"slots\":[");
+        for (uint8_t slot = 0; slot < SLOTS; slot++) {
+            if (slot) { json += ','; }
+            char key[20];
+            makeKey(key, sizeof(key), bank, slot, "name");
+            String stationName = s_prefs.getString(key, "");
+            makeKey(key, sizeof(key), bank, slot, "url");
+            String streamUrl = s_prefs.getString(key, "");
+            json += F("{\"index\":");
+            json += slot + 1;
+            json += F(",\"stationName\":\"");
+            json += jsonEscape(stationName.c_str());
+            json += F("\",\"streamUrl\":\"");
+            json += jsonEscape(streamUrl.c_str());
+            json += F("\"}");
+        }
+        json += F("]}");
+    }
+    json += F("]}");
+    return json;
+}
+
+bool presets_importJson(const String& json, String& error) {
+    if (json.length() < 40 || json.length() > 32768) {
+        error = F("Invalid backup size");
+        return false;
+    }
+
+    size_t cursor = 0;
+    String format;
+    uint16_t version = 0;
+    uint16_t selectedGroup = 0;
+    if (!jsonReadString(json, "format", cursor, format) || format != "yoradio-fav"
+        || !jsonReadUInt(json, "version", cursor, version) || version != 1
+        || !jsonReadUInt(json, "selectedGroup", cursor, selectedGroup) || selectedGroup >= FAVS) {
+        error = F("Invalid FAV backup format");
+        return false;
+    }
+
+    String groupNames[FAVS];
+    String stationNames[FAVS][SLOTS];
+    String streamUrls[FAVS][SLOTS];
+    for (uint8_t bank = 0; bank < FAVS; bank++) {
+        uint16_t groupIndex = 0;
+        if (!jsonReadUInt(json, "index", cursor, groupIndex) || groupIndex != bank + 1
+            || !jsonReadString(json, "name", cursor, groupNames[bank]) || groupNames[bank].length() > 31) {
+            error = F("Invalid FAV group");
+            return false;
+        }
+        for (uint8_t slot = 0; slot < SLOTS; slot++) {
+            uint16_t slotIndex = 0;
+            if (!jsonReadUInt(json, "index", cursor, slotIndex) || slotIndex != slot + 1
+                || !jsonReadString(json, "stationName", cursor, stationNames[bank][slot])
+                || !jsonReadString(json, "streamUrl", cursor, streamUrls[bank][slot])
+                || stationNames[bank][slot].length() > 63 || streamUrls[bank][slot].length() > 255) {
+                error = F("Invalid FAV slot");
+                return false;
+            }
+        }
+    }
+
+    ensurePrefs();
+    for (uint8_t bank = 0; bank < FAVS; bank++) {
+        char labelKey[20];
+        snprintf(labelKey, sizeof(labelKey), "fav%u_label", bank);
+        s_prefs.putString(labelKey, groupNames[bank]);
+        for (uint8_t slot = 0; slot < SLOTS; slot++) {
+            char key[20];
+            makeKey(key, sizeof(key), bank, slot, "name");
+            if (stationNames[bank][slot].length()) s_prefs.putString(key, stationNames[bank][slot]);
+            else s_prefs.remove(key);
+            makeKey(key, sizeof(key), bank, slot, "url");
+            if (streamUrls[bank][slot].length()) s_prefs.putString(key, streamUrls[bank][slot]);
+            else s_prefs.remove(key);
+            makeKey(key, sizeof(key), bank, slot, "id");
+            s_prefs.remove(key);
+        }
+    }
+    s_prefs.putUChar("fav_sel", (uint8_t)selectedGroup);
+    s_bank = (uint8_t)selectedGroup;
+    s_cacheValid = false;
+    loadBankCache();
+    error = "";
     return true;
 }
 #endif

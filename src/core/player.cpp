@@ -379,9 +379,6 @@ void Player::_play(uint16_t stationId) {
     config.station.sdArtist[0] = '\0';
     config.station.sdAlbum[0] = '\0';
     display.putRequest(NEWTITLE);
-    #ifdef SD_COVER_ART
-    display.loadSdCover();
-    #endif
     isConnected = connecttoFS(sdman, config.station.url, -1);
   } else {
 #ifdef USE_DLNA //DLNA mod
@@ -400,6 +397,11 @@ void Player::_play(uint16_t stationId) {
   // ----- START PLAYING -----
   if (isConnected) {
     _status = PLAYING;
+    #ifdef SD_COVER_ART
+    if (config.getMode() == PM_SDCARD) {
+      display.loadSdCover();
+    }
+    #endif
     syncClockOnPlaybackStart();
     config.configPostPlaying(stationId);
     _loadVol(config.store.volume); // przywróć głośność po podłączeniu strumienia

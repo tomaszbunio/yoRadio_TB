@@ -3,7 +3,7 @@
 #pragma once
 #include <Arduino.h>
 
-// Presets / Favorites screen (8 slots per bank, 6 banks selectable via FAV1..FAV6).
+// Presets / Favorites screen (8 slots per bank, 5 banks selectable via FAV1..FAV5).
 // Usage (implemented in touchscreen.cpp):
 // - Tap top bar (PLAYER) -> open presets screen (PG_PRESETS)
 // - Tap preset: play + return to PLAYER
@@ -23,6 +23,16 @@ int  presets_hitTestFav(uint16_t x, uint16_t y);     // returns 0..4  or -1
 // Bank (FAV) selection:
 void presets_selectBank(uint8_t fav);
 
+// IR single-digit selection (1-8, confirmed with PLAY).
+void presets_irReset();
+void presets_irDigit(uint8_t digit);
+bool presets_irPlay();
+void presets_irSaveMode();
+void presets_irDeleteMode();
+void presets_irChangeAction(bool next);
+bool presets_irCancel();
+void presets_irChangeBank(bool next);
+
 // Keyboard (FAV label edit):
 bool presets_keyboardActive();
 void presets_keyboardOpen(uint8_t fav);
@@ -38,5 +48,8 @@ void presets_clearHoldBar();
 bool presets_toastExpired();
 
 void sanitizePresets(uint8_t bank);
-#endif
 
+// Web backup / restore.
+String presets_exportJson();
+bool presets_importJson(const String& json, String& error);
+#endif

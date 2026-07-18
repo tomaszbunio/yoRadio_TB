@@ -39,7 +39,11 @@ Display display;
 Nextion nextion;
 #endif
 
-static constexpr bool kTouchEnabled = (TS_MODEL != TS_MODEL_UNDEFINED);
+#if defined(ENABLE_TOUCH) && (TS_MODEL != TS_MODEL_UNDEFINED)
+static constexpr bool kTouchEnabled = true;
+#else
+static constexpr bool kTouchEnabled = false;
+#endif
 
 #ifdef DEBUG_MODE_SWITCH
 static const char* dbgModeName(displayMode_e m) {
@@ -1113,7 +1117,7 @@ void Display::_drawPlaylist() {
 }
 
 void Display::_drawNextStationNum(uint16_t num) {
-    timekeeper.waitAndReturnPlayer(30);
+    timekeeper.waitAndReturnPlayer(2);
     _meta->setText(config.stationByNum(num));
     _nums->setText(num, "%d");
 }

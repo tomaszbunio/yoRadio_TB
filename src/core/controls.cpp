@@ -9,6 +9,9 @@
 #include "netserver.h"
 #include "../pluginsManager/pluginsManager.h"
 #include "deepsleep.h"
+#if DSP_MODEL == DSP_ILI9488
+  #include "presets.h"
+#endif
 #ifdef NEOPIXEL_ON
   #include "../NeoPixel/NeoPixel.h"
 #endif
@@ -449,6 +452,12 @@ void irBlink() {
 }
 
 void irNumber(uint8_t num) {
+#if DSP_MODEL == DSP_ILI9488
+  if (display.mode() == PRESETS) {
+    presets_irDigit(num);
+    return;
+  }
+#endif
   uint16_t s;
   if (display.numOfNextStation == 0 && num == 0) return;
   display.putRequest(NEWMODE, NUMBERS);
@@ -484,11 +493,15 @@ void irLoop() {
     }
     switch (irVolRepeat) {
       case 1: {
-          controlsEvent(display.mode() == STATIONS ? false : true);
+          if (display.mode() != PRESETS) {
+            controlsEvent(display.mode() == STATIONS ? false : true);
+          }
           break;
         }
       case 2: {
-          controlsEvent(display.mode() == STATIONS ? true : false);
+          if (display.mode() != PRESETS) {
+            controlsEvent(display.mode() == STATIONS ? true : false);
+          }
           break;
         }
     }
@@ -512,6 +525,14 @@ void irLoop() {
           switch (target){
             case IR_PLAY: {
                 irBlink();
+#if DSP_MODEL == DSP_ILI9488
+                if (display.mode() == PRESETS) {
+                  if (presets_irPlay()) {
+                    display.putRequest(NEWMODE, PLAYER);
+                  }
+                  break;
+                }
+#endif
                 if (display.mode() == NUMBERS) {
                   display.putRequest(NEWMODE, PLAYER);
                   player.sendCommand({PR_PLAY, display.numOfNextStation});
@@ -522,20 +543,46 @@ void irLoop() {
                 break;
               }
             case IR_PREV: {
+#if DSP_MODEL == DSP_ILI9488
+                if (display.mode() == PRESETS) {
+                  presets_irChangeBank(false);
+                  break;
+                }
+#endif
                 player.prev();
                 break;
               }
             case IR_NEXT: {
+#if DSP_MODEL == DSP_ILI9488
+                if (display.mode() == PRESETS) {
+                  presets_irChangeBank(true);
+                  break;
+                }
+#endif
                 player.next();
                 break;
               }
             case IR_UP: {
+#if DSP_MODEL == DSP_ILI9488
+                if (display.mode() == PRESETS) {
+                  presets_irChangeAction(true);
+                  irVolRepeat = 0;
+                  break;
+                }
+#endif
                 volDbg("IR_UP", "controlsEvent", irResults.value & 0x7fffffff, irResults.repeat ? 1 : 0);
                 controlsEvent(display.mode() == STATIONS ? false : true);
                 irVolRepeat = 1;
                 break;
               }
             case IR_DOWN: {
+#if DSP_MODEL == DSP_ILI9488
+                if (display.mode() == PRESETS) {
+                  presets_irChangeAction(false);
+                  irVolRepeat = 0;
+                  break;
+                }
+#endif
                 volDbg("IR_DOWN", "controlsEvent", irResults.value & 0x7fffffff, irResults.repeat ? 1 : 0);
                 controlsEvent(display.mode() == STATIONS ? true : false);
                 irVolRepeat = 2;
@@ -560,6 +607,11 @@ void irLoop() {
                 break;
               }
             case IR_HASH: {
+#if DSP_MODEL == DSP_ILI9488
+                if (display.mode() == PRESETS) {
+                  presets_irDeleteMode();
+                }
+#endif
                 break;
               }
             case IR_MENU: {
@@ -581,10 +633,24 @@ void irLoop() {
               }
             case IR_HOME: {
                 display.numOfNextStation = 0;
+#if DSP_MODEL == DSP_ILI9488
+                if (display.mode() == SD_PLAYER || config.isSdPlayer) {
+                  // HOME is intentionally ignored in SD mode.
+                } else {
+                  presets_irReset();
+                  display.putRequest(NEWMODE, PRESETS);
+                }
+#else
                 display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
+#endif
                 break;
               }
             case IR_BACK: {
+#if DSP_MODEL == DSP_ILI9488
+                if (display.mode() == PRESETS && presets_irCancel()) {
+                  break;
+                }
+#endif
                 if (display.mode() != PLAYER && display.mode() != SD_PLAYER) {
                   display.numOfNextStation = 0;
                   display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
@@ -632,7 +698,12 @@ void irLoop() {
                 break;
               }
             case IR_AST: {
-                //ESP.restart();
+#if DSP_MODEL == DSP_ILI9488
+                if (display.mode() == PRESETS) {
+                  presets_irSaveMode();
+                  break;
+                }
+#endif
                 onBtnClick(EVT_BTNMODE);
                 break;
               }
@@ -821,7 +892,15 @@ void onBtnClick(int id) {
           #endif
         }
         if (display.mode() == STATIONS) {
-          display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
+          // A newly selected track switches to SD_PLAYER from Config::prepareForPlaying().
+          // Queueing SD_PLAYER here as well caused the page to be refreshed twice.
+          // If the already playing SD track was selected, CLOSEPLAYLIST skips playback,
+          // so close the list explicitly in that one case.
+          if (config.getMode() == PM_SDCARD &&
+              player.isRunning() &&
+              display.currentPlItem == config.lastStation()) {
+            display.putRequest(NEWMODE, SD_PLAYER);
+          }
           #ifdef DSP_LCD
             delay(200);
           #endif

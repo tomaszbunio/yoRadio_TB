@@ -225,6 +225,17 @@ void TimeKeeper::waitAndReturnPlayer(uint8_t time_s) {
 void TimeKeeper::_returnPlayer() {
     if (_returnPlayerTime > 0 && millis() >= _returnPlayerTime) {
         _returnPlayerTime = 0;
+        if (display.mode() == NUMBERS) {
+            uint16_t station = display.numOfNextStation;
+            display.numOfNextStation = 0;
+            if (station >= 1 && station <= config.playlistLength()) {
+                // Config::prepareForPlaying() switches back to the proper player page.
+                player.sendCommand({PR_PLAY, station});
+            } else {
+                display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
+            }
+            return;
+        }
 #ifdef DEBUG_MODE_SWITCH
         Serial.printf("[MODEDBG][Return] mode=%d playMode=%d isSdPlayer=%d currentPlItem=%u lastStation=%u\n",
                       (int)display.mode(), (int)config.getMode(), config.isSdPlayer ? 1 : 0, display.currentPlItem, config.lastStation());

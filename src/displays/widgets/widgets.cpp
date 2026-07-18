@@ -2439,7 +2439,6 @@ void BitrateWidget::clearAll() {
 static String   _plCache[MAX_PL_PAGE_ITEMS];
 static int16_t  _plLoadedPage = -1;
 static int16_t  _plLastGlobalPos = -1;
-static uint32_t _plLastDrawTime = 0;
 
 void PlayListWidget::init(ScrollWidget* current) {
     Widget::init({0, 0, 0, WA_LEFT}, 0, 0);
@@ -2456,7 +2455,6 @@ void PlayListWidget::init(ScrollWidget* current) {
     _plLoadedPage = -1;
     _plLastGlobalPos = -1;
     _plCurrentPos = 0;
-    _plLastDrawTime = 0;
 }
 
 void _loadPlaylistPage(int pageIndex, int itemsPerPage, int totalItems) {
@@ -2497,20 +2495,16 @@ void _loadPlaylistPage(int pageIndex, int itemsPerPage, int totalItems) {
 }
 
 void PlayListWidget::drawPlaylist(uint16_t currentItem) {
-    // If > 2000ms has passed since the last call, we assume we are returning from another screen and redraw the entire screen
-    bool isLongPause = (millis() - _plLastDrawTime > 2000);
-    _plLastDrawTime = millis();
     int activeIdx = (currentItem > 0) ? (currentItem - 1) : 0;
     int itemsPerPage = _plTtemsCount;
     int newPage = activeIdx / itemsPerPage;
     int newLocalPos = activeIdx % itemsPerPage;
     _plCurrentPos = newLocalPos;
     bool pageChanged = (newPage != _plLoadedPage);
-    // FULL DRAWING CONDITIONS:
-    // 1. Page change
-    // 2. Return to player (V-Tom 2 seconds / automatic stream selection confirmation)
-    // 3. Empty cache (start)
-    if (pageChanged || isLongPause || _plCache[0].length() == 0) {
+    // A full draw is needed only after entering the list (empty/reset cache)
+    // or after moving to another page. A pause between key presses must not
+    // refresh the whole screen.
+    if (pageChanged || _plCache[0].length() == 0) {
         // If it's just returning to the same page, we don't need to read from memory (saves time)
         // We only read from memory if the page has actually changed or the cache is empty.
         if (pageChanged || _plCache[0].length() == 0) {

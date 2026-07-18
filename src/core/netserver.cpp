@@ -14,6 +14,9 @@
 #include "controls.h"
 #include "commandhandler.h"
 #include "timekeeper.h"
+#if DSP_MODEL == DSP_ILI9488
+  #include "presets.h"
+#endif
 #include "../Scheduler/scheduler.h"
 #include "../displays/dspcore.h"
 #include "../displays/widgets/widgetsconfig.h"  //BitrateFormat
@@ -319,6 +322,49 @@ bool NetServer::begin(bool quiet) {
 #endif
     netserver.chunkedHtmlPage("application/octet-stream", request, REAL_PLAYL);
   });
+#if DSP_MODEL == DSP_ILI9488
+  webserver.on("/fav/export", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String json = presets_exportJson();
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/json; charset=utf-8", json);
+    response->addHeader("Content-Disposition", "attachment; filename=\"yoradio_fav_backup.json\"");
+    response->addHeader("Cache-Control", "no-store");
+    request->send(response);
+  });
+  webserver.on(
+    "/fav/import", HTTP_POST,
+    [](AsyncWebServerRequest *request) {
+      String *body = static_cast<String *>(request->_tempObject);
+      request->_tempObject = nullptr;
+      if (!body) {
+        request->send(400, "application/json", "{\"ok\":false,\"error\":\"Missing backup data\"}");
+        return;
+      }
+      String error;
+      bool ok = presets_importJson(*body, error);
+      delete body;
+      if (!ok) {
+        String response = String("{\"ok\":false,\"error\":\"") + error + "\"}";
+        request->send(400, "application/json", response);
+        return;
+      }
+      request->send(200, "application/json", "{\"ok\":true}");
+    },
+    nullptr,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      if (index == 0) {
+        if (total == 0 || total > 32768) { return; }
+        String *body = new String();
+        if (!body) { return; }
+        body->reserve(total);
+        request->_tempObject = body;
+      }
+      String *body = static_cast<String *>(request->_tempObject);
+      if (body && body->length() + len <= 32768) {
+        body->concat((const char *)data, len);
+      }
+    }
+  );
+#endif
   webserver.on("/webboard", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send_P(200, "text/html", emptyfs_html);
   });
