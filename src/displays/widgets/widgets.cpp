@@ -13,7 +13,7 @@
     #include "../tools/psframebuffer.h"
     #include "Arduino.h"
     #include "widgets.h"
-	
+
 	#include "../fonts/dsfont70.h"
 // clang-format on
 
@@ -2525,7 +2525,7 @@ void PlayListWidget::drawPlaylist(uint16_t currentItem) {
 
 void PlayListWidget::_printPLitem(uint8_t pos, const char* item) {
 #ifndef DSP_LCD
-   
+
     if (pos >= _plTtemsCount) return;
 
     int16_t yPos = _plYStart + pos * _plItemHeight;
@@ -2536,7 +2536,7 @@ void PlayListWidget::_printPLitem(uint8_t pos, const char* item) {
                                   : config.theme.background;
     uint16_t fgColor = isSelected ? config.theme.plcurrent
                                   : config.theme.playlist[0];
-    
+
 #else
     uint16_t bgColor = config.theme.background;
     uint16_t fgColor = isSelected ? config.theme.plcurrent
@@ -2631,7 +2631,7 @@ void PlayListWidget::_printPLitem(uint8_t pos, const char* item) {
 }
         #else
 void PlayListWidget::_printPLitem(uint8_t pos, const char* item) {
-	
+
     if (pos == _plCurrentPos) {
         _current->setText(item);
     } else {

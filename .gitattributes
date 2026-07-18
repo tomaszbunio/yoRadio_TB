@@ -1,0 +1,28 @@
+* text=auto
+.gitattributes text eol=lf
+
+# Keep source and project configuration consistent on every OS.
+*.c       text eol=lf
+*.cpp     text eol=lf
+*.h       text eol=lf
+*.hpp     text eol=lf
+*.ino     text eol=lf
+*.py      text eol=lf
+*.ini     text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
+*.json    text eol=lf
+*.js      text eol=lf
+*.css     text eol=lf
+*.html    text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+
+# Generated firmware and compressed web assets are binary.
+*.bin     binary
+*.gz      binary
+*.raw     binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.ico     binary
