@@ -1043,7 +1043,7 @@ void Config::setDefaults() {
     BOOTLOG("***************** SET DEFAULT *****************");
     store.config_set = 4263;
     store.version = CONFIG_VERSION;
-    store.volume = 30;
+    store.volume = 20;
     store.balance = 0;
     store.trebble = 6;
     store.middle = 0;
