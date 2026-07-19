@@ -166,7 +166,6 @@ static void dlna_worker_task(void* ) {
         continue;
       }
 
-      config.sdResumePos = 0;
       config.resumeAfterModeChange = false;
 
       // 🔑 DLNA build -> reset DLNA index ONLY

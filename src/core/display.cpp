@@ -798,7 +798,7 @@ void Display::_sdPlayerScreen() {
     #endif
     if (_sdprogress) {
         uint32_t dur = player.getAudioFileDuration();
-        uint32_t pos = player.getAudioCurrentTime();
+        uint32_t pos = player.getSDCurrentTime();
         _sdprogress->setValue(dur > 0 ? (uint32_t)((uint64_t)pos * 1000 / dur) : 0);
     }
     _drawSdTimers();
@@ -808,7 +808,7 @@ void Display::_sdPlayerScreen() {
 
 void Display::_drawSdTimers(bool force) {
     uint32_t dur = player.getAudioFileDuration();
-    uint32_t pos = player.getAudioCurrentTime();
+    uint32_t pos = player.getSDCurrentTime();
     char buf[8];
 
     // currentTime

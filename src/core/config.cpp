@@ -54,7 +54,6 @@ bool Config::_isFSempty() {
 
 void Config::init() {
     EEPROM.begin(EEPROM_SIZE);
-    sdResumePos = 0;
     /*----- I2C init -----*/
 #if (RTC_MODULE == DS3231) || (TS_MODEL == TS_MODEL_FT6X36) || (TS_MODEL == TS_MODEL_GT911)
     Wire.begin(TS_SDA, TS_SCL);
@@ -130,6 +129,16 @@ void Config::init() {
     }
 
     BOOTLOG("CONFIG_VERSION\t%d", store.version);
+
+#ifdef SD_REMEMBER_LAST_POSITION
+    sdResumePos = store.sdResumePos;
+    sdResumeStation = store.sdResumeStation;
+    sdResumeTime = store.sdResumeTime;
+#else
+    sdResumePos = 0;
+    sdResumeStation = 0;
+    sdResumeTime = 0;
+#endif
 
     store.play_mode = store.play_mode & 0b11;
     // DLNA modplus
@@ -309,6 +318,13 @@ void Config::_setupVersion() {
   saveValue(&store.neopixel_rotate1_color, store.neopixel_enc1_color == 0xFFFF ? color565(COLOR_STATION_NAME) : store.neopixel_enc1_color);
   saveValue(&store.neopixel_rotate2_color, store.neopixel_enc2_color == 0xFFFF ? color565(COLOR_CLOCK) : store.neopixel_enc2_color);
   break;
+  case 18:
+  saveValue(&store.sdResumePos, (uint32_t)0, false);
+  saveValue(&store.sdResumeStation, (uint16_t)0);
+  break;
+  case 19:
+  saveValue(&store.sdResumeTime, (uint32_t)0);
+  break;
         default: break;
     }
     currentVersion++;
@@ -333,10 +349,7 @@ void Config::changeMode(int newmode) { // DLNA mod
     bool switchingSdToWeb = (getMode() == PM_SDCARD && newmode == PM_WEB);
 
     if (switchingSdToWeb && pir) {
-    #ifdef SD_RESUME_ENABLED
-        sdResumePos = player.getAudioFilePosition();
-        stopedSdStationId = lastStation();
-    #endif
+        rememberSDPosition();
         player.setOutputPins(false);
         player.setVolume(0);
         player.stopSong();
@@ -390,6 +403,9 @@ void Config::changeMode(int newmode) { // DLNA mod
     if (switchingToWeb) { station.title[0] = '\0'; }
 
     if (pir) {
+        // changeMode() queues the destination screen below. The following
+        // PR_PLAY must not queue the same full-screen refresh a second time.
+        modeChangeScreenQueued = true;
     #ifdef USE_DLNA
         uint16_t st = (getMode() == PM_SDCARD) ? store.lastSdStation : (store.playlistSource == PL_SRC_DLNA ? store.lastDlnaStation : store.lastStation);
     #else
@@ -419,7 +435,6 @@ void Config::initSDPlaylist() {
     sdman.indexSDPlaylist();
     if (SDPLFS()->exists(INDEX_SD_PATH)) {
         File index = SDPLFS()->open(INDEX_SD_PATH, "r");
-        sdResumePos = 0;
         index.close();
     }
 #endif // #ifdef USE_SD
@@ -458,7 +473,11 @@ bool Config::prepareForPlaying(uint16_t stationId) {
     setBitrateFormat(BF_UNKNOWN);
     display.putRequest(DBITRATE);
     display.putRequest(NEWSTATION);
-    display.putRequest(NEWMODE, getMode() == PM_SDCARD ? SD_PLAYER : PLAYER);
+    if (modeChangeScreenQueued) {
+        modeChangeScreenQueued = false;
+    } else {
+        display.putRequest(NEWMODE, getMode() == PM_SDCARD ? SD_PLAYER : PLAYER);
+    }
     netserver.requestOnChange(STATION, 0);
     netserver.requestOnChange(MODE, 0);
     netserver.loop();
@@ -485,16 +504,74 @@ void Config::configPostPlaying(uint16_t stationId) { // DLNA mod
 }
 
 void Config::setSDpos(uint32_t val) {
-    if (getMode() == PM_SDCARD) {
-        if (!player.isRunning()) {
-        #ifdef SD_RESUME_ENABLED
-            sdResumePos = 0; // clear stale resume before storing a new one
-            config.sdResumePos = val - player.sd_min;
-        #endif
-        } else {
-            player.setAudioFilePosition(val - player.sd_min);
+    if (getMode() != PM_SDCARD) { return; }
+    uint32_t offset = (val > player.sd_min) ? val - player.sd_min : 0;
+    if (player.isRunning()) {
+        player.clearSDTimeBase();
+        player.setAudioFilePosition(player.sd_min + offset);
+    } else {
+#ifdef SD_REMEMBER_LAST_POSITION
+        sdResumePos = offset;
+        sdResumeStation = lastStation();
+        uint32_t duration = player.getAudioFileDuration();
+        uint32_t dataSize = player.sd_max > player.sd_min ? player.sd_max - player.sd_min : 0;
+        sdResumeTime = (duration && dataSize)
+            ? (uint32_t)((uint64_t)offset * duration / dataSize)
+            : 0;
+        saveValue(&store.sdResumePos, sdResumePos, false);
+        saveValue(&store.sdResumeStation, sdResumeStation, false);
+        saveValue(&store.sdResumeTime, sdResumeTime);
+#endif
+    }
+}
+
+void Config::rememberSDPosition() {
+#ifdef SD_REMEMBER_LAST_POSITION
+    if (getMode() != PM_SDCARD) { return; }
+    uint32_t position = player.getAudioFilePosition();
+    sdResumePos = (position > player.sd_min) ? position - player.sd_min : 0;
+    sdResumeStation = lastStation();
+    sdResumeTime = player.getSDCurrentTime();
+    saveValue(&store.sdResumePos, sdResumePos, false);
+    saveValue(&store.sdResumeStation, sdResumeStation, false);
+    saveValue(&store.sdResumeTime, sdResumeTime);
+#endif
+}
+
+void Config::clearSDPosition() {
+    sdResumePos = 0;
+    sdResumeStation = 0;
+    sdResumeTime = 0;
+    player.clearSDTimeBase();
+#ifdef SD_REMEMBER_LAST_POSITION
+    saveValue(&store.sdResumePos, (uint32_t)0, false);
+    saveValue(&store.sdResumeStation, (uint16_t)0, false);
+    saveValue(&store.sdResumeTime, (uint32_t)0);
+#endif
+}
+
+void Config::resumeSDPosition() {
+#ifdef SD_REMEMBER_LAST_POSITION
+    if (getMode() != PM_SDCARD || sdResumePos == 0 || sdResumeStation != lastStation()) {
+        return;
+    }
+    uint32_t position = sdResumePos;
+    uint32_t resumeTime = sdResumeTime;
+    if (resumeTime == 0) {
+        uint32_t duration = player.getAudioFileDuration();
+        uint32_t dataSize = player.sd_max > player.sd_min ? player.sd_max - player.sd_min : 0;
+        if (duration && dataSize) {
+            resumeTime = (uint32_t)((uint64_t)position * duration / dataSize);
         }
     }
+    // Clear only the runtime copy. Keep EEPROM intact until playback is
+    // stopped and a newer safe position is stored.
+    sdResumePos = 0;
+    sdResumeStation = 0;
+    sdResumeTime = 0;
+    player.setAudioFilePosition(player.sd_min + position);
+    player.setSDTimeBase(resumeTime);
+#endif
 }
 
 void Config::initPlaylistMode() {
@@ -512,7 +589,7 @@ void Config::initPlaylistMode() {
             initSDPlaylist();
         }
         uint16_t cs = playlistLength();
-#ifndef SD_ALWAYS_START_FROM_FIRST
+#ifdef SD_REMEMBER_LAST_TRACK
         if (store.lastSdStation > 0 && store.lastSdStation <= cs
             && store.lastSdTrackName[0] != '\0') {
             const char* currentName = stationByNum(store.lastSdStation);
@@ -1082,6 +1159,9 @@ void Config::setDefaults() {
   store.tseconds  = color565(COLOR_SECONDS);
   store.tfliptext = 0x0000;
   store.tflipcard = 0xFFFF;
+  store.sdResumePos = 0;
+  store.sdResumeStation = 0;
+  store.sdResumeTime = 0;
     // DLNA mod
     store.playlistSource = PL_SRC_WEB;
 

@@ -42,7 +42,7 @@
     #define ESP_ARDUINO_3 1
 #endif
 
-#define CONFIG_VERSION 18
+#define CONFIG_VERSION 20
 
 enum playMode_e : uint8_t { // DLNA mod
     PM_WEB = 0,
@@ -227,6 +227,9 @@ uint16_t tflipcard;
 uint8_t neopixel_enabled;
 char lastSdTrackName[32]; // filename at lastSdStation; empty = unknown
 uint16_t tch;
+uint32_t sdResumePos;
+uint16_t sdResumeStation;
+uint32_t sdResumeTime;
 
 };
 
@@ -289,8 +292,6 @@ class Config {
     neworkItem    ssids[5];
     uint8_t       ssidsCount;
     uint16_t      sleepfor;
-    uint32_t      sdResumePos;
-    uint16_t      stopedSdStationId = -1;
     bool          isClockTTS;
     bool          emptyFS;
     uint16_t      vuRefLevel;
@@ -299,6 +300,10 @@ class Config {
     bool          isScreensaver;
     bool          isSdPlayer;
     int           newConfigMode;
+    uint32_t      sdResumePos = 0;
+    uint16_t      sdResumeStation = 0;
+    uint32_t      sdResumeTime = 0;
+    bool          modeChangeScreenQueued = false;
     char          tmpBuf[BUFLEN];
     char          tmpBuf2[BUFLEN];
     char          ipBuf[16];
@@ -409,6 +414,9 @@ class Config {
     void     setShowweather(bool val);
     void     setWeatherKey(const char* val);
     void     setSDpos(uint32_t val);
+    void     rememberSDPosition();
+    void     clearSDPosition();
+    void     resumeSDPosition();
 #if IR_PIN != 255
     void setIrBtn(int val);
 #endif

@@ -58,11 +58,12 @@ static uint16_t  *_sdCoverPngLine = nullptr;
 
 static int _sdCoverDrawCb(JPEGDRAW *pDraw) {
     if (!_sdCoverSrcBuf) return 0;
+    const int blockWidth = min((int)pDraw->iWidth, (int)pDraw->iWidthUsed);
     for (int r = 0; r < pDraw->iHeight; r++) {
         int sy = pDraw->y + r;
         if (sy < 0 || sy >= _sdCoverSrcH) continue;
         int copyStart = max(0, (int)pDraw->x);
-        int copyEnd   = min((int)_sdCoverSrcW, (int)pDraw->x + (int)pDraw->iWidth);
+        int copyEnd   = min((int)_sdCoverSrcW, (int)pDraw->x + blockWidth);
         if (copyStart >= copyEnd) continue;
         memcpy(&_sdCoverSrcBuf[sy * _sdCoverSrcW + copyStart],
                &pDraw->pPixels[r * pDraw->iWidth + (copyStart - pDraw->x)],
@@ -447,11 +448,16 @@ private:
                 _sdCoverSrcH = srcH;
                 _sdCoverSrcBuf = (uint16_t*)ps_malloc((size_t)srcW * srcH * sizeof(uint16_t));
                 if (!_sdCoverSrcBuf) _sdCoverSrcBuf = (uint16_t*)malloc((size_t)srcW * srcH * sizeof(uint16_t));
+                if (_sdCoverSrcBuf) memset(_sdCoverSrcBuf, 0, (size_t)srcW * srcH * sizeof(uint16_t));
             }
             jpeg->setPixelType(RGB565_LITTLE_ENDIAN);
             if (_sdCoverSrcBuf) {
-                jpeg->decode(0, 0, 0);
-                decoded = _scaleSrcToCover(_sdCoverSrcBuf, srcW, srcH);
+                int rc = jpeg->decode(0, 0, 0);
+                if (rc) {
+                    decoded = _scaleSrcToCover(_sdCoverSrcBuf, srcW, srcH);
+                } else {
+                    SD_DEBUG_PRINTF("[SD_COVER] jpeg decode failed, error=%d\n", jpeg->getLastError());
+                }
             }
             jpeg->close();
         }
@@ -678,12 +684,17 @@ private:
                 _sdCoverSrcBuf = (uint16_t*)ps_malloc((size_t)srcW * srcH * sizeof(uint16_t));
                 if (!_sdCoverSrcBuf) _sdCoverSrcBuf = (uint16_t*)malloc((size_t)srcW * srcH * sizeof(uint16_t));
                 _sdCoverPngLine = (uint16_t*)malloc((size_t)srcW * sizeof(uint16_t));
+                if (_sdCoverSrcBuf) memset(_sdCoverSrcBuf, 0, (size_t)srcW * srcH * sizeof(uint16_t));
             }
             if (_sdCoverSrcBuf && _sdCoverPngLine) {
                 _sdCoverPng = png;
-                png->decode(NULL, 0);
+                int rc = png->decode(NULL, 0);
                 _sdCoverPng = nullptr;
-                decoded = _scaleSrcToCover(_sdCoverSrcBuf, srcW, srcH);
+                if (rc == PNG_SUCCESS) {
+                    decoded = _scaleSrcToCover(_sdCoverSrcBuf, srcW, srcH);
+                } else {
+                    SD_DEBUG_PRINTF("[SD_COVER] png decode failed, error=%d\n", rc);
+                }
             }
             png->close();
         }
@@ -787,5 +798,4 @@ private:
 };
 
 #endif // SD_COVER_ART && SDC_CS != 255
-
 

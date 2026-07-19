@@ -99,6 +99,8 @@ class NetServer {
     char chunkedPathBuffer[40];
     char nsBuf[BUFLEN], nsBuf2[BUFLEN];
     String wifiCsvCache;
+    bool refreshPlaylistCache(bool force=false);
+    void sendPlaylistFromCache(AsyncWebServerRequest *request);
   public:
     NetServer() {};
     bool begin(bool quiet=false);
@@ -121,6 +123,10 @@ class NetServer {
     char wsBuf[BUFLEN*4];
     int rssi;
     uint32_t playerBufMax;
+    String playlistCsvCache;
+    char playlistCachePath[40] = {0};
+    SemaphoreHandle_t playlistCacheMutex = nullptr;
+    bool playlistCacheValid = false;
     void getPlaylist(uint8_t clientId);
     bool importPlaylist();
     static size_t chunkedHtmlPageCallback(uint8_t* buffer, size_t maxLen, size_t index);

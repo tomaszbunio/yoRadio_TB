@@ -100,6 +100,8 @@ bool NetServer::begin(bool quiet) {
   while (nsQueue == NULL) {
     ;
   }
+  playlistCacheMutex = xSemaphoreCreateMutex();
+  refreshPlaylistCache(true);
 
   webserver.on("/", HTTP_ANY, handleIndex);
   webserver.onNotFound(handleNotFound);
@@ -219,6 +221,14 @@ bool NetServer::begin(bool quiet) {
   webserver.on("/dlna/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     //DLNA modplus
     static uint32_t s_appliedBuildVer = 0;
+    static uint32_t s_cachedPlaylistVer = 0;
+    if (!g_dlnaStatus.busy && g_dlnaStatus.ok && g_dlnaStatus.playlistVer != 0
+        && g_dlnaStatus.playlistVer != s_cachedPlaylistVer) {
+      s_cachedPlaylistVer = g_dlnaStatus.playlistVer;
+      if (config.getMode() == PM_WEB && config.store.playlistSource == PL_SRC_DLNA) {
+        netserver.refreshPlaylistCache(true);
+      }
+    }
     if (!g_dlnaStatus.busy && g_dlnaStatus.ok && g_dlnaStatus.playlistVer != 0 && g_dlnaStatus.playlistVer != s_appliedBuildVer
         && strstr(g_dlnaStatus.msg, "build ok") != nullptr) {
 
@@ -268,6 +278,7 @@ bool NetServer::begin(bool quiet) {
     }
 
     config.resumeAfterModeChange = false;
+    netserver.refreshPlaylistCache(true);
 
     netserver.requestOnChange(GETINDEX, 0);
     netserver.requestOnChange(GETPLAYERMODE, 0);
@@ -300,6 +311,7 @@ bool NetServer::begin(bool quiet) {
       player.sendCommand({PR_PLAY, config.lastStation()});
     }
     config.resumeAfterModeChange = false;
+    netserver.refreshPlaylistCache(true);
 
     netserver.requestOnChange(GETINDEX, 0);
     netserver.requestOnChange(GETPLAYERMODE, 0);
@@ -320,7 +332,7 @@ bool NetServer::begin(bool quiet) {
 #ifdef MQTT_ROOT_TOPIC
     while (mqttplaylistblock) { vTaskDelay(5); }
 #endif
-    netserver.chunkedHtmlPage("application/octet-stream", request, REAL_PLAYL);
+    netserver.sendPlaylistFromCache(request);
   });
 #if DSP_MODEL == DSP_ILI9488
   webserver.on("/fav/export", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -450,6 +462,60 @@ void NetServer::chunkedHtmlPage(const String &contentType, AsyncWebServerRequest
   request->send(response);
 }
 
+bool NetServer::refreshPlaylistCache(bool force) {
+  const char *path = REAL_PLAYL;
+  if (!force && playlistCacheValid && strcmp(playlistCachePath, path) == 0) {
+    return true;
+  }
+
+  File playlist;
+  if (strcmp(path, PLAYLIST_SD_PATH) == 0) {
+    playlist = config.SDPLFS()->open(path, "r");
+  } else {
+    playlist = SPIFFS.open(path, "r");
+  }
+  if (!playlist) {
+    playlistCacheValid = false;
+    return false;
+  }
+
+  String loaded;
+  const size_t size = playlist.size();
+  if (!loaded.reserve(size + 1)) {
+    playlist.close();
+    return false;
+  }
+  while (playlist.available()) {
+    char buffer[512];
+    const size_t bytesRead = playlist.readBytes(buffer, sizeof(buffer));
+    if (bytesRead == 0) break;
+    loaded.concat(buffer, bytesRead);
+    delay(0);
+  }
+  playlist.close();
+
+  if (playlistCacheMutex) xSemaphoreTake(playlistCacheMutex, portMAX_DELAY);
+  playlistCsvCache = loaded;
+  strlcpy(playlistCachePath, path, sizeof(playlistCachePath));
+  playlistCacheValid = true;
+  if (playlistCacheMutex) xSemaphoreGive(playlistCacheMutex);
+  Serial.printf("[WEB] Playlist cached: %s (%u bytes)\n", playlistCachePath, (unsigned)playlistCsvCache.length());
+  return true;
+}
+
+void NetServer::sendPlaylistFromCache(AsyncWebServerRequest *request) {
+  if (!refreshPlaylistCache(false)) {
+    chunkedHtmlPage("application/octet-stream", request, REAL_PLAYL);
+    return;
+  }
+
+  if (playlistCacheMutex) xSemaphoreTake(playlistCacheMutex, portMAX_DELAY);
+  AsyncWebServerResponse *response = request->beginResponse(200, "application/octet-stream", playlistCsvCache);
+  if (playlistCacheMutex) xSemaphoreGive(playlistCacheMutex);
+  response->addHeader("Cache-Control", "max-age=31536000");
+  request->send(response);
+}
+
 #ifndef DSP_NOT_FLIPPED
   #define DSP_CAN_FLIPPED true
 #else
@@ -496,6 +562,7 @@ void NetServer::processQueue() {
         if (config.getMode() == PM_WEB && config.store.playlistSource == PL_SRC_DLNA) {
           config.indexDLNAPlaylist();
           config.initDLNAPlaylist();
+          refreshPlaylistCache(true);
           break;
         }
 #endif
@@ -503,6 +570,7 @@ void NetServer::processQueue() {
           config.indexPlaylist();
           config.initPlaylist();
         }
+        refreshPlaylistCache(true);
         getPlaylist(clientId);
         break;
       }
@@ -739,7 +807,7 @@ void NetServer::processQueue() {
         break;
       case SDPOS:
         sprintf(
-          wsBuf, "{\"sdpos\": %lu,\"sdtpos\": %lu,\"sdtend\": %lu}", player.getAudioFilePosition(), player.getAudioCurrentTime(), player.getAudioFileDuration()
+          wsBuf, "{\"sdpos\": %lu,\"sdtpos\": %lu,\"sdtend\": %lu}", player.getAudioFilePosition(), player.getSDCurrentTime(), player.getAudioFileDuration()
         );
         //Serial.printf("netserver.cpp-->wsBuf: %s \n", wsBuf);
         break;
@@ -767,6 +835,7 @@ void NetServer::processQueue() {
       case SDINIT:  sprintf(wsBuf, "{\"sdinit\": %d}", SDC_CS != 255); break;
       case GETPLAYERMODE:
       {  //DLNA mod
+        refreshPlaylistCache(false);
 #ifdef USE_DLNA
         if (config.getMode() == PM_WEB && config.store.playlistSource == PL_SRC_DLNA) {
           sprintf(wsBuf, "{\"playermode\": \"modedlna\"}");
@@ -960,6 +1029,7 @@ if (strcmp(_wscmd, "sched_enable") == 0) {
 
         config.indexPlaylist();
         config.initPlaylist();
+        refreshPlaylistCache(true);
 
         netserver.requestOnChange(GETINDEX, 0);
         netserver.requestOnChange(GETPLAYERMODE, 0);
@@ -977,6 +1047,7 @@ if (strcmp(_wscmd, "sched_enable") == 0) {
 
         config.indexDLNAPlaylist();
         config.initDLNAPlaylist();
+        refreshPlaylistCache(true);
 
         netserver.requestOnChange(GETINDEX, 0);
         netserver.requestOnChange(GETPLAYERMODE, 0);
@@ -1147,6 +1218,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
       request->_tempFile.close();
       if (filename == "playlist.csv") {
         config.indexPlaylist();
+        netserver.refreshPlaylistCache(true);
       }
     }
   }
@@ -1236,7 +1308,12 @@ void handleNotFound(AsyncWebServerRequest *request) {
         netserver.chunkedHtmlPage("application/octet-stream", request, request->url().c_str());
       }*/
       if (strcmp(request->url().c_str(), PLAYLIST_PATH) == 0) {
-        netserver.chunkedHtmlPage("application/octet-stream", request, REAL_PLAYL);  //DLNA mod
+        netserver.sendPlaylistFromCache(request);
+        return;
+      }
+
+      if (strcmp(request->url().c_str(), REAL_PLAYL) == 0) {
+        netserver.sendPlaylistFromCache(request);
         return;
       }
 

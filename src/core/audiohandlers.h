@@ -15,7 +15,6 @@ extern decltype(nextion) nextion;
 
 String currentArtist = "";
 String currentTitle = "";
-uint16_t currentStationId = static_cast<uint16_t>(-1);
 bool metaOff = false;
 
 void my_audio_info(Audio::msg_t m);
@@ -32,7 +31,6 @@ void audio_beginSDread();
 void audio_id3data(const char *info);
 void audio_eof();
 void audio_progress(uint32_t startpos, uint32_t endpos);
-void seekSD();
 void removeBOM(char *s);
 bool cleanMeta(const char *src, char *dst, size_t dstSize);
 void _utf8_clean(char *s);
@@ -112,12 +110,11 @@ void my_audio_info(Audio::msg_t m) {
         display.putRequest(DBITRATE);
       }
 
-      // SD mód: "stream ready" → seek a mentett pozícióra
       if (strstr(msg, "stream ready") != nullptr) {
-        seekSD();
+        config.resumeSDPosition();
       }
       // SD mód: Audio-Data-Start
-      else if (strstr(msg, "Audio-Data-Start:") != nullptr) {
+      if (strstr(msg, "Audio-Data-Start:") != nullptr) {
         player.sd_min = atoi(msg + strlen("Audio-Data-Start:"));
       }
       // SD mód: teljes hossz (Audio-Length:)
@@ -163,10 +160,6 @@ void my_audio_info(Audio::msg_t m) {
       // Log a telnetre
       audio_id3data(msg);
 
-      // Track számból állomás ID (SD lejátszásnál fontos)
-      if (strstr(msg, "Track:") != nullptr) {
-        currentStationId = static_cast<uint16_t>(atoi(msg + strlen("Track:")));
-      }
       char metaBuf[BUFLEN];
       if (!metaOff && cleanMeta(msg, metaBuf, sizeof(metaBuf))) {
         // processID3 kiszedi az Artist / Title sorokat
@@ -254,26 +247,6 @@ void my_audio_info(Audio::msg_t m) {
     }
 	#endif 
   }
-}
-
-/* 
- * Ha megállítottuk a zene lejátszását SD módban és újraindítjuk, 
- * akkor a lejátszás az elejéről kezdődne. 
- * Ha megérkezik a "stream ready" üzenet, akkor vissza kell ugrani
- * a mentett stop pozícióra.
- */
-void seekSD() {
-#ifdef SD_RESUME_ENABLED
-  if (config.getMode() == PM_SDCARD && config.sdResumePos > 0) {
-    if (currentStationId == config.stopedSdStationId) {
-      uint32_t offset = 0;
-      if (config.sdResumePos > player.sd_min) {
-        offset = config.sdResumePos - player.sd_min;
-      }
-      player.setAudioFilePosition(offset);
-    }
-  }
-#endif
 }
 
 void processID3(const char *msg) {
@@ -489,7 +462,6 @@ void audio_id3data(const char *info) {
 void audio_eof() {
   //Serial.printf("mode=%d (PM_WEB=0, PM_SDCARD=1)\n", config.getMode());
   if (!config.isClockTTS && config.getMode() == PM_SDCARD) {
-    config.sdResumePos = 0;
     SD_DEBUG_PRINTLN("EOF: SD -> player.next()");
     player.next();
   }

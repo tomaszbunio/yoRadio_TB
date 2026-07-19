@@ -5928,7 +5928,7 @@ bool Audio::setAudioFilePosition(uint32_t pos) {
     }
     if (pos < m_audioDataStart) {
         AUDIO_LOG_WARN("set audiodatastart at %u", m_audioDataStart);
-        m_resumeFilePos = m_audioDataStart;
+        pos = m_audioDataStart;
     }
     m_resumeFilePos = pos;
 
@@ -5936,7 +5936,20 @@ bool Audio::setAudioFilePosition(uint32_t pos) {
          ------------------  =  ----------------------------------
          m_audioDataSize        m_resumeFilePos - m_audioDataStart                                                  */
 
-    m_cat.sum_samples = (float)m_cat.tota_samples * ((float)(m_resumeFilePos - m_audioDataStart) / m_audioDataSize);
+    const uint32_t positionInAudio = m_resumeFilePos - m_audioDataStart;
+    const float positionRatio = m_audioDataSize
+        ? (float)positionInAudio / (float)m_audioDataSize
+        : 0.0f;
+    m_cat.sum_samples = (float)m_cat.tota_samples * positionRatio;
+    if (m_audioFileDuration) {
+        // Keep the UI timer synchronized immediately after a file seek.
+        // calculateAudioTime() will refine this value once decoding resumes.
+        m_audioCurrentTime = round((float)m_audioFileDuration * positionRatio);
+        if (m_cat.tota_samples == 0 && m_i2s_items.sampleRate) {
+            m_cat.sum_samples =
+                (float)m_audioFileDuration * (float)m_i2s_items.sampleRate * positionRatio;
+        }
+    }
     return true;
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————

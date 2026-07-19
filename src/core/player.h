@@ -38,6 +38,9 @@ private:
   uint8_t _volumeBeforeMute;
   uint32_t    _resumeFilePos;
   plStatus_e _status;
+  bool _playingSd = false;
+  uint32_t _sdTimeBase = 0;
+  uint32_t _sdRawTimeAtResume = 0;
   //char        _plError[PLERR_LN];
 private:
   void _stop(bool alreadyStopped = false);
@@ -90,6 +93,20 @@ public:
   void playUrl(const char *url, const char *name = nullptr);
   void setOutputPins(bool isPlaying);
   void setResumeFilePos(uint32_t pos) { _resumeFilePos = pos; }
+  void setSDTimeBase(uint32_t seconds) {
+    _sdTimeBase = seconds;
+    _sdRawTimeAtResume = Audio::getAudioCurrentTime();
+  }
+  void clearSDTimeBase() {
+    _sdTimeBase = 0;
+    _sdRawTimeAtResume = 0;
+  }
+  uint32_t getSDCurrentTime() {
+    uint32_t raw = Audio::getAudioCurrentTime();
+    if (_sdTimeBase == 0) return raw;
+    uint32_t elapsed = (raw >= _sdRawTimeAtResume) ? raw - _sdRawTimeAtResume : raw;
+    return _sdTimeBase + elapsed;
+  }
 };
 
 extern Player player;

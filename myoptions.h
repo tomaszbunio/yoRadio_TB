@@ -1,6 +1,6 @@
 
-#define VERSION v8.8_TB
-#define FIRMWARE_VERSION "8.8.1-build.61"
+#define VERSION v8.8.1_TB
+#define FIRMWARE_VERSION "8.8.1-build.1"
 // clang-format off
 /*
    Read the before use !!!
@@ -116,7 +116,7 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
  #define SD_SPI_MISO 13
  #define SD_SPI_MOSI 11
  #define SDSPISPEED 4000000 /* 4MHz - Slower speed to prevent display flicker on shared SPI bus */
- #define DEBUG_SD    /* Comment this line to disable all SD debug output. */
+ //#define DEBUG_SD    /* Comment this line to disable all SD debug output. */
 
  /*----- by Maciej Bednarski -----*/
 /*---- Activating this will move the cursor up and down in the playlist -----*/
@@ -225,11 +225,15 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
 /*----- Autostart przy każdym włączeniu (0=idle, 1=ostatni stan, 2=zawsze) -----*/
 //#define SMARTSTART_DEFAULT 2
 
-/*----- Wznowienie odtwarzania SD od ostatniego miejsca po zatrzymaniu -----*/
-#define SD_RESUME_ENABLED
+/*----- Po uruchomieniu SD wybierz ostatnio odtwarzany utwór.
+  Utwór zawsze rozpoczyna się od początku.
+  Po wyłączeniu tej opcji SD zawsze rozpoczyna od pierwszego utworu. -----*/
+#define SD_REMEMBER_LAST_TRACK
 
-/*----- Zawsze zacznij odtwarzanie SD od 1. utworu (ignoruj zapamiętany numer) -----*/
-//#define SD_ALWAYS_START_FROM_FIRST
+/*----- Po zatrzymaniu SD zapamiętaj pozycję ostatniego utworu.
+  Ponowne odtworzenie tego samego utworu rozpocznie się od zapisanej pozycji.
+  Zmiana utworu kasuje zapamiętaną pozycję. -----*/
+#define SD_REMEMBER_LAST_POSITION
 
 /*----- Widget logo stacji radiowej -----*/
 /*  Pliki PNG (160x120, 24-bit) umieszczaj na SPIFFS w katalogu głównym.

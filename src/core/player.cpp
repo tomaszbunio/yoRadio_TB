@@ -126,12 +126,10 @@ void Player::setError(const char *e) {
 
 void Player::_stop(bool alreadyStopped) {
   log_i("%s called", __func__);
-#ifdef SD_RESUME_ENABLED
-  if (config.getMode() == PM_SDCARD && !alreadyStopped) {
-    config.sdResumePos = player.getAudioFilePosition();
-    config.stopedSdStationId = config.lastStation();
+  if (!alreadyStopped && _playingSd) {
+    config.rememberSDPosition();
   }
-#endif
+  _playingSd = false;
   _status = STOPPED;
   setOutputPins(false);
   if (!_hasError) {
@@ -198,7 +196,6 @@ void Player::loop() {
         if (config.store.playlistSource == PL_SRC_DLNA) {
           config.store.lastDlnaStation = st;
           config.saveValue(&config.store.lastDlnaStation, (uint16_t)st);
-          config.sdResumePos = 0;
           config.saveValue(&config.store.lastPlayedSource, (uint8_t)PL_SRC_DLNA);
           _play(st);
           netserver.requestOnChange(GETINDEX, 0);
@@ -207,6 +204,9 @@ void Player::loop() {
 #endif
 
         // ==== EREDETI VISSELKEDÉS (WEB / SD) ====
+        if (config.getMode() == PM_SDCARD && config.sdResumeStation != st) {
+          config.clearSDPosition();
+        }
         if (requestP.payload > 0) {
           config.setLastStation(st);
         }
@@ -365,6 +365,8 @@ void Player::playUrl(const char *url, const char *name) {
 void Player::_play(uint16_t stationId) {
   log_i("%s called, stationId=%d", __func__, stationId);
   _hasError = false;
+  _playingSd = false;
+  clearSDTimeBase();
   _status = STOPPED;
   setOutputPins(false);
   remoteStationName = false;
@@ -396,6 +398,7 @@ void Player::_play(uint16_t stationId) {
   connproc = true;
   // ----- START PLAYING -----
   if (isConnected) {
+    _playingSd = (config.getMode() == PM_SDCARD);
     _status = PLAYING;
     #ifdef SD_COVER_ART
     if (config.getMode() == PM_SDCARD) {
@@ -519,7 +522,6 @@ void Player::prev() {
       config.lastStation(_sdShufflePick(lastStation, config.playlistLength()));
     }
   }
-  config.stopedSdStationId = -1;
   sendCommand({PR_PLAY, config.lastStation()});
 }
 
@@ -538,7 +540,6 @@ void Player::next() {
       config.lastStation(_sdShufflePick(lastStation, config.playlistLength()));
     }
   }
-  config.stopedSdStationId = -1;
   sendCommand({PR_PLAY, config.lastStation()});
 }
 
@@ -604,7 +605,6 @@ void Player::folderNext() {
     char url[BUFLEN];
     if (_sdPlaylistUrl(idx, url, sizeof(url)) && !_sdSameFolder(currentUrl, url)) {
       config.lastStation(idx);
-      config.stopedSdStationId = -1;
       sendCommand({PR_PLAY, idx});
       return;
     }
@@ -645,7 +645,6 @@ void Player::folderPrev() {
   }
 
   config.lastStation(target);
-  config.stopedSdStationId = -1;
   sendCommand({PR_PLAY, target});
 }
 
