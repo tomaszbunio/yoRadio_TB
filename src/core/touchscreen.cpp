@@ -171,7 +171,7 @@ void TouchScreen::loop() {
     #if TS_MODEL == TS_MODEL_GT911
     ts.read();
     #endif
-    #if (DSP_WIDTH == 480) && (DSP_HEIGHT == 320)
+    #if ((DSP_WIDTH == 480) && (DSP_HEIGHT == 320)) || ((DSP_WIDTH == 320) && (DSP_HEIGHT == 240))
 
     // Auto-exit presets screen after 15s of no touch activity
     if (display.mode() == PRESETS) {
@@ -256,7 +256,7 @@ void TouchScreen::loop() {
             touchStation = touchY;
             direct = TDS_REQUEST;
             touchLongPress = millis();
-    #if (DSP_WIDTH == 480) && (DSP_HEIGHT == 320)
+    #if ((DSP_WIDTH == 480) && (DSP_HEIGHT == 320)) || ((DSP_WIDTH == 320) && (DSP_HEIGHT == 240))
 
             if (display.mode() == PRESETS && !presets_keyboardActive()) {
                 presetHoldSlot = presets_hitTest(touchX, touchY);
@@ -308,7 +308,7 @@ void TouchScreen::loop() {
 
         // ********************************** PRESETS HOLD (real-time) ************************************
         // ---- FAV HOLD (real-time) ----FAV buttons bar (bottom): long press = rename
-    #if (DSP_WIDTH == 480) && (DSP_HEIGHT == 320)
+    #if ((DSP_WIDTH == 480) && (DSP_HEIGHT == 320)) || ((DSP_WIDTH == 320) && (DSP_HEIGHT == 240))
         if (display.mode() == PRESETS && !presets_keyboardActive() && favHold >= 0 && !favLongTriggered) {
             uint32_t held = millis() - touchLongPress;
             if (held >= BTN_PRESS_TICKS * 2) {
@@ -353,7 +353,7 @@ void TouchScreen::loop() {
             }
     #endif
             if (direct == TDS_REQUEST) {
-    #if (DSP_WIDTH == 480) && (DSP_HEIGHT == 320)
+    #if ((DSP_WIDTH == 480) && (DSP_HEIGHT == 320)) || ((DSP_WIDTH == 320) && (DSP_HEIGHT == 240))
                 uint32_t pressTicks = millis() - touchLongPress;
                 presets_clearPressed();
                 presets_setPressedSlot(-1);

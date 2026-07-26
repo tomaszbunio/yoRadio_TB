@@ -10,6 +10,13 @@
 typedef GFXcanvas16 Canvas;
 typedef ILI9486_SPI yoDisplay;
 
+#ifndef STATION_LOGO_W
+  #define STATION_LOGO_W 120
+#endif
+#ifndef STATION_LOGO_H
+  #define STATION_LOGO_H 90
+#endif
+
 #include "tools/commongfx.h"
 
 #if __has_include("conf/displayILI9488conf_custom.h")

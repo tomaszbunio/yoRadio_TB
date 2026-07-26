@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-python convert_bootlogo.py
+python scripts\convert_bootlogo.py
 pause

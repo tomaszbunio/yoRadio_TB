@@ -216,5 +216,3 @@ void loop() {
 #endif
     PROFILE_LOOP();
 }
-
-

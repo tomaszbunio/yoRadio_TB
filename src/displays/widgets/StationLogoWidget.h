@@ -6,7 +6,7 @@
  * @brief Widget wyświetlający logo stacji radiowej z pliku binarnego RGB565 na SPIFFS.
  *
  * Format pliku: raw RGB565, little-endian, WIDTH*HEIGHT*2 bajtów.
- * Konwersja PNG -> .raw: skrypt convert_logos.py w katalogu projektu.
+ * Konwersja PNG -> .raw: skrypt scripts/convert_logos.py.
  *
  * Pliki .raw umieszczane są na SPIFFS w /www/ (webboard wgrywa je tam automatycznie).
  * Nazwa pliku = znormalizowana nazwa stacji + ".raw":

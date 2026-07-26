@@ -24,6 +24,12 @@
     #define DUMMYDISPLAY
 #endif
 
+#ifdef SCREEN_ROTATE
+    #define DEFAULT_FLIPSCREEN true
+#else
+    #define DEFAULT_FLIPSCREEN false
+#endif
+
 Config config;
 
 void u8fix(char* src) {
@@ -958,7 +964,7 @@ void Config::resetSystem(const char* val, uint8_t clientId) {
         return;
     }
     if (strcmp(val, "screen") == 0) {
-        saveValue(&store.flipscreen, false, false);
+        saveValue(&store.flipscreen, DEFAULT_FLIPSCREEN, false);
         display.flip();
         saveValue(&store.invertdisplay, false, false);
         display.invert();
@@ -1043,7 +1049,7 @@ void Config::setDefaults() {
     BOOTLOG("***************** SET DEFAULT *****************");
     store.config_set = 4263;
     store.version = CONFIG_VERSION;
-    store.volume = 30;
+    store.volume = 20;
     store.balance = 0;
     store.trebble = 6;
     store.middle = 0;
@@ -1058,14 +1064,10 @@ void Config::setDefaults() {
     store.timezoneOffset = 0;
     store.vumeter = true;
     store.softapdelay = 0;
-    store.flipscreen = false;
+    store.flipscreen = DEFAULT_FLIPSCREEN;
     store.invertdisplay = false;
     store.numplaylist = false;
-    #if defined(SCREEN) && SCREEN == 4
     store.fliptouch = true;
-    #else
-    store.fliptouch = true;
-    #endif
     store.dbgtouch = false;
     store.dspon = true;
     store.brightness = 100;

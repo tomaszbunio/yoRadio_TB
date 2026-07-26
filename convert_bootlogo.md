@@ -23,7 +23,7 @@ logos_src/bootlogo.png
 2. Uruchom `convert_bootlogo.bat` albo wykonaj:
 
 ```
-python convert_bootlogo.py
+python scripts/convert_bootlogo.py
 ```
 
 3. Skompiluj i wgraj firmware.

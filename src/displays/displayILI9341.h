@@ -10,6 +10,13 @@
 typedef GFXcanvas16 Canvas;
 typedef Adafruit_ILI9341 yoDisplay;
 
+#ifndef STATION_LOGO_W
+  #define STATION_LOGO_W 72
+#endif
+#ifndef STATION_LOGO_H
+  #define STATION_LOGO_H 48
+#endif
+
 #include "tools/commongfx.h"
 
 #if __has_include("conf/displayILI9341conf_custom.h")

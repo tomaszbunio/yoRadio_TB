@@ -9,7 +9,7 @@
 #include "netserver.h"
 #include "../pluginsManager/pluginsManager.h"
 #include "deepsleep.h"
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
   #include "presets.h"
 #endif
 #ifdef NEOPIXEL_ON
@@ -61,6 +61,8 @@ constexpr uint8_t nrOfButtons = sizeof(button) / sizeof(button[0]);
   TouchScreen touchscreen;
 #endif
 
+static bool g_softStandby = false;
+
 #if IR_PIN!=255
 #include <assert.h>
 #include <esp_sleep.h>
@@ -79,7 +81,7 @@ IRrecv irrecv(IR_PIN, IR_BUFSIZE, IR_TIMEOUT, true);
 decode_results irResults;
 
 static uint32_t g_ignoreIrPowerUntilMs = 0;
-static bool g_softStandby = false;
+#endif
 
 static void enterSoftStandby() {
   Serial.println("[SOFT_STANDBY] Enter");
@@ -110,7 +112,6 @@ static void enterSoftStandby() {
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
 }
-#endif
 
 #ifndef DEBUG_VOLUME_SCREEN
   #define DEBUG_VOLUME_SCREEN true
@@ -222,15 +223,15 @@ void initControls() {
 }
 
 void loopControls() {
-#if IR_PIN!=255
   if (g_softStandby) {
+#if IR_PIN!=255
     irLoop();
+#endif
 #if ISPUSHBUTTONS && ENC_BTNB != 255
     button[3].tick();
 #endif
     return;
   }
-#endif
   if(display.mode()==UPDATING || display.mode()==SDCHANGE) return;
   if(SDC_CS==255 && display.mode()==LOST) return;
   if(ctrls_on_loop) ctrls_on_loop();
@@ -289,7 +290,7 @@ void encodersLoop(yoEncoder *enc, bool first) {
 
 #else
 
-#ifdef TWO_ENCODERS
+#if defined(TWO_ENCODERS) && ENC2_BTNL != 255 && ENC2_BTNR != 255
   // ==========================================================
   //         DWA NIEZALEŻNE ENKODERY: lewy=stacje, prawy=volume
   // ==========================================================
@@ -337,7 +338,7 @@ void encodersLoop(yoEncoder *enc, bool first) {
     }
     controlsEvent(delta > 0, delta);
   }
-#endif // TWO_ENCODERS
+#endif // TWO_ENCODERS && drugi enkoder jest skonfigurowany
 
 #endif // DUMMYDISPLAY
 }
@@ -452,7 +453,7 @@ void irBlink() {
 }
 
 void irNumber(uint8_t num) {
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
   if (display.mode() == PRESETS) {
     presets_irDigit(num);
     return;
@@ -525,7 +526,7 @@ void irLoop() {
           switch (target){
             case IR_PLAY: {
                 irBlink();
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
                 if (display.mode() == PRESETS) {
                   if (presets_irPlay()) {
                     display.putRequest(NEWMODE, PLAYER);
@@ -543,7 +544,7 @@ void irLoop() {
                 break;
               }
             case IR_PREV: {
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
                 if (display.mode() == PRESETS) {
                   presets_irChangeBank(false);
                   break;
@@ -553,7 +554,7 @@ void irLoop() {
                 break;
               }
             case IR_NEXT: {
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
                 if (display.mode() == PRESETS) {
                   presets_irChangeBank(true);
                   break;
@@ -563,7 +564,7 @@ void irLoop() {
                 break;
               }
             case IR_UP: {
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
                 if (display.mode() == PRESETS) {
                   presets_irChangeAction(true);
                   irVolRepeat = 0;
@@ -576,7 +577,7 @@ void irLoop() {
                 break;
               }
             case IR_DOWN: {
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
                 if (display.mode() == PRESETS) {
                   presets_irChangeAction(false);
                   irVolRepeat = 0;
@@ -607,7 +608,7 @@ void irLoop() {
                 break;
               }
             case IR_HASH: {
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
                 if (display.mode() == PRESETS) {
                   presets_irDeleteMode();
                 }
@@ -633,7 +634,7 @@ void irLoop() {
               }
             case IR_HOME: {
                 display.numOfNextStation = 0;
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
                 if (display.mode() == SD_PLAYER || config.isSdPlayer) {
                   // HOME is intentionally ignored in SD mode.
                 } else {
@@ -646,7 +647,7 @@ void irLoop() {
                 break;
               }
             case IR_BACK: {
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
                 if (display.mode() == PRESETS && presets_irCancel()) {
                   break;
                 }
@@ -698,7 +699,7 @@ void irLoop() {
                 break;
               }
             case IR_AST: {
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
                 if (display.mode() == PRESETS) {
                   presets_irSaveMode();
                   break;
@@ -744,7 +745,11 @@ void onBtnLongPressStart(int id) {
 #       if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
         break;
 #       endif
-        display.putRequest(NEWMODE, display.mode() == PLAYER ? STATIONS : PLAYER);
+        if (display.mode() == PLAYER || display.mode() == SD_PLAYER) {
+          display.putRequest(NEWMODE, STATIONS);
+        } else {
+          display.putRequest(NEWMODE, config.isSdPlayer ? SD_PLAYER : PLAYER);
+        }
         break;
       }
     case EVT_ENC2BTNB: {
@@ -853,7 +858,6 @@ void controlsEvent(bool toRight, int8_t volDelta) {
 }
 
 void onBtnClick(int id) {
-#if IR_PIN!=255
   if (g_softStandby) {
     if ((controlEvt_e)id == EVT_ENCBTNB) {
       Serial.println("[SOFT_STANDBY] ENC1 wake, restart");
@@ -862,7 +866,6 @@ void onBtnClick(int id) {
     }
     return;
   }
-#endif
   bool passBnCenter = (controlEvt_e)id==EVT_BTNCENTER || (controlEvt_e)id==EVT_ENCBTNB || (controlEvt_e)id==EVT_ENC2BTNB;
   controlEvt_e btnid = static_cast<controlEvt_e>(id);
   if (btnid == EVT_BTNLEFT || btnid == EVT_BTNRIGHT || btnid == EVT_BTNUP || btnid == EVT_BTNDOWN) {
@@ -967,14 +970,10 @@ void onBtnDoubleClick(int id) {
         break;
       }
     case EVT_BTNCENTER:
-    case EVT_ENCBTNB:{
-#if IR_PIN!=255
+    case EVT_ENCBTNB: {
       enterSoftStandby();
-#else
-      display.putRequest(NEWMODE, SLEEPING);
-#endif
       break;
-	}
+    }
     case EVT_ENC2BTNB: {
         onBtnClick(EVT_BTNMODE);
         break;

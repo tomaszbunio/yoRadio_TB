@@ -1730,12 +1730,18 @@ void ClockWidget::_printClock(bool force) {
             PROFILE_SCOPE("clock.date");
             memcpy_P(&_dateConf, &dateConf, sizeof(WidgetConfig));
             int lineHeight = _dateheight * 8;
-            dsp.fillRect(0, _dateConf.top, dsp.width(), lineHeight, config.theme.background);
             strlcpy(_datebuf, newDate, sizeof(_datebuf));
             uint16_t _datewidth = strlen(_datebuf) * CHARWIDTH * _dateheight;
+            uint16_t _dateleft = dsp.width() - _datewidth - _dateConf.left;
+            uint16_t clearLeft = _oldDateWidth ? min(_oldDateLeft, _dateleft) : _dateleft;
+            uint16_t clearRight = max((uint16_t)(_oldDateLeft + _oldDateWidth),
+                                      (uint16_t)(_dateleft + _datewidth));
+            dsp.fillRect(clearLeft, _dateConf.top, clearRight - clearLeft,
+                         lineHeight, config.theme.background);
+            _oldDateLeft = _dateleft;
+            _oldDateWidth = _datewidth;
             dsp.setFont();
             dsp.setTextSize(_dateheight);
-            uint16_t _dateleft = dsp.width() - _datewidth - _dateConf.left;
             dsp.setCursor(_dateleft, _dateConf.top);
             dsp.setTextColor(config.theme.date, config.theme.background);
             dsp.print(_datebuf);
@@ -1875,14 +1881,19 @@ void ClockWidget::_printClock(bool force) {
                     _formatDate();
         #ifndef HIDE_DATE
                     memcpy_P(&_dateConf, &dateConf, sizeof(WidgetConfig));
-                    // Sor törlése teljes szélességben
-                    int lineHeight = _dateheight * 8;                                                 // kb. 8 pixel per TextSize
-                    dsp.fillRect(0, _dateConf.top, dsp.width(), lineHeight, config.theme.background); // szürke 0x8410
+                    int lineHeight = _dateheight * 8;
                     strlcpy(_datebuf, utf8To(_tmp, false), sizeof(_datebuf));
                     uint16_t _datewidth = strlen(_datebuf) * CHARWIDTH * _dateheight;
+                    uint16_t _dateleft = dsp.width() - _datewidth - _dateConf.left;
+                    uint16_t clearLeft = _oldDateWidth ? min(_oldDateLeft, _dateleft) : _dateleft;
+                    uint16_t clearRight = max((uint16_t)(_oldDateLeft + _oldDateWidth),
+                                              (uint16_t)(_dateleft + _datewidth));
+                    dsp.fillRect(clearLeft, _dateConf.top, clearRight - clearLeft,
+                                 lineHeight, config.theme.background);
+                    _oldDateLeft = _dateleft;
+                    _oldDateWidth = _datewidth;
                     dsp.setFont();
                     dsp.setTextSize(_dateheight);
-                    uint16_t _dateleft = dsp.width() - _datewidth - _dateConf.left;
                     dsp.setCursor(_dateleft, _dateConf.top); // Zmień własną zmienną ustawień "_dateConf"
                     dsp.setTextColor(config.theme.date, config.theme.background);
                     dsp.print(_datebuf);

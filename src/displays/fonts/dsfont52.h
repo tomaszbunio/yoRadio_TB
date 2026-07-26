@@ -20,4 +20,21 @@
   #endif
 #endif
 
+// The 320x240 layout has one compile-time selected 47 px font pair.
+// Keep the runtime clock-font API used by widgets.cpp, falling back to that
+// pair when an EEPROM value selects a font available only in dsfont70.h.
+static inline uint8_t yoClockFontSanitize(uint8_t id) {
+  return id == (uint8_t)CLOCKFONT ? id : (uint8_t)CLOCKFONT;
+}
+
+static inline const GFXfont* yoClockFontMain(uint8_t id) {
+  (void)id;
+  return &Clock_GFXfont;
+}
+
+static inline const GFXfont* yoClockFontSec(uint8_t id) {
+  (void)id;
+  return &Clock_GFXfont_sec;
+}
+
 #endif

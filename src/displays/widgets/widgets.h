@@ -6,7 +6,7 @@
 
 #include <Arduino.h>
 class Adafruit_GFX;
-#if defined(DSP_ILI9488)
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9486
   #include "../displayILI9488.h"
   #include "../dspcore.h"  // To daje typedef Canvas
 
@@ -49,6 +49,17 @@ public:
   }
   void setAlign(WidgetAlign align) {
     _config.align = align;
+  }
+  void setTextSize(uint8_t textsize) {
+    if (_config.textsize == textsize) {
+      return;
+    }
+    if (_active && !_locked) {
+      _clear();
+    }
+    _config.textsize = textsize;
+    _reset();
+    _draw();
   }
   void setActive(bool act, bool clr = false) {
     _active = act;
@@ -382,6 +393,7 @@ protected:
   char _tmp[38] = {}, _datebuf[38] = {};
   uint8_t _superfont = 0;
   uint16_t _clockleft = 0, _clockwidth = 0, _timewidth = 0, _dotsleft = 0, _linesleft = 0;
+  uint16_t _oldDateLeft = 0, _oldDateWidth = 0;
   uint8_t _clockheight = 0, _timeheight = 0, _dateheight = 0, _space = 0;
   char _namedayBuf[30] = {}, _oldNamedayBuf[30] = {};
   uint16_t _namedaywidth, _oldnamedayleft, _oldnamedaywidth;
@@ -472,4 +484,3 @@ private:
 
 #endif
 #endif
-

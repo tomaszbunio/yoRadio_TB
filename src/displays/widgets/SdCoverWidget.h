@@ -798,4 +798,3 @@ private:
 };
 
 #endif // SD_COVER_ART && SDC_CS != 255
-

@@ -536,6 +536,8 @@ void Display::_swichMode(displayMode_e newmode) {
         // _station() po setPage() – inaczej setPage() nadpisuje logo stacji tłem strony
         _station();
         if (_chtxt) {
+            _chtxt->moveBack();
+            _chtxt->setTextSize(chtxtConf.textsize);
             _chtxt->setText(config.lastStation(), "CH:%d");
         }
         config.setDspOn(config.store.dspon, false);
@@ -564,11 +566,15 @@ void Display::_swichMode(displayMode_e newmode) {
         _showDialog(LANG::const_DlgVolume);
     #else
         _showDialog(config.ipToStr(WiFi.localIP()));
-    #endif
+        #endif
+        #if DSP_MODEL != DSP_ILI9341
         if (_chtxt) {
-            _chtxt->setText("v8.8");
+            _chtxt->moveTo({(uint16_t)(chtxtConf.left >= 5 ? chtxtConf.left - 5 : 0), (uint16_t)(chtxtConf.top + 5), 0});
+            _chtxt->setTextSize(1);
+            _chtxt->setText(FIRMWARE_VERSION);
         }
-        _nums->setText(config.store.volume, numtxtFmt);
+        #endif
+        _nums->setText(volumeStepsToPercent(config.store.volume), numtxtFmt);
     }
     if (newmode == LOST) { _showDialog(LANG::const_DlgLost); }
     if (newmode == UPDATING) { _showDialog(LANG::const_DlgUpdate); }
@@ -576,7 +582,7 @@ void Display::_swichMode(displayMode_e newmode) {
     if (newmode == SDCHANGE) { _showDialog(LANG::const_waitForSD); }
     if (newmode == INFO || newmode == SETTINGS || newmode == TIMEZONE || newmode == WIFI) { _showDialog(LANG::const_DlgNextion); }
     if (newmode == NUMBERS) { _showDialog(""); }
-    #if DSP_MODEL == DSP_ILI9488
+    #if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
     if (newmode == PRESETS) {
         _pager->setPage(pages[PG_PRESETS], true);
         presets_drawScreen();
@@ -751,8 +757,17 @@ int8_t Display::isSdTransportTap(uint16_t x, uint16_t y) {
         x = (uint16_t)((int)dsp.width() - 1 - (int)x);
         y = (uint16_t)((int)dsp.height() - 1 - (int)y);
     }
-    const uint16_t bx   = sdProgressConf.widget.left;
-    const uint16_t bw   = (sdProgressConf.width - 2 * SD_BTN_GAP) / 3;
+    #ifdef SD_BTN_AREA_X
+    const uint16_t bx = SD_BTN_AREA_X;
+    #else
+    const uint16_t bx = sdProgressConf.widget.left;
+    #endif
+    #ifdef SD_BTN_AREA_W
+    const uint16_t buttonsW = SD_BTN_AREA_W;
+    #else
+    const uint16_t buttonsW = sdProgressConf.width;
+    #endif
+    const uint16_t bw   = (buttonsW - 2 * SD_BTN_GAP) / 3;
     const uint16_t step = bw + SD_BTN_GAP;
     const uint16_t nextX = bx + 2 * step;
     const uint16_t backY = SD_BTN_Y - SD_BTN_H - SD_BTN_GAP;
@@ -880,16 +895,36 @@ void Display::_drawSdFileInfo(bool force) {
                  strcmp(bpsBuf, _sdBpsBuf) != 0;
     if (!dirty) return;
 
-    const uint16_t rowX = sdProgressConf.widget.left;
+    const uint16_t rowX = sdFileFormatConf.left;
+    #ifdef SD_FILE_INFO_WIDTH
+    const uint16_t rowW = SD_FILE_INFO_WIDTH;
+    #else
     const uint16_t rowW = sdProgressConf.width;
+    #endif
     const uint16_t rowY = sdFileFormatConf.top;
+    #ifdef SD_FILE_INFO_VPAD
+    const uint16_t vPad = SD_FILE_INFO_VPAD;
+    #else
     const uint16_t vPad = 3;
-    const uint16_t gap  = 4;
+    #endif
+    #ifdef SD_FILE_INFO_GAP
+    const uint16_t gap = SD_FILE_INFO_GAP;
+    #else
+    const uint16_t gap = 4;
+    #endif
     const uint16_t boxW = (uint16_t)((rowW - 2 * gap) / 3);
-    const uint8_t  rad  = 5;
+    #ifdef SD_FILE_INFO_RADIUS
+    const uint8_t rad = SD_FILE_INFO_RADIUS;
+    #else
+    const uint8_t rad = 5;
+    #endif
     const uint16_t fg   = 0xFFFF; // white border/text
 
+    #ifdef SD_FILE_INFO_COMPACT
+    dsp.setFont();
+    #else
     dsp.setFont(&FreeSans9pt7b);
+    #endif
     dsp.setTextSize(tsz);
 
     const char* labels[3] = {fmtStr[0] ? fmtStr : "-", srBuf[0] ? srBuf : "-", bpsBuf[0] ? bpsBuf : "-"};
@@ -948,8 +983,17 @@ void Display::_drawSdControls(bool force) {
     _sdSnuffle = snuffle;
     return;
 
-    const uint16_t btnX   = sdProgressConf.widget.left;
-    const uint16_t btnW   = (sdProgressConf.width - 2 * SD_BTN_GAP) / 3;
+    #ifdef SD_BTN_AREA_X
+    const uint16_t btnX = SD_BTN_AREA_X;
+    #else
+    const uint16_t btnX = sdProgressConf.widget.left;
+    #endif
+    #ifdef SD_BTN_AREA_W
+    const uint16_t buttonsW = SD_BTN_AREA_W;
+    #else
+    const uint16_t buttonsW = sdProgressConf.width;
+    #endif
+    const uint16_t btnW   = (buttonsW - 2 * SD_BTN_GAP) / 3;
     const uint16_t btnY   = SD_BTN_Y;
     const uint16_t btnH   = SD_BTN_H;
     const uint8_t  btnR   = SD_BTN_R;
@@ -1002,8 +1046,17 @@ void Display::_drawSdControls(bool force) {
 
 void Display::_drawSdButton(uint8_t btn, bool pressed) {
     if (!kTouchEnabled) return;
-    const uint16_t btnX   = sdProgressConf.widget.left;
-    const uint16_t btnW   = (sdProgressConf.width - 2 * SD_BTN_GAP) / 3;
+    #ifdef SD_BTN_AREA_X
+    const uint16_t btnX = SD_BTN_AREA_X;
+    #else
+    const uint16_t btnX = sdProgressConf.widget.left;
+    #endif
+    #ifdef SD_BTN_AREA_W
+    const uint16_t buttonsW = SD_BTN_AREA_W;
+    #else
+    const uint16_t buttonsW = sdProgressConf.width;
+    #endif
+    const uint16_t btnW   = (buttonsW - 2 * SD_BTN_GAP) / 3;
     const uint16_t step   = btnW + SD_BTN_GAP;
     const uint16_t btnY   = SD_BTN_Y;
     const uint16_t btnH   = SD_BTN_H;
@@ -1272,7 +1325,7 @@ void Display::loop() {
                         }
                         if (_chtxt) {
                             if (_mode == VOL) {
-                                _chtxt->setText("v8.8");
+                                _chtxt->setText(FIRMWARE_VERSION);
                             } else {
                                 _chtxt->setText(config.lastStation(), "CH:%d");
                             }
@@ -1521,12 +1574,12 @@ void Display::_volume() {
     }
     #ifndef HIDE_VOL
     if (_voltxt) {
-        _voltxt->setText(config.store.volume, voltxtFmt);
+        _voltxt->setText(volumeStepsToPercent(config.store.volume), voltxtFmt);
     }
     #endif
     if (_mode == VOL) {
         timekeeper.waitAndReturnPlayer(2);
-        _nums->setText(config.store.volume, numtxtFmt);
+        _nums->setText(volumeStepsToPercent(config.store.volume), numtxtFmt);
     }
     /*#ifdef USE_NEXTION
       nextion.setVol(config.store.volume, _mode == VOL);

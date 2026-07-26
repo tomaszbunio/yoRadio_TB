@@ -1,5 +1,5 @@
 #include "options.h"
-#if DSP_MODEL == DSP_ILI9488
+#if DSP_MODEL == DSP_ILI9488 || DSP_MODEL == DSP_ILI9341
     #include "presets.h"
 
     #include <Arduino.h>
@@ -135,7 +135,23 @@ static bool    s_suppressToast = false;
 
 // -------------------- Layout --------------------
 static const uint16_t TOP_H = 40;
+#if DSP_MODEL == DSP_ILI9341
+static const uint16_t FAV_H = 26;
+static const uint16_t PRESET_MARGIN = 6;
+static const uint16_t PRESET_GAP = 4;
+static const uint16_t FAV_BUTTON_GAP = 4;
+static const uint8_t  PRESET_TEXT_SIZE = 1;
+static const uint8_t  FAV_TEXT_SIZE = 1;
+static const uint8_t  TOPBAR_TEXT_SIZE = 1;
+#else
 static const uint16_t FAV_H = 38;
+static const uint16_t PRESET_MARGIN = 12;
+static const uint16_t PRESET_GAP = 10;
+static const uint16_t FAV_BUTTON_GAP = 8;
+static const uint8_t  PRESET_TEXT_SIZE = 2;
+static const uint8_t  FAV_TEXT_SIZE = 2;
+static const uint8_t  TOPBAR_TEXT_SIZE = 2;
+#endif
 static const uint8_t  FAVS = 5;
 static const uint16_t GRID_FAV_GAP = 12;
 static const uint16_t FAV_GAP = 9;
@@ -247,11 +263,11 @@ static String normalizeSpaces(String s) {
 
 static String fitToWidth(String s, int16_t maxW) {
     s = normalizeSpaces(s);
-    if (textW(s.c_str(), 2) <= (uint16_t)maxW) { return s; }
+    if (textW(s.c_str(), PRESET_TEXT_SIZE) <= (uint16_t)maxW) { return s; }
     const char* dots = "...";
     while (s.length() > 0) {
         String t = s + dots;
-        if (textW(t.c_str(), 2) <= (uint16_t)maxW) { return t; }
+        if (textW(t.c_str(), PRESET_TEXT_SIZE) <= (uint16_t)maxW) { return t; }
         s.remove(s.length() - 1);
         s.trim();
     }
@@ -261,7 +277,7 @@ static String fitToWidth(String s, int16_t maxW) {
 // A gombon két sorba tördeli a szöveget.
 static void splitTwoLinesBalanced(const String& src, int16_t maxW, String& top, String& bottom) {
     String s = normalizeSpaces(src);
-    if (textW(s.c_str(), 2) <= (uint16_t)maxW) {
+    if (textW(s.c_str(), PRESET_TEXT_SIZE) <= (uint16_t)maxW) {
         top = s;
         bottom = "";
         return;
@@ -298,7 +314,7 @@ static void splitTwoLinesBalanced(const String& src, int16_t maxW, String& top, 
             if (i != k) { b += ' '; }
             b += wds[i];
         }
-        int score = max((int)textW(a.c_str(), 2), (int)textW(b.c_str(), 2));
+        int score = max((int)textW(a.c_str(), PRESET_TEXT_SIZE), (int)textW(b.c_str(), PRESET_TEXT_SIZE));
         if (score < bestScore) {
             bestScore = score;
             bestK = k;
@@ -317,7 +333,7 @@ static void splitTwoLinesBalanced(const String& src, int16_t maxW, String& top, 
     // csak akkor vágjuk, ha pixelben túl hosszú – egyetlen ponttal jelezzük
     auto trimWithDot = [&](String& s) {
         bool cut = false;
-        while (textW(s.c_str(), 2) > (uint16_t)maxW && s.length()) {
+        while (textW(s.c_str(), PRESET_TEXT_SIZE) > (uint16_t)maxW && s.length()) {
             s.remove(s.length() - 1);
             cut = true;
         }
@@ -413,7 +429,7 @@ static void drawTopBar() {
     int16_t w = GFX.width();
     GFX.fillRect(0, 0, w, TOP_H, config.theme.metabg);
     GFX.drawFastHLine(0, TOP_H - 1, w, config.theme.prst_line);
-    GFX.setTextSize(2);
+    GFX.setTextSize(TOPBAR_TEXT_SIZE);
     GFX.setTextColor(config.theme.prst_title1);
     static char p1[32], p2[32], p3[32];
     strncpy_P(p1, LANG::prstPlay, sizeof(p1) - 1);
@@ -423,15 +439,15 @@ static void drawTopBar() {
     p2[sizeof(p2) - 1] = 0;
     p3[sizeof(p3) - 1] = 0;
     hold_xPlay = 30;
-    hold_wPlay = textW_ui_sz(p1, 2);
+    hold_wPlay = textW_ui_sz(p1, TOPBAR_TEXT_SIZE);
     hold_xSave = w / 2 - 20;
-    hold_wSave = textW_ui_sz(p2, 2);
-    hold_wDel = textW_ui_sz(p3, 2);
+    hold_wSave = textW_ui_sz(p2, TOPBAR_TEXT_SIZE);
+    hold_wDel = textW_ui_sz(p3, TOPBAR_TEXT_SIZE);
     hold_xDel = w - hold_wDel - 30;
     hold_barH = 3;
     hold_barY = TOPBAR_Y + 12 + 16;
     holdBarReady = true;
-    int16_t y = 12;
+    int16_t y = (TOP_H - TOPBAR_TEXT_SIZE * 8) / 2;
 
     int16_t activeX = hold_xPlay;
     int16_t activeW = hold_wPlay;
@@ -501,8 +517,8 @@ void presets_drawHoldBar(uint32_t heldMs) {
 
 // A memóriagombok méreteinek számítása.
 static void slotRect(uint8_t slot, int16_t& x, int16_t& y, int16_t& bw, int16_t& bh) {
-    const int16_t M = 12;
-    const int16_t GAP = 10;
+    const int16_t M = PRESET_MARGIN;
+    const int16_t GAP = PRESET_GAP;
     const int16_t HEADER = TOP_H;
     const int16_t FAV = FAV_H + FAV_BOTTOM_PAD;
     int16_t       W = dsp.width();
@@ -523,7 +539,7 @@ static void favRect(uint8_t fav, int16_t& x, int16_t& y, int16_t& bw, int16_t& b
     bh = FAV_H;
     y = FAV_TOP();
     int16_t usableW = W - UI_MARGIN * 2;
-    int16_t gap = 8;
+    int16_t gap = FAV_BUTTON_GAP;
     int16_t avail = usableW - (FAVS - 1) * gap;
     int16_t base = avail / FAVS;
     int16_t rem = avail % FAVS;
@@ -553,9 +569,9 @@ static void drawSlot(uint8_t slot, bool pressed = false, bool savedFlash = false
     const char* name = readNameC(slot);
     bool        empty = (name[0] == 0 || strcmp(name, "---") == 0);
     if (empty) {
-        GFX.setTextSize(2);
+        GFX.setTextSize(PRESET_TEXT_SIZE);
         GFX.setTextColor(0x8410);
-        GFX.setCursor(x + 16, y + bh / 2 - 8);
+        GFX.setCursor(x + 8, y + (bh - PRESET_TEXT_SIZE * 8) / 2);
         char msg[32];
         strncpy_P(msg, LANG::prstEmptyPreset, sizeof(msg) - 1);
         msg[sizeof(msg) - 1] = 0;
@@ -564,19 +580,19 @@ static void drawSlot(uint8_t slot, bool pressed = false, bool savedFlash = false
         return;
     }
     // ---- Station name ----
-    GFX.setTextSize(2);
+    GFX.setTextSize(PRESET_TEXT_SIZE);
     String numberedName = String(slot + 1) + ". " + name;
     String top, bottom;
-    splitTwoLinesBalanced(numberedName.c_str(), bw - 40, top, bottom);
-    GFX.setTextSize(2);
+    splitTwoLinesBalanced(numberedName.c_str(), bw - 16, top, bottom);
+    GFX.setTextSize(PRESET_TEXT_SIZE);
     GFX.setTextColor(config.theme.prst_title1);
-    GFX.setCursor(x + 16, y + 10);
+    GFX.setCursor(x + 8, y + 7);
     GFX.print(uiText(top));
     // alcím
     if (bottom.length()) {
-        GFX.setTextSize(1);
+        GFX.setTextSize(PRESET_TEXT_SIZE);
         GFX.setTextColor(config.theme.prst_title2);
-        GFX.setCursor(x + 16, y + 32);
+        GFX.setCursor(x + 8, y + 19);
         GFX.print(uiText(bottom));
     }
 }
@@ -589,9 +605,9 @@ static void drawFav(uint8_t fav) {
     GFX.drawFastHLine(x, y + bh - 1, bw, active ? config.theme.prst_fav : config.theme.prst_line);
     char lbl[32];
     readFavLabelC(fav, lbl, sizeof(lbl));
-    uint8_t size = 2;
+    uint8_t size = FAV_TEXT_SIZE;
     GFX.setTextSize(size);
-    uint16_t tw = textW_ui_sz(lbl, 2);
+    uint16_t tw = textW_ui_sz(lbl, size);
     if (tw > bw - 8) {
         size = 1;
         tw = textW_ui_sz(lbl, 1);

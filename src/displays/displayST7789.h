@@ -16,6 +16,13 @@
 typedef GFXcanvas16 Canvas;
 typedef Adafruit_ST7789 yoDisplay;
 
+#ifndef STATION_LOGO_W
+  #define STATION_LOGO_W 90
+#endif
+#ifndef STATION_LOGO_H
+  #define STATION_LOGO_H 60
+#endif
+
 #include "tools/commongfx.h"
 
 #if __has_include("conf/displayST7789conf_custom.h")

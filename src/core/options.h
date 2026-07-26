@@ -16,7 +16,7 @@ STORE YOUR SETTINGS IN THE *** myoptions.h *** FILE.
 #endif
 
 #ifndef YOVERSION
-    #define YOVERSION "8.8_TB (0.9.720)"
+    #define YOVERSION "8.8.2_TB (0.9.720)"
 #endif
 #ifndef THEME_GRAY
     #if __has_include("../../mytheme.h")
@@ -79,6 +79,18 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef DSP_MODEL
   #define DSP_MODEL  DSP_DUMMY
 #endif
+
+#if defined(SD_COVER_ART) && DSP_MODEL == DSP_ILI9341
+  #undef SD_COVER_W
+  #undef SD_COVER_H
+  #undef SD_COVER_X
+  #undef SD_COVER_Y
+  #define SD_COVER_W  144
+  #define SD_COVER_H  144
+  #define SD_COVER_X  7
+  #define SD_COVER_Y  71
+#endif
+
 #ifndef DSP_HSPI
   #define DSP_HSPI   false      // use HSPI for displays (miso=12, mosi=13, clk=14) instead of VSPI (by default)
 #endif
@@ -105,6 +117,12 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
   #undef VOLUME_CONTROL_STEPS
   #define VOLUME_CONTROL_STEPS 100
 #endif
+
+static constexpr int volumeStepsToPercent(int volumeSteps) {
+  if (volumeSteps <= 0) return 0;
+  if (volumeSteps >= VOLUME_CONTROL_STEPS) return 100;
+  return (volumeSteps * 100 + VOLUME_CONTROL_STEPS / 2) / VOLUME_CONTROL_STEPS;
+}
 
 /*        TFT DISPLAY             */
 #ifndef TFT_CS
@@ -252,7 +270,12 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #define TS_MODEL_GT911          2
 #define TS_MODEL_FT6X36         3
 
-#ifndef TS_MODEL
+#ifndef ENABLE_TOUCH
+  #ifdef TS_MODEL
+    #undef TS_MODEL
+  #endif
+  #define TS_MODEL              TS_MODEL_UNDEFINED
+#elif !defined(TS_MODEL)
   #define TS_MODEL              TS_MODEL_UNDEFINED
 #endif
 
