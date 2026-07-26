@@ -3,6 +3,15 @@
 Moje modyfikacje projektu yoRadio autorstwa [e2002](https://github.com/e2002/yoradio)
 i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
+## Moje zmiany: v8.8.2_TB
+
+- Dodano obsługę wyświetlacza ILI9341 320×240, w tym dopasowany ekran PLAYER i PRESET.
+- Dodano obsługę ekranu PRESET z pilota oraz opcjonalnego panelu dotykowego XPT2046.
+- Konfiguracja obrotu, podświetlenia, DAC I2S, enkoderów i dotyku jest zależna od modelu wyświetlacza.
+- Dodano logo stacji w rozdzielczości 320×240 oraz zaktualizowano narzędzia do ich konwersji.
+
+---
+
 ## Moje zmiany: v8.8.1_TB
 
 - Dodano obsługę ulubionych stacji FAV za pomocą pilota na ekranie Preset.
