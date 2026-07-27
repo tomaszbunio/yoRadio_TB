@@ -363,13 +363,7 @@ private:
     }
 
     bool _drawDefaultAlbum() {
-        // Web Board Uploader zapisuje pliki z data/www w katalogu /www.
-        // Starsze ścieżki pozostają obsługiwane dla istniejących obrazów SPIFFS.
-        const char *candidates[] = {
-            "/www/default_album.jpg",
-            "/default_album.jpg",
-            "/data/default_album.jpg"
-        };
+        const char *candidates[] = {"/default_album.jpg", "/data/default_album.jpg"};
         for (size_t i = 0; i < (sizeof(candidates) / sizeof(candidates[0])); i++) {
             File f = SPIFFS.open(candidates[i], "r");
             if (!f) continue;
