@@ -245,7 +245,7 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
       "RMF FM"     →  /RMF_FM.png
     Plik domyślny (gdy brak logo stacji): /logo_default.png
     Wgrywanie: PlatformIO → Upload Filesystem Image, www → Settings/Board              */
-//#define STATION_LOGO_WIDGET
+#define STATION_LOGO_WIDGET
 #ifdef STATION_LOGO_WIDGET
   #define STATION_LOGO_X   1   // pozycja X lewego boku widgetu (px)
   #define STATION_LOGO_Y   104  // pozycja Y górnego boku widgetu (px)
