@@ -16,6 +16,7 @@ Wymagania: pip install Pillow
 
 import argparse
 import re
+import shutil
 import struct
 import sys
 from pathlib import Path
@@ -31,10 +32,10 @@ DATA_DIR = PROJECT_DIR / "logos_src"
 OUT_ROOT = PROJECT_DIR / "logos_raw"
 OPTIONS_FILE = PROJECT_DIR / "myoptions.h"
 PLAYLIST_FILE = PROJECT_DIR / "data" / "data" / "playlist.csv"
+SPIFFS_WWW_DIR = PROJECT_DIR / "data" / "www"
 
 DISPLAY_LOGO_SIZES = {
     "DSP_ILI9341": (72, 48),
-    "DSP_ST7789":  (90, 60),
     "DSP_ILI9486": (120, 90),
     "DSP_ILI9488": (120, 90),
     "DSP_ST7796":  (120, 90),
@@ -42,10 +43,15 @@ DISPLAY_LOGO_SIZES = {
 
 DISPLAY_RESOLUTIONS = {
     "DSP_ILI9341": "320x240",
-    "DSP_ST7789":  "custom-90x60",
     "DSP_ILI9486": "480x320",
     "DSP_ILI9488": "480x320",
     "DSP_ST7796":  "480x320",
+}
+
+LCD_DISPLAY_MODELS = {
+    "LCD_ILI9341": "DSP_ILI9341",
+    "LCD_ILI9488": "DSP_ILI9488",
+    "LCD_ST7796":  "DSP_ST7796",
 }
 
 RESOLUTION_LOGO_SIZES = {
@@ -85,8 +91,8 @@ STATION_LOGO_FALLBACKS = (
     ("zet", "radio_zet"),
     ("antyradio", "antyradio"),
     ("eska", "radio_eska"),
-    ("open fm", "open_fm"),
-    ("e m", "radio_em"),
+    ("open_fm", "open_fm"),
+    ("e_m", "radio_e_m"),
 )
 
 
@@ -149,45 +155,39 @@ def select_playlist_logos(png_files):
 
 
 def read_logo_size(options_path: Path):
-    """Odczytaj aktywny DSP_MODEL albo jawne STATION_LOGO_W/H z myoptions.h."""
+    """Odczytaj rozmiar logo przypisany do aktywnego DSP_MODEL."""
     text = options_path.read_text(encoding="utf-8")
 
-    model_match = re.search(r"^\s*#define\s+DSP_MODEL\s+(DSP_[A-Z0-9_]+)\s*(?://.*)?$",
-                            text, re.MULTILINE)
-    if not model_match:
-        raise ValueError("nie znaleziono aktywnego #define DSP_MODEL w myoptions.h")
+    active_lcds = re.findall(
+        r"^\s*#define\s+(LCD_[A-Z0-9_]+)\s*(?://.*)?$",
+        text,
+        re.MULTILINE,
+    )
+    known_lcds = [lcd for lcd in active_lcds if lcd in LCD_DISPLAY_MODELS]
+    if len(known_lcds) > 1:
+        raise ValueError("wybrano wiecej niz jeden typ LCD: " + ", ".join(known_lcds))
 
-    model = model_match.group(1)
+    if known_lcds:
+        model = LCD_DISPLAY_MODELS[known_lcds[0]]
+    else:
+        models = re.findall(
+            r"^\s*#define\s+DSP_MODEL\s+(DSP_[A-Z0-9_]+)\s*(?://.*)?$",
+            text,
+            re.MULTILINE,
+        )
+        if len(models) != 1:
+            raise ValueError(
+                "nie mozna jednoznacznie ustalic aktywnego LCD/DSP_MODEL w myoptions.h"
+            )
+        model = models[0]
+
     if model not in DISPLAY_LOGO_SIZES or model not in DISPLAY_RESOLUTIONS:
         supported = ", ".join(DISPLAY_LOGO_SIZES)
         raise ValueError(f"brak konfiguracji logo dla {model}; obslugiwane: {supported}")
 
-    width = re.search(r"^\s*#define\s+STATION_LOGO_W\s+(\d+)\s*(?://.*)?$",
-                      text, re.MULTILINE)
-    height = re.search(r"^\s*#define\s+STATION_LOGO_H\s+(\d+)\s*(?://.*)?$",
-                       text, re.MULTILINE)
-    if width and height:
-        return (
-            int(width.group(1)),
-            int(height.group(1)),
-            "STATION_LOGO_W/H",
-            DISPLAY_RESOLUTIONS[model],
-        )
-    if bool(width) != bool(height):
-        raise ValueError("myoptions.h musi definiowac oba: STATION_LOGO_W i STATION_LOGO_H")
-
     width, height = DISPLAY_LOGO_SIZES[model]
     return width, height, model, DISPLAY_RESOLUTIONS[model]
 
-
-def parse_size(value: str):
-    match = re.fullmatch(r"(\d+)[xX](\d+)", value.strip())
-    if not match:
-        raise argparse.ArgumentTypeError("format: SZEROKOSCxWYSOKOSC, np. 90x60")
-    width, height = map(int, match.groups())
-    if width <= 0 or height <= 0:
-        raise argparse.ArgumentTypeError("wymiary musza byc wieksze od zera")
-    return width, height
 
 def png_to_rgb565(png_path: Path, bin_path: Path):
     img = Image.open(png_path).convert("RGB")
@@ -221,12 +221,12 @@ def png_to_rgb565(png_path: Path, bin_path: Path):
 def main():
     global TARGET_W, TARGET_H, Image
     parser = argparse.ArgumentParser(description="Konwersja logo stacji PNG do RGB565 RAW")
-    output_group = parser.add_mutually_exclusive_group()
-    output_group.add_argument(
-        "--size",
-        type=parse_size,
-        help="nadpisz rozmiar wynikowy, np. --size 90x60",
+    parser.add_argument(
+        "--copy-to-www",
+        action="store_true",
+        help="skopiuj wariant aktywnego DSP_MODEL do data/www",
     )
+    output_group = parser.add_mutually_exclusive_group()
     output_group.add_argument(
         "--resolution",
         choices=sorted(RESOLUTION_LOGO_SIZES),
@@ -240,12 +240,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        if args.size:
-            profiles = [
-                (f"custom-{args.size[0]}x{args.size[1]}",
-                 args.size[0], args.size[1], "parametr --size")
-            ]
-        elif args.resolution:
+        if args.resolution:
             width, height = RESOLUTION_LOGO_SIZES[args.resolution]
             profiles = [
                 (args.resolution, width, height, f"wariant LCD {args.resolution}")
@@ -335,6 +330,50 @@ def main():
         f"\nWygenerowano lacznie: {total_ok} plikow "
         f"w {len(profiles)} wariantach"
     )
+
+    if args.copy_to_www:
+        try:
+            width, height, model, resolution = read_logo_size(OPTIONS_FILE)
+            source_dir = OUT_ROOT / resolution
+            raw_files = sorted(source_dir.glob("*.raw"))
+            expected_size = width * height * 2
+
+            if not raw_files:
+                raise ValueError(f"brak plikow RAW w {source_dir}")
+            if not (source_dir / "logo_default.raw").is_file():
+                raise ValueError(f"brak {source_dir / 'logo_default.raw'}")
+
+            invalid = [
+                raw_file.name
+                for raw_file in raw_files
+                if raw_file.stat().st_size != expected_size
+            ]
+            if invalid:
+                raise ValueError(
+                    f"pliki o zlym rozmiarze (oczekiwano {expected_size} B): "
+                    + ", ".join(invalid[:5])
+                )
+
+            SPIFFS_WWW_DIR.mkdir(parents=True, exist_ok=True)
+            for raw_file in SPIFFS_WWW_DIR.glob("*.raw"):
+                raw_file.unlink()
+            for raw_file in raw_files:
+                shutil.copy2(raw_file, SPIFFS_WWW_DIR / raw_file.name)
+
+            copied_files = sorted(SPIFFS_WWW_DIR.glob("*.raw"))
+            if len(copied_files) != len(raw_files) or any(
+                raw_file.stat().st_size != expected_size for raw_file in copied_files
+            ):
+                raise ValueError("kontrola plikow docelowych data/www nie powiodla sie")
+
+            print(
+                f"Skopiowano i sprawdzono {len(raw_files)} plikow dla {model}, "
+                f"wariant {resolution} ({width}x{height}, {expected_size} B/plik) "
+                f"do {SPIFFS_WWW_DIR.resolve()}"
+            )
+        except (OSError, UnicodeError, ValueError) as error:
+            print(f"BLAD kopiowania do data/www: {error}")
+            sys.exit(4)
 
 if __name__ == "__main__":
     main()

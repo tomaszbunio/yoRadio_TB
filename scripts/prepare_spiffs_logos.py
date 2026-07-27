@@ -19,17 +19,38 @@ DISPLAY_VARIANTS = {
     "DSP_ST7796":  ("480x320", 120, 90),
 }
 
+LCD_DISPLAY_MODELS = {
+    "LCD_ILI9341": "DSP_ILI9341",
+    "LCD_ILI9488": "DSP_ILI9488",
+    "LCD_ST7796":  "DSP_ST7796",
+}
+
 
 def active_display_model():
     text = OPTIONS_FILE.read_text(encoding="utf-8")
-    match = re.search(
+    active_lcds = re.findall(
+        r"^\s*#define\s+(LCD_[A-Z0-9_]+)\s*(?://.*)?$",
+        text,
+        re.MULTILINE,
+    )
+    known_lcds = [lcd for lcd in active_lcds if lcd in LCD_DISPLAY_MODELS]
+    if len(known_lcds) > 1:
+        raise RuntimeError(
+            "wybrano wiecej niz jeden typ LCD: " + ", ".join(known_lcds)
+        )
+    if known_lcds:
+        return LCD_DISPLAY_MODELS[known_lcds[0]]
+
+    models = re.findall(
         r"^\s*#define\s+DSP_MODEL\s+(DSP_[A-Z0-9_]+)\s*(?://.*)?$",
         text,
         re.MULTILINE,
     )
-    if not match:
-        raise RuntimeError("nie znaleziono aktywnego DSP_MODEL w myoptions.h")
-    return match.group(1)
+    if len(models) != 1:
+        raise RuntimeError(
+            "nie mozna jednoznacznie ustalic aktywnego LCD/DSP_MODEL w myoptions.h"
+        )
+    return models[0]
 
 
 def prepare_spiffs_logos(source, target, env):

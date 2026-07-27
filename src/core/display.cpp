@@ -524,6 +524,10 @@ void Display::_swichMode(displayMode_e newmode) {
         // _nums->setText("");
         config.isScreensaver = false;
         if (_vuwidget) { _vuwidget->invalidate(); }
+        // PLAYER title widgets keep their text while the separate SD_PLAYER page is active.
+        // Clear the cached lines before activating PLAYER so stale title2 is not redrawn.
+        _title1->setText("");
+        if (_title2) { _title2->setText(""); }
         _pager->setPage(pages[PG_PLAYER]);
         // Returning from SD_PLAYER can leave stale pixels in the audio buffer bar area.
         // Force full widget reset so next draw starts from a clean baseline.
@@ -566,13 +570,6 @@ void Display::_swichMode(displayMode_e newmode) {
         _showDialog(LANG::const_DlgVolume);
     #else
         _showDialog(config.ipToStr(WiFi.localIP()));
-        #endif
-        #if DSP_MODEL != DSP_ILI9341
-        if (_chtxt) {
-            _chtxt->moveTo({(uint16_t)(chtxtConf.left >= 5 ? chtxtConf.left - 5 : 0), (uint16_t)(chtxtConf.top + 5), 0});
-            _chtxt->setTextSize(1);
-            _chtxt->setText(FIRMWARE_VERSION);
-        }
         #endif
         _nums->setText(volumeStepsToPercent(config.store.volume), numtxtFmt);
     }
@@ -1324,11 +1321,7 @@ void Display::loop() {
                             _fullbitrate->setFormat(config.configFmt);
                         }
                         if (_chtxt) {
-                            if (_mode == VOL) {
-                                _chtxt->setText(FIRMWARE_VERSION);
-                            } else {
-                                _chtxt->setText(config.lastStation(), "CH:%d");
-                            }
+                            _chtxt->setText(config.lastStation(), "CH:%d");
                         }
                     }
                 } break;

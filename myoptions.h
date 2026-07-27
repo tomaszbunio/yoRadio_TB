@@ -1,6 +1,6 @@
 
 #define VERSION v8.8.2_TB
-#define FIRMWARE_VERSION "8.8.2-build.1"
+#define FIRMWARE_VERSION "8.8.2-build.8"
 // clang-format off
 /*
    Read the before use !!!
@@ -20,9 +20,6 @@
 // Obrót obrazu o 180 stopni. Odkomentuj dla ILI9488 3,5" oraz ILI9341.
  #define SCREEN_ROTATE
 
-// #define HEAP_DBG
-// #define DEBUG_PROFILER       // Lekki profiler: display.loop/draw, web, main, player/audio, network
-// #define DEBUG_MODE_SWITCH   // Debug przełączania trybów (IR MENU / playlist return / display mode)
 
 /* You can set the program language here.
    Supported languages: HU NL PL RU EN GR SK DE UA ES. */
@@ -62,7 +59,7 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 */
 
 /*----- Touch ISP -----*/
- #define ENABLE_TOUCH
+ //#define ENABLE_TOUCH
  #define TS_MODEL TS_MODEL_XPT2046
  #define TS_CS    48
 
@@ -74,18 +71,18 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 // #define TS_INT     17 
 
 /*----- Touch corrections -----*/
- //#define X_TOUCH_MIRRORING
- //#define Y_TOUCH_MIRRORING
+//#define X_TOUCH_MIRRORING
+//#define Y_TOUCH_MIRRORING
 
 /*----- NEXTION DISPLAY serial port -----*/
 // #define NEXTION_RX			15
 // #define NEXTION_TX			16
 
-/*----- PCM5102A DAC: piny zależne od modelu wyświetlacza -----*/
+/*----- PCM5102A DAC -----*/
 
-  #define I2S_DOUT 16
-  #define I2S_BCLK 15
-  #define I2S_LRC  17
+#define I2S_DOUT 16
+#define I2S_BCLK 15
+#define I2S_LRC  17
 
 /* ENCODER 1 */
 #define ENC_BTNR      4  // S2
@@ -114,11 +111,11 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #include "myir_defaults.h"
 
 /*----- SD CARD -----*/
- #define SDC_CS     47////ILI9341 - 47, ILI9488 - 38
+ #define SDC_CS     47
  #define SD_SPI_SCK  12
  #define SD_SPI_MISO 13
  #define SD_SPI_MOSI 11
- #define SDSPISPEED 4000000 /* 4MHz - Slower speed to prevent display flicker on shared SPI bus */
+ #define SDSPISPEED 10000000 /* 4MHz - Slower speed to prevent display flicker on shared SPI bus */
  //#define DEBUG_SD    /* Comment this line to disable all SD debug output. */
 
  /*----- by Maciej Bednarski -----*/
@@ -245,7 +242,7 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
       "RMF FM"     →  /RMF_FM.png
     Plik domyślny (gdy brak logo stacji): /logo_default.png
     Wgrywanie: PlatformIO → Upload Filesystem Image, www → Settings/Board              */
-//#define STATION_LOGO_WIDGET
+#define STATION_LOGO_WIDGET
 #ifdef STATION_LOGO_WIDGET
   #define STATION_LOGO_X   1   // pozycja X lewego boku widgetu (px)
   #define STATION_LOGO_Y   104  // pozycja Y górnego boku widgetu (px)
