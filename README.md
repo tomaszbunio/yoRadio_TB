@@ -5,9 +5,7 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
 ## Moje zmiany: v8.8.2_TB
 
-- Dodano obsługę wyświetlacza ILI9341 320×240, w tym dopasowany ekran PLAYER i PRESET.
-- Dodano logo stacji dopasowane do rozdzielczości 320×240 oraz zaktualizowano narzędzia do ich konwersji.
-
+- Dodano obsługę wyświetlacza ILI9341 320×240.
 ---
 
 ## Moje zmiany: v8.8.1_TB
