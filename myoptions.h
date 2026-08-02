@@ -1,6 +1,6 @@
 
 #define VERSION v8.8.2_TB
-#define FIRMWARE_VERSION "8.8.2-build.1"
+#define FIRMWARE_VERSION "8.8.2-build.3"
 // clang-format off
 /*
    Read the before use !!!
@@ -43,6 +43,13 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 // #define HTTP_PASS ""               /* HTTP basic authentication password */
 
 /*----- LCD DISPLAY -----*/
+#ifndef DSP_ILI9341
+  #define DSP_ILI9341 9
+#endif
+#ifndef DSP_ILI9488
+  #define DSP_ILI9488 21
+#endif
+
 //#define DSP_MODEL DSP_ILI9488
 #define DSP_MODEL DSP_ILI9341
 // #define DSP_MODEL DSP_ST7796
@@ -54,7 +61,13 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 #define TFT_DC         9
 #define TFT_CS         10
 #define TFT_RST        -1
-#define BRIGHTNESS_PIN 14
+#if DSP_MODEL == DSP_ILI9341
+  #define BRIGHTNESS_PIN 14
+#elif DSP_MODEL == DSP_ILI9488
+  #define BRIGHTNESS_PIN 21
+#else
+  #error "Brak konfiguracji BRIGHTNESS_PIN dla wybranego DSP_MODEL/PCB"
+#endif
 /*
    GPIO 11 - MOSI
    GPIO 12 - CLK
@@ -81,12 +94,18 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 // #define NEXTION_RX			15
 // #define NEXTION_TX			16
 
-/*----- PCM5102A DAC: piny zależne od modelu wyświetlacza -----*/
-
+/*----- PCM5102A DAC: piny zależne od modelu płytki PCB/LCD -----*/
+#if DSP_MODEL == DSP_ILI9341
   #define I2S_DOUT 16
   #define I2S_BCLK 15
   #define I2S_LRC  17
-
+#elif DSP_MODEL == DSP_ILI9488
+  #define I2S_DOUT 16
+  #define I2S_BCLK 17
+  #define I2S_LRC  15
+#else
+  #error "Brak konfiguracji pinow PCM5102A dla wybranego DSP_MODEL/PCB"
+#endif
 /* ENCODER 1 */
 #define ENC_BTNR      4  // S2
 #define ENC_BTNL      5  // S1
@@ -108,13 +127,26 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 // #define RTC_MODULE DS3231
 
 /*----- REMOTE CONTROL INFRARED RECEIVER -----*/
-#define IR_PIN 21
+#if DSP_MODEL == DSP_ILI9341
+  #define IR_PIN 21
+#elif DSP_MODEL == DSP_ILI9488
+  #define IR_PIN 2
+#else
+  #error "Brak konfiguracji IR_PIN dla wybranego DSP_MODEL/PCB"
+#endif
 
 /* Built-in IR default mapping (loaded when IR EEPROM section is empty). */
 #include "myir_defaults.h"
 
 /*----- SD CARD -----*/
- #define SDC_CS     47////ILI9341 - 47, ILI9488 - 38
+#if DSP_MODEL == DSP_ILI9341
+  #define SDC_CS 47
+#elif DSP_MODEL == DSP_ILI9488
+  #define SDC_CS 38
+#else
+  #error "Brak konfiguracji SDC_CS dla wybranego DSP_MODEL/PCB"
+#endif
+
  #define SD_SPI_SCK  12
  #define SD_SPI_MISO 13
  #define SD_SPI_MOSI 11
@@ -245,7 +277,7 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
       "RMF FM"     →  /RMF_FM.png
     Plik domyślny (gdy brak logo stacji): /logo_default.png
     Wgrywanie: PlatformIO → Upload Filesystem Image, www → Settings/Board              */
-//#define STATION_LOGO_WIDGET
+#define STATION_LOGO_WIDGET
 #ifdef STATION_LOGO_WIDGET
   #define STATION_LOGO_X   1   // pozycja X lewego boku widgetu (px)
   #define STATION_LOGO_Y   104  // pozycja Y górnego boku widgetu (px)
@@ -273,7 +305,7 @@ When music is not playing (stopped or volume is 0), the pin is set to LOW. This 
   #define SD_COVER_SOURCE_LASTFM
 
   #ifdef SD_COVER_SOURCE_LASTFM
-    #define LASTFM_API_KEY "0b783abd18c1a0b35c2261b4d5a7a046"
+    #define LASTFM_API_KEY ""
     #define LASTFM_COVER_TIMEOUT_MS 5000
   #endif
   #define CORE_STACK_SIZE (1024 * 16)  // JPEGDEC decode needs larger DspTask stack
