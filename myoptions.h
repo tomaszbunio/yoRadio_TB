@@ -43,6 +43,13 @@ Supported languages: HU, PL, NL, GR, DE (UA Local/namedays/namedays_UA.h is not 
 // #define HTTP_PASS ""               /* HTTP basic authentication password */
 
 /*----- LCD DISPLAY -----*/
+#ifndef DSP_ILI9341
+  #define DSP_ILI9341 9
+#endif
+#ifndef DSP_ILI9488
+  #define DSP_ILI9488 21
+#endif
+
 //#define DSP_MODEL DSP_ILI9488
 #define DSP_MODEL DSP_ILI9341
 // #define DSP_MODEL DSP_ST7796
