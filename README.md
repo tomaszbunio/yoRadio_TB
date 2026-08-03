@@ -5,7 +5,7 @@ i [VaraiTamas](https://github.com/VaraiTamas/yoRadio).
 
 ## Moje zmiany: v8.8.2_TB
 
-- Dodano obsługę wyświetlacza ILI9341 320×240.
+- Dodano obsługę wyświetlacza ILI9341 320×240 do radia i konwertera logo. Po wybraniu LCD w myoptions.h uruchom convert_logos.bat, odpowiednie pliki logo pojawią się w katalogu www. Uploaduj je razem a plikami www.
 ---
 
 ## Moje zmiany: v8.8.1_TB

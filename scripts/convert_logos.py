@@ -16,6 +16,7 @@ Wymagania: pip install Pillow
 
 import argparse
 import re
+import shutil
 import struct
 import sys
 from pathlib import Path
@@ -31,6 +32,7 @@ DATA_DIR = PROJECT_DIR / "logos_src"
 OUT_ROOT = PROJECT_DIR / "logos_raw"
 OPTIONS_FILE = PROJECT_DIR / "myoptions.h"
 PLAYLIST_FILE = PROJECT_DIR / "data" / "data" / "playlist.csv"
+SPIFFS_WWW_DIR = PROJECT_DIR / "data" / "www"
 
 DISPLAY_LOGO_SIZES = {
     "DSP_ILI9341": (72, 48),
@@ -218,6 +220,44 @@ def png_to_rgb565(png_path: Path, bin_path: Path):
     kb = bin_path.stat().st_size / 1024
     print(f"  -> {bin_path.name} ({kb:.1f} KB)")
 
+
+def copy_active_variant_to_www():
+    width, height, size_source, resolution = read_logo_size(OPTIONS_FILE)
+    source_dir = OUT_ROOT / resolution
+    raw_files = sorted(source_dir.glob("*.[rR][aA][wW]"))
+    expected_size = width * height * 2
+
+    if not raw_files:
+        raise ValueError(f"brak plikow RAW w {source_dir}")
+    if not (source_dir / "logo_default.raw").is_file():
+        raise ValueError(f"brak wymaganego pliku {source_dir / 'logo_default.raw'}")
+
+    invalid = [
+        raw_file.name
+        for raw_file in raw_files
+        if raw_file.stat().st_size != expected_size
+    ]
+    if invalid:
+        preview = ", ".join(invalid[:5])
+        raise ValueError(
+            f"wariant {resolution} zawiera pliki o zlym rozmiarze "
+            f"(oczekiwano {expected_size} B): {preview}"
+        )
+
+    SPIFFS_WWW_DIR.mkdir(parents=True, exist_ok=True)
+    old_raw_files = list(SPIFFS_WWW_DIR.glob("*.[rR][aA][wW]"))
+    for raw_file in old_raw_files:
+        raw_file.unlink()
+    for raw_file in raw_files:
+        shutil.copy2(raw_file, SPIFFS_WWW_DIR / raw_file.name)
+
+    print(
+        f"\nKopiowanie do data/www: {size_source} -> {resolution}, "
+        f"skopiowano {len(raw_files)} plikow {width}x{height}, "
+        f"usunieto starych: {len(old_raw_files)}"
+    )
+
+
 def main():
     global TARGET_W, TARGET_H, Image
     parser = argparse.ArgumentParser(description="Konwersja logo stacji PNG do RGB565 RAW")
@@ -236,6 +276,11 @@ def main():
         "--all-resolutions",
         action="store_true",
         help="wygeneruj warianty dla wszystkich obslugiwanych rozdzielczosci LCD",
+    )
+    parser.add_argument(
+        "--copy-to-www",
+        action="store_true",
+        help="skopiuj wariant aktywnego DSP_MODEL do data/www",
     )
     args = parser.parse_args()
 
@@ -335,6 +380,12 @@ def main():
         f"\nWygenerowano lacznie: {total_ok} plikow "
         f"w {len(profiles)} wariantach"
     )
+    if args.copy_to_www:
+        try:
+            copy_active_variant_to_www()
+        except (OSError, UnicodeError, ValueError) as error:
+            print(f"BLAD kopiowania do data/www: {error}")
+            sys.exit(4)
 
 if __name__ == "__main__":
     main()
